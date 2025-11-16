@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "Modular AI agent platform with foundational base and specialized agents",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "dev": "npm run dev --workspace=packages/worker",
     "build": "npm run build --workspaces",

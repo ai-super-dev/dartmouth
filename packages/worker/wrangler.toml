@@ -1,0 +1,46 @@
+name = "agent-army-worker"
+main = "src/index.ts"
+compatibility_date = "2025-11-16"
+node_compat = true
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-army-db"
+database_id = "" # Set after creating database
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "APP_CONFIG"
+id = "" # Set after creating namespace
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "" # Set after creating namespace
+
+# R2 Buckets
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "agent-army-files"
+
+# Workers AI
+[ai]
+binding = "WORKERS_AI"
+
+# Observability
+[observability]
+enabled = true
+
+# Environment Variables (non-secret)
+[vars]
+ENVIRONMENT = "production"
+
+# Secrets (set via wrangler secret put)
+# - STRIPE_SECRET_KEY
+# - STRIPE_WEBHOOK_SECRET
+# - CLERK_SECRET_KEY
+# - JWT_SECRET
+# - OPENAI_API_KEY
+# - ANTHROPIC_API_KEY
+# - GOOGLE_API_KEY
+

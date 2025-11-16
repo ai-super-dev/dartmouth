@@ -10,7 +10,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-army/shared": "workspace:*",
     "hono": "^3.11.7",
     "zod": "^3.22.4"
   },
