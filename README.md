@@ -1,4 +1,6 @@
-# 🤖 Agent Army System
+# 🎓 Dartmouth - Agent Army System
+
+**Named after the birthplace of AI** - The 1956 Dartmouth Conference where John McCarthy coined "Artificial Intelligence"
 
 A modular, intelligent AI agent platform that enables businesses to deploy specialized conversational AI agents with zero hallucination, true memory, and enterprise-grade reliability.
 
