@@ -23,7 +23,7 @@ export class ResponseValidator {
 
     // Rule 1: Check for citations if RAG was used
     if (ragContext && ragContext.chunks.length > 0) {
-      const citationCheck = this.validateCitations(response.answer, ragContext)
+      const citationCheck = this.validateCitations(response.content, ragContext)
       if (!citationCheck.valid) {
         score -= 0.2
         unverifiedFacts.push('Response lacks proper citations from knowledge base')
@@ -34,7 +34,7 @@ export class ResponseValidator {
 
     // Rule 2: Validate calculations if present
     if (calculationData) {
-      const calcCheck = this.validateCalculations(response.answer, calculationData)
+      const calcCheck = this.validateCalculations(response.content, calculationData)
       if (!calcCheck.valid) {
         score -= 0.3
         unverifiedFacts.push('Calculations do not match provided data')
@@ -44,7 +44,7 @@ export class ResponseValidator {
     }
 
     // Rule 3: Check for hallucination patterns
-    const hallucinationCheck = this.detectHallucinations(response.answer)
+    const hallucinationCheck = this.detectHallucinations(response.content)
     if (hallucinationCheck.detected) {
       score -= 0.4
       unverifiedFacts.push(...hallucinationCheck.patterns)
@@ -53,7 +53,7 @@ export class ResponseValidator {
     }
 
     // Rule 4: Check response relevance to question
-    const relevanceScore = this.checkRelevance(originalQuestion, response.answer)
+    const relevanceScore = this.checkRelevance(originalQuestion, response.content)
     if (relevanceScore < 0.5) {
       score -= 0.2
       unverifiedFacts.push('Response may not be relevant to question')
@@ -62,7 +62,7 @@ export class ResponseValidator {
     }
 
     // Rule 5: Check for contradictions
-    const contradictionCheck = this.detectContradictions(response.answer)
+    const contradictionCheck = this.detectContradictions(response.content)
     if (contradictionCheck.found) {
       score -= 0.3
       unverifiedFacts.push('Response contains contradictions')
@@ -74,10 +74,12 @@ export class ResponseValidator {
     score = Math.max(0, Math.min(1, score))
 
     return {
-      passed: score >= 0.7,
+      isValid: score >= 0.7,
       score,
       verifiedFacts,
-      unverifiedFacts
+      unverifiedFacts,
+      issues: unverifiedFacts,
+      suggestedFix: score < 0.7 ? 'Please provide more specific information or rephrase your question.' : undefined
     }
   }
 

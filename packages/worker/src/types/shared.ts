@@ -71,7 +71,7 @@ export interface UserGoal {
 }
 
 export interface Response {
-  answer: string
+  content: string
   metadata: ResponseMetadata
   actions?: string[]
   suggestions?: Suggestion[]
@@ -126,9 +126,33 @@ export interface Chunk {
 export type FrustrationLevel = 'none' | 'mild' | 'moderate' | 'high' | 'critical'
 
 export interface ValidationResult {
-  passed: boolean
+  isValid: boolean
   score: number
   verifiedFacts: string[]
   unverifiedFacts: string[]
+  issues: string[]
+  suggestedFix?: string
+}
+
+export interface AgentConfig {
+  agentId: string
+  name: string
+  version: string
+  systemPrompt?: string
+  llmProvider?: 'openai' | 'anthropic' | 'google'
+  llmModel?: string
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface HandlerContext {
+  state: ConversationState
+  agentConfig: AgentConfig
+  env: any
+  stateManager: any
+  memorySystem: any
+  ragEngine: any
+  calculationEngine: any
+  frustrationHandler: any
 }
 
