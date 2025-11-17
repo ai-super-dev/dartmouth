@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CalculationHandler } from '../CalculationHandler';
 import { CalculationEngine } from '../../components/CalculationEngine';
+import { createMockHandlerContext, createMockIntent } from '../../__tests__/test-helpers';
 import type { HandlerContext } from '../../types/shared';
 
 describe('CalculationHandler', () => {
@@ -15,58 +16,30 @@ describe('CalculationHandler', () => {
 
   beforeEach(() => {
     handler = new CalculationHandler();
-    
-    mockContext = {
-      state: {
-        sessionId: 'test-session',
-        agentId: 'test-agent',
-        startedAt: new Date(),
-        lastMessageAt: new Date(),
-        lastActivityAt: new Date(),
-        expiresAt: new Date(Date.now() + 3600000),
-        messageCount: 0,
-        messages: [],
-        questionsAsked: [],
-        answersGiven: [],
-        intentsDetected: [],
-        currentTopic: undefined,
-        conversationPlan: undefined,
-        isGoalAchieved: false,
-        needsEscalation: false,
-        isMultiTurn: false,
-        previousSessions: [],
-        tags: [],
-      },
-      agentConfig: {
-        agentId: 'test-agent',
-        name: 'Test Agent',
-        version: '1.0.0',
-      },
-      env: {} as any,
-      stateManager: {} as any,
-      memorySystem: {} as any,
-      ragEngine: {} as any,
+    mockContext = createMockHandlerContext({
       calculationEngine: new CalculationEngine(),
-      frustrationHandler: {} as any,
-    };
+    });
   });
 
   describe('canHandle', () => {
     it('should handle calculation intents', () => {
-      const result = handler.canHandle('calculation', mockContext);
+      const intent = createMockIntent('calculation');
+      const result = handler.canHandle(intent);
       expect(result).toBe(true);
     });
 
     it('should not handle non-calculation intents', () => {
-      const result = handler.canHandle('greeting', mockContext);
+      const intent = createMockIntent('greeting');
+      const result = handler.canHandle(intent);
       expect(result).toBe(false);
     });
   });
 
   describe('handle', () => {
     it('should perform artwork calculations', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate print sizes for artwork 2000x3000 pixels at 300 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response).toBeDefined();
       expect(response.content).toBeDefined();
@@ -74,8 +47,9 @@ describe('CalculationHandler', () => {
     });
 
     it('should include calculation results in metadata', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'What sizes can I print 4000x6000 pixels at 300 DPI?';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.calculationResult).toBeDefined();
       expect(response.metadata.calculationResult.pixels).toBeDefined();
@@ -83,16 +57,18 @@ describe('CalculationHandler', () => {
     });
 
     it('should handle different DPI values', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 2000x2000 pixels at 150 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.calculationResult).toBeDefined();
       expect(response.metadata.calculationResult.dpi).toBe(150);
     });
 
     it('should provide quality assessments', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate print sizes for 3000x3000 pixels at 300 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.calculationResult.quality).toBeDefined();
       expect(response.metadata.calculationResult.quality.optimal).toBeDefined();
@@ -101,16 +77,18 @@ describe('CalculationHandler', () => {
     });
 
     it('should calculate multiple print sizes', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'What print sizes for 6000x4000 pixels at 300 DPI?';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.calculationResult.sizes).toBeDefined();
       expect(Object.keys(response.metadata.calculationResult.sizes).length).toBeGreaterThan(0);
     });
 
     it('should include handler metadata', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 1000x1000 at 72 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.handlerName).toBe('CalculationHandler');
       expect(response.metadata.handlerVersion).toBe('1.0.0');
@@ -118,17 +96,17 @@ describe('CalculationHandler', () => {
     });
 
     it('should handle low DPI warnings', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 1000x1000 at 72 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
-      const content = response.content.toLowerCase();
-      // Should mention quality concerns for low DPI
       expect(response.metadata.calculationResult.dpi).toBe(72);
     });
 
     it('should handle high resolution images', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 10000x10000 pixels at 300 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response.metadata.calculationResult.pixels.total).toBe(100000000);
       expect(response.content).toBeDefined();
@@ -137,33 +115,36 @@ describe('CalculationHandler', () => {
 
   describe('edge cases', () => {
     it('should handle missing dimension information', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate print sizes';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response).toBeDefined();
       expect(response.content).toBeDefined();
-      // Should ask for more information or use defaults
     });
 
     it('should handle invalid dimensions gracefully', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for -1000x2000 pixels';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response).toBeDefined();
       expect(response.content).toBeDefined();
     });
 
     it('should handle zero dimensions', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 0x0 pixels';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response).toBeDefined();
       expect(response.content).toBeDefined();
     });
 
     it('should handle extremely large dimensions', async () => {
+      const intent = createMockIntent('calculation');
       const message = 'Calculate for 100000x100000 pixels at 300 DPI';
-      const response = await handler.handle(message, 'calculation', mockContext);
+      const response = await handler.handle(message, intent, mockContext);
       
       expect(response).toBeDefined();
       expect(response.content).toBeDefined();
@@ -185,9 +166,7 @@ describe('CalculationHandler', () => {
       const engine = new CalculationEngine();
       const result = engine.preCompute('test', 3000, 2000, 300);
       
-      // 3000 pixels / 300 DPI = 10 inches
       expect(result.sizes).toBeDefined();
-      // Should have various print sizes calculated
     });
 
     it('should provide quality thresholds', async () => {
@@ -200,4 +179,3 @@ describe('CalculationHandler', () => {
     });
   });
 });
-

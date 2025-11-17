@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { IntentDetector } from '../IntentDetector';
+import { createMockConversationState } from '../../__tests__/test-helpers';
 import type { ConversationState } from '../../types/shared';
 
 describe('IntentDetector', () => {
@@ -14,27 +15,7 @@ describe('IntentDetector', () => {
 
   beforeEach(() => {
     detector = new IntentDetector();
-    
-    mockState = {
-      sessionId: 'test-session',
-      agentId: 'test-agent',
-      startedAt: new Date(),
-      lastMessageAt: new Date(),
-      lastActivityAt: new Date(),
-      expiresAt: new Date(Date.now() + 3600000),
-      messageCount: 0,
-      messages: [],
-      questionsAsked: [],
-      answersGiven: [],
-      intentsDetected: [],
-      currentTopic: undefined,
-      conversationPlan: undefined,
-      isGoalAchieved: false,
-      needsEscalation: false,
-      isMultiTurn: false,
-      previousSessions: [],
-      tags: [],
-    };
+    mockState = createMockConversationState();
   });
 
   describe('greeting detection', () => {
@@ -311,7 +292,7 @@ describe('IntentDetector', () => {
       mockState.messages = [
         { id: '1', role: 'user', content: 'Calculate sizes', timestamp: new Date() },
       ];
-      mockState.intentsDetected = ['calculation'];
+      mockState.intentsDetected = [{ type: 'calculation', confidence: 0.9 }];
       
       const intent = await detector.detect('what about 8x10?', mockState);
       expect(intent).toBeDefined();
