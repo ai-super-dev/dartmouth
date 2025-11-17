@@ -220,6 +220,32 @@ CREATE INDEX IF NOT EXISTS idx_feedback_rating ON feedback(rating);
 CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at);
 
 -- ============================================================================
+-- TABLE 9: AGENT_CONFIGS
+-- ============================================================================
+-- Stores agent configuration settings
+-- Each agent has customizable LLM settings and behavior
+
+CREATE TABLE IF NOT EXISTS agent_configs (
+  agent_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  description TEXT,
+  system_prompt TEXT,
+  llm_provider TEXT DEFAULT 'anthropic',
+  llm_model TEXT DEFAULT 'claude-3-5-sonnet-20241022',
+  temperature REAL DEFAULT 0.7,
+  max_tokens INTEGER DEFAULT 2000,
+  config_data TEXT,  -- JSON object for additional settings
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Indexes for agent_configs table
+CREATE INDEX IF NOT EXISTS idx_agent_configs_name ON agent_configs(name);
+CREATE INDEX IF NOT EXISTS idx_agent_configs_llm_provider ON agent_configs(llm_provider);
+CREATE INDEX IF NOT EXISTS idx_agent_configs_updated_at ON agent_configs(updated_at);
+
+-- ============================================================================
 -- TRIGGERS FOR UPDATED_AT TIMESTAMPS
 -- ============================================================================
 -- Automatically update the updated_at field when records are modified
@@ -256,6 +282,14 @@ BEGIN
   UPDATE documents SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
 
+-- Trigger for agent_configs table
+CREATE TRIGGER IF NOT EXISTS update_agent_configs_updated_at
+AFTER UPDATE ON agent_configs
+FOR EACH ROW
+BEGIN
+  UPDATE agent_configs SET updated_at = datetime('now') WHERE agent_id = NEW.agent_id;
+END;
+
 -- ============================================================================
 -- INITIAL DATA / SEED DATA (Optional)
 -- ============================================================================
@@ -269,9 +303,9 @@ END;
 -- MIGRATION COMPLETE
 -- ============================================================================
 -- Schema Version: 0001
--- Tables Created: 8
--- Indexes Created: 35
--- Triggers Created: 4
+-- Tables Created: 9
+-- Indexes Created: 38
+-- Triggers Created: 5
 -- Foreign Keys: 3
 -- 
 -- Next Steps:
