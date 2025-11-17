@@ -22,19 +22,24 @@ export class CalculationHandler implements Handler {
   ): Promise<Response> {
     const startTime = Date.now();
 
-    // Extract calculation parameters from message
-    const calcParams = this.extractCalculationParams(message);
+    // Extract calculation parameters from message (pixels and DPI)
+    const calcParams = this.extractArtworkParams(message);
 
     // Use CalculationEngine for accurate calculations
     let result: any;
     let responseText: string;
 
     if (calcParams && context.calculationEngine) {
-      // Perform calculation using the engine
-      result = await this.performCalculation(calcParams, context.calculationEngine);
+      // Use CalculationEngine.preCompute for artwork calculations
+      result = context.calculationEngine.preCompute(
+        'artwork-' + Date.now(),
+        calcParams.widthPixels,
+        calcParams.heightPixels,
+        calcParams.dpi
+      );
       responseText = this.formatCalculationResponse(result, calcParams);
     } else {
-      responseText = "I can help with calculations, but I need more specific information. What would you like me to calculate?";
+      responseText = "I can help with print size calculations. Please provide artwork dimensions in pixels and desired DPI (e.g., '4000x6000 pixels at 300 DPI').";
     }
 
     return {
@@ -50,72 +55,47 @@ export class CalculationHandler implements Handler {
     };
   }
 
-  private extractCalculationParams(message: string): any {
-    // Simple extraction - in production would use more sophisticated parsing
-    const numberPattern = /(\d+\.?\d*)/g;
-    const numbers = message.match(numberPattern);
-
-    if (!numbers || numbers.length === 0) {
-      return null;
-    }
-
-    return {
-      numbers: numbers.map(n => parseFloat(n)),
-      operation: this.detectOperation(message)
-    };
-  }
-
-  private detectOperation(message: string): string {
-    const msg = message.toLowerCase();
+  private extractArtworkParams(message: string): { widthPixels: number; heightPixels: number; dpi: number } | null {
+    // Extract dimensions like "4000x6000 pixels" or "2000 x 3000 px"
+    const dimensionPattern = /(\d+)\s*x\s*(\d+)\s*(pixels?|px)?/i;
+    const dimensionMatch = message.match(dimensionPattern);
     
-    if (msg.includes('add') || msg.includes('plus') || msg.includes('+')) {
-      return 'add';
-    } else if (msg.includes('subtract') || msg.includes('minus') || msg.includes('-')) {
-      return 'subtract';
-    } else if (msg.includes('multiply') || msg.includes('times') || msg.includes('*')) {
-      return 'multiply';
-    } else if (msg.includes('divide') || msg.includes('/')) {
-      return 'divide';
-    } else if (msg.includes('dpi') || msg.includes('resolution')) {
-      return 'dpi';
+    // Extract DPI like "at 300 DPI" or "300dpi"
+    const dpiPattern = /(\d+)\s*dpi/i;
+    const dpiMatch = message.match(dpiPattern);
+    
+    if (dimensionMatch) {
+      const width = parseInt(dimensionMatch[1]);
+      const height = parseInt(dimensionMatch[2]);
+      const dpi = dpiMatch ? parseInt(dpiMatch[1]) : 300; // Default to 300 DPI
+      
+      return {
+        widthPixels: width,
+        heightPixels: height,
+        dpi
+      };
     }
     
-    return 'unknown';
+    return null;
   }
 
-  private async performCalculation(params: any, engine: any): Promise<any> {
-    const { numbers, operation } = params;
+  private formatCalculationResponse(result: any, params: any): string {
+    if (!result || !result.sizes) {
+      return "I couldn't perform that calculation. Could you provide artwork dimensions and DPI?";
+    }
 
-    switch (operation) {
-      case 'add':
-        return { result: numbers.reduce((a: number, b: number) => a + b, 0), operation: 'addition' };
-      case 'subtract':
-        return { result: numbers.reduce((a: number, b: number) => a - b), operation: 'subtraction' };
-      case 'multiply':
-        return { result: numbers.reduce((a: number, b: number) => a * b, 1), operation: 'multiplication' };
-      case 'divide':
-        return { result: numbers.reduce((a: number, b: number) => a / b), operation: 'division' };
-      case 'dpi':
-        // Use CalculationEngine for DPI calculations
-        if (engine.calculateDPI) {
-          return engine.calculateDPI(numbers[0], numbers[1]);
+    // Format response with print sizes
+    const sizeList = Object.entries(result.sizes as Record<string, any>)
+      .map(([size, data]: [string, any]) => {
+        if (data.available) {
+          return `${size}: ${data.widthCm}cm x ${data.heightCm}cm (${data.widthIn}" x ${data.heightIn}")`;
         }
-        return { result: 'DPI calculation not available', operation: 'dpi' };
-      default:
         return null;
-    }
-  }
+      })
+      .filter(Boolean)
+      .join(', ');
 
-  private formatCalculationResponse(result: any, _params: any): string {
-    if (!result) {
-      return "I couldn't perform that calculation. Could you provide more details?";
-    }
-
-    if (result.operation === 'dpi') {
-      return `The DPI for those dimensions is ${result.result}.`;
-    }
-
-    return `The result of the ${result.operation} is ${result.result}.`;
+    return `For artwork ${params.widthPixels}x${params.heightPixels} pixels at ${params.dpi} DPI, you can print: ${sizeList}`;
   }
 }
 
