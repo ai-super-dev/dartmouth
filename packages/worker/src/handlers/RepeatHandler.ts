@@ -8,7 +8,7 @@ import type { Intent, Response } from '../types/shared';
 import type { Handler, HandlerContext } from '../components/ResponseRouter';
 
 export class RepeatHandler implements Handler {
-  name = 'repeat';
+  name = 'RepeatHandler';
   version = '1.0.0';
 
   canHandle(intent: Intent): boolean {

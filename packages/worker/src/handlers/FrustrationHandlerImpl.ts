@@ -8,7 +8,7 @@ import type { Intent, Response } from '../types/shared';
 import type { Handler, HandlerContext } from '../components/ResponseRouter';
 
 export class FrustrationHandlerImpl implements Handler {
-  name = 'frustration';
+  name = 'FrustrationHandler';
   version = '1.0.0';
 
   canHandle(intent: Intent): boolean {

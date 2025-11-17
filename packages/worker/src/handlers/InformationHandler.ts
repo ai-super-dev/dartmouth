@@ -8,7 +8,7 @@ import type { Intent, Response } from '../types/shared';
 import type { Handler, HandlerContext } from '../components/ResponseRouter';
 
 export class InformationHandler implements Handler {
-  name = 'information';
+  name = 'InformationHandler';
   version = '1.0.0';
 
   canHandle(intent: Intent): boolean {

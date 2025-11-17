@@ -145,7 +145,9 @@ export class BaseAgent {
 
     try {
       // STEP 1: Load or Create Session
-      this.state = await this.loadOrCreateSession(sessionId);
+      // If no sessionId provided, try to reuse existing session from previous call
+      const effectiveSessionId = sessionId || this.state?.sessionId;
+      this.state = await this.loadOrCreateSession(effectiveSessionId);
       console.log(`[BaseAgent] Session loaded: ${this.state.sessionId}`);
 
       // STEP 2: Create Message Object
@@ -292,10 +294,18 @@ export class BaseAgent {
         console.log(`[BaseAgent] Loaded existing session: ${sessionId}`);
         return existingState;
       }
-      console.warn(`[BaseAgent] Session ${sessionId} not found, creating new session`);
+      // If sessionId was provided but not found, create a new session with that ID
+      console.log(`[BaseAgent] Creating session with provided ID: ${sessionId}`);
+      const newState = await this.stateManager.createSession(
+        this.agentId,
+        this.tenantId,
+        this.userId,
+        sessionId  // Pass the sessionId to use it
+      );
+      return newState;
     }
 
-    // Create new session
+    // Create new session with auto-generated ID
     const newState = await this.stateManager.createSession(
       this.agentId,
       this.tenantId,

@@ -24,10 +24,10 @@ export class ConversationStateManager {
     this.db = db;
   }
 
-  private createEmptyState(): ConversationState {
+  private createEmptyState(sessionId?: string): ConversationState {
     const now = new Date();
     return {
-      sessionId: crypto.randomUUID(),
+      sessionId: sessionId || crypto.randomUUID(),
       agentId: 'default', // Will be set by agent config
       tenantId: 'default', // Will be set by auth
       startedAt: now,
@@ -63,8 +63,8 @@ export class ConversationStateManager {
    * @param userId Optional user ID.
    * @returns The initial conversation state.
    */
-  async createSession(agentId: string, tenantId: string, userId?: string): Promise<ConversationState> {
-    const newState = this.createEmptyState();
+  async createSession(agentId: string, tenantId: string, userId?: string, sessionId?: string): Promise<ConversationState> {
+    const newState = this.createEmptyState(sessionId);
     newState.agentId = agentId;
     newState.tenantId = tenantId;
     if (userId) newState.userId = userId;

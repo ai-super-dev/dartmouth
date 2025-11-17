@@ -8,7 +8,7 @@ import type { Intent, Response } from '../types/shared';
 import type { Handler, HandlerContext } from '../components/ResponseRouter';
 
 export class FallbackHandler implements Handler {
-  name = 'fallback';
+  name = 'FallbackHandler';
   version = '1.0.0';
 
   canHandle(_intent: Intent): boolean {

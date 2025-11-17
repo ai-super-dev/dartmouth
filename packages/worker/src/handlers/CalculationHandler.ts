@@ -8,11 +8,11 @@ import type { Intent, Response } from '../types/shared';
 import type { Handler, HandlerContext } from '../components/ResponseRouter';
 
 export class CalculationHandler implements Handler {
-  name = 'calculation';
+  name = 'CalculationHandler';
   version = '1.0.0';
 
   canHandle(intent: Intent): boolean {
-    return intent.type === 'calculation' && intent.requiresCalculation === true;
+    return intent.type === 'calculation';
   }
 
   async handle(
