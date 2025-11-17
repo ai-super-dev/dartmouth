@@ -7,21 +7,21 @@ node_compat = true
 [[d1_databases]]
 binding = "DB"
 database_name = "agent-army-db"
-database_id = "" # Set after creating database
+database_id = "7cf1c2ab-a284-49bb-8484-ade563391cb2"
 
 # KV Namespaces
 [[kv_namespaces]]
 binding = "APP_CONFIG"
-id = "" # Set after creating namespace
+id = "b70d8a2961bd4394a13f9c0f6002bef7"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "" # Set after creating namespace
+id = "4dde59b47cc34c9495aba50d7312df1d"
 
-# R2 Buckets
-[[r2_buckets]]
-binding = "FILES"
-bucket_name = "agent-army-files"
+# R2 Buckets (enable R2 in Cloudflare Dashboard first)
+# [[r2_buckets]]
+# binding = "FILES"
+# bucket_name = "agent-army-files"
 
 # Workers AI
 [ai]
