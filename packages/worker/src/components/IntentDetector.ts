@@ -60,6 +60,15 @@ export class IntentDetector {
       }
     }
 
+    // Follow-up patterns (check early - high priority)
+    if (this.isFollowUp(message)) {
+      return {
+        type: 'followup',
+        confidence: 0.70,
+        entities: {}
+      }
+    }
+
     // How-to patterns
     if (this.isHowTo(message)) {
       return {
@@ -67,6 +76,15 @@ export class IntentDetector {
         confidence: 0.80,
         requiresRAG: true,
         entities: this.extractHowToEntities(message)
+      }
+    }
+
+    // Frustration patterns (check before troubleshooting)
+    if (this.isFrustration(message)) {
+      return {
+        type: 'frustration',
+        confidence: 0.85,
+        entities: {}
       }
     }
 
@@ -89,20 +107,21 @@ export class IntentDetector {
       }
     }
 
-    // Follow-up patterns
-    if (this.isFollowUp(message)) {
+    // Check if message is gibberish/unknown
+    if (this.isUnknown(message)) {
       return {
-        type: 'followup',
-        confidence: 0.70,
+        type: 'unknown',
+        confidence: 0.30,
         entities: {}
       }
     }
 
-    // Frustration patterns
-    if (this.isFrustration(message)) {
+    // Information request patterns
+    if (this.isInformation(message)) {
       return {
-        type: 'frustration',
-        confidence: 0.85,
+        type: 'information',
+        confidence: 0.75,
+        requiresRAG: true,
         entities: {}
       }
     }
@@ -188,14 +207,21 @@ export class IntentDetector {
    * Check if message is a calculation request
    */
   private isCalculation(message: string): boolean {
+    // Don't match "what is X?" questions - those are information requests
+    if (/^what is /i.test(message)) {
+      return false
+    }
+    
     const calculationPatterns = [
-      /what (is|would be) the dpi/i,
-      /calculate.*dpi/i,
-      /dpi (at|for|if)/i,
-      /what size (at|for|if)/i,
-      /how (big|large|wide|tall)/i,
+      /calculate/i,
+      /what.*dpi (do i need|should i use|for)/i,
+      /dpi (at|for|if|do i need|should i use)/i,
+      /what size/i,
+      /how (big|large|wide|tall|many pixels)/i,
       /max(imum)? size/i,
-      /\d+\s*(cm|inch|in|px|pixel)/i
+      /print size/i,
+      /\d+\s*(cm|inch|in|px|pixel)/i,
+      /(width|height|dimension).*\d+/i
     ]
     return calculationPatterns.some(pattern => pattern.test(message))
   }
@@ -209,6 +235,9 @@ export class IntentDetector {
       /how (do i|can i)/i,
       /what('s| is) the (best )?way to/i,
       /can you (show|tell|explain)/i,
+      /show me how/i,
+      /teach me/i,
+      /tutorial/i,
       /steps to/i,
       /guide (for|to)/i
     ]
@@ -232,11 +261,13 @@ export class IntentDetector {
    */
   private isRepeat(message: string): boolean {
     const repeatPatterns = [
-      /^(what|huh|pardon|sorry|excuse me)/i,
+      /^(what\?|huh\??|pardon\??|sorry\??|excuse me\??)$/i,
+      /^what did you (say|mean)/i,
       /can you repeat/i,
       /say that again/i,
       /didn't (understand|get|catch)/i,
-      /^again/i
+      /^again\??$/i,
+      /^come again/i
     ]
     return repeatPatterns.some(pattern => pattern.test(message))
   }
@@ -261,11 +292,77 @@ export class IntentDetector {
       /(frustrated|annoyed|confused|lost)/i,
       /(don't understand|doesn't make sense|not helping)/i,
       /(give up|never mind|forget it)/i,
+      /(doesn't work|not working|won't work)/i,
+      /(terrible|awful|useless|horrible)/i,
+      /help!.*not working/i,
+      /nothing.*working/i,
       /!!+/,
       /\?\?+/,
       /(ugh|argh|grrr)/i
     ]
     return frustrationPatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Check if message is an information request
+   */
+  private isInformation(message: string): boolean {
+    const informationPatterns = [
+      /^what is /i,
+      /^what are /i,
+      /tell me about/i,
+      /explain/i,
+      /define/i,
+      /^who is /i,
+      /^who are /i,
+      /^where is /i,
+      /^when is /i,
+      /^why is /i
+    ]
+    return informationPatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Check if message is gibberish/unknown
+   */
+  private isUnknown(message: string): boolean {
+    // Check for gibberish patterns
+    const words = message.split(/\s+/)
+    const cleanMessage = message.replace(/\s/g, '').toLowerCase()
+    
+    // If message is very short and has no recognizable words
+    if (words.length <= 3 && cleanMessage.length >= 5) {
+      // Check vowel/consonant ratio for gibberish detection
+      const vowels = (cleanMessage.match(/[aeiou]/g) || []).length
+      const consonants = (cleanMessage.match(/[bcdfghjklmnpqrstvwxyz]/g) || []).length
+      const total = vowels + consonants
+      
+      if (total > 0) {
+        const vowelRatio = vowels / total
+        // Gibberish typically has very low or very high vowel ratios
+        if (vowelRatio < 0.15 || vowelRatio > 0.85) {
+          return true
+        }
+      }
+      
+      // Check for keyboard mashing patterns (adjacent keys)
+      const keyboardRows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm']
+      for (const row of keyboardRows) {
+        if (row.includes(cleanMessage)) {
+          return true
+        }
+      }
+      
+      // Random numbers and letters mixed
+      if (/^[a-z0-9]{3,}$/i.test(cleanMessage) && /\d/.test(cleanMessage) && /[a-z]/i.test(cleanMessage)) {
+        const digitRatio = (cleanMessage.match(/\d/g) || []).length / cleanMessage.length
+        if (digitRatio > 0.3) {
+          return true
+        }
+      }
+    }
+    
+    return false
   }
 
   /**
