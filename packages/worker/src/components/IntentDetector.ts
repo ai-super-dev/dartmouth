@@ -143,6 +143,16 @@ export class IntentDetector {
     message: string,
     state: ConversationState
   ): Intent {
+    // DON'T trigger frustration just because of conversation length
+    // Only trigger if there's ACTUAL frustration in the message
+    if (intent.type === 'frustration') {
+      // Only keep frustration if message explicitly shows frustration
+      if (!this.isFrustration(message)) {
+        // Redetect without context
+        return this.detectByPattern(message);
+      }
+    }
+
     // If this is a follow-up, inherit context from previous question
     if (intent.type === 'followup' && state.questionsAsked.length > 0) {
       const lastQuestion = state.questionsAsked[state.questionsAsked.length - 1]
