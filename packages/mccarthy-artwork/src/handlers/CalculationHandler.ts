@@ -86,26 +86,49 @@ export class CalculationHandler implements Handler {
   }
 
   private formatCalculationResponse(result: any, params: any): string {
-    if (!result || !result.sizes) {
+    if (!result || !result.maxSizes) {
       return "I couldn't perform that calculation. Could you provide artwork dimensions and DPI?";
     }
 
-    // Format response with print sizes
-    const sizeList = Object.entries(result.sizes as Record<string, any>)
-      .map(([sizeName, data]: [string, any]) => {
-        return `${sizeName} (${data.widthCm}cm x ${data.heightCm}cm / ${data.widthInches.toFixed(2)}" x ${data.heightInches.toFixed(2)}" at ${data.dpi} DPI - ${data.quality})`;
-      })
-      .join('\n- ');
+    // Get the actual size at the user's DPI
+    const actualDPI = params.dpi;
+    const widthInches = params.widthPixels / actualDPI;
+    const heightInches = params.heightPixels / actualDPI;
+    const widthCm = widthInches * 2.54;
+    const heightCm = heightInches * 2.54;
 
-    // Also show maximum sizes
-    const maxSizes = result.maxSizes ? Object.entries(result.maxSizes)
-      .slice(0, 3)  // Show first 3
-      .map(([name, data]: [string, any]) => 
-        `${data.widthCm.toFixed(2)}cm x ${data.heightCm.toFixed(2)}cm (${data.widthInches.toFixed(2)}" x ${data.heightInches.toFixed(2)}") at ${data.dpi} DPI`)
-      .join('\n- ')
-      : '';
+    // Determine quality based on DPI
+    let quality = 'optimal';
+    let qualityAdvice = '';
+    
+    if (actualDPI >= 250) {
+      quality = 'optimal';
+      qualityAdvice = "That's excellent quality for professional printing! 🎨";
+    } else if (actualDPI >= 200) {
+      quality = 'good';
+      qualityAdvice = "That's good quality - suitable for most printing needs.";
+    } else if (actualDPI >= 150) {
+      quality = 'acceptable';
+      qualityAdvice = "This will work for larger prints viewed from a distance, but you might notice some pixelation up close.";
+    } else {
+      quality = 'poor';
+      qualityAdvice = "⚠️ Heads up - 72 DPI is really low for printing. You'll likely see pixelation and the print won't look sharp. For best results, I'd recommend at least 200 DPI, ideally 300 DPI.";
+    }
 
-    return `At ${params.dpi} DPI, your ${params.widthPixels}x${params.heightPixels} pixel artwork can be printed at:\n\n- ${maxSizes}\n\nThese sizes maintain optimal print quality!`;
+    // Format the response with personality
+    let response = `Great question! Let me break this down for you:\n\n`;
+    response += `📐 **Your Artwork:** ${params.widthPixels} x ${params.heightPixels} pixels at ${actualDPI} DPI\n\n`;
+    response += `📏 **Print Size:** ${widthCm.toFixed(2)}cm x ${heightCm.toFixed(2)}cm (${widthInches.toFixed(2)}" x ${heightInches.toFixed(2)}")\n\n`;
+    response += `✨ **Quality:** ${quality.toUpperCase()}\n${qualityAdvice}`;
+
+    // Add recommendations for low DPI
+    if (actualDPI < 200) {
+      const recommendedWidth = (params.widthPixels / 300).toFixed(2);
+      const recommendedHeight = (params.heightPixels / 300).toFixed(2);
+      response += `\n\n💡 **My Recommendation:** For sharp, professional prints, try printing at ${recommendedWidth}" x ${recommendedHeight}" (at 300 DPI) instead. The smaller size will look much better!`;
+    }
+
+    return response;
   }
 }
 
