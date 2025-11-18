@@ -18,13 +18,15 @@ export class FrustrationHandler {
     let score = 0
 
     // Factor 1: Frustration keywords
+    // NOTE: Made VERY conservative to match IntentDetector patterns
+    // Punctuation alone (!!!, ???) is NOT frustration - it's just emphasis
     const frustrationKeywords = [
-      { pattern: /frustrated|annoyed|confused|lost/i, weight: 2 },
-      { pattern: /don't understand|doesn't make sense|not helping/i, weight: 3 },
-      { pattern: /give up|never mind|forget it/i, weight: 4 },
-      { pattern: /!!+/, weight: 2 },
-      { pattern: /\?\?+/, weight: 2 },
-      { pattern: /(ugh|argh|grrr)/i, weight: 2 }
+      { pattern: /\b(frustrated|annoyed)\b/i, weight: 3 },  // Explicit frustration only
+      { pattern: /(give up|never mind|forget it)/i, weight: 4 },  // Giving up
+      { pattern: /(terrible|awful|useless|horrible|worst)/i, weight: 3 },  // Strong negative
+      { pattern: /(ugh|argh|grrr)/i, weight: 2 },  // Frustration sounds
+      { pattern: /this (is|isn't) working/i, weight: 3 },  // Explicit "not working"
+      { pattern: /nothing (is )?working/i, weight: 3 }  // "nothing working"
     ]
 
     for (const { pattern, weight } of frustrationKeywords) {

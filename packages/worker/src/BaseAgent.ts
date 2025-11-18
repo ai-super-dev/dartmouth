@@ -287,6 +287,12 @@ export class BaseAgent {
         } else {
           console.log(`[BaseAgent] Mild frustration noted, but not overriding intent`);
         }
+      } else {
+        // Reset frustration flag when user is no longer frustrated
+        if (this.state.isFrustrationDetected) {
+          console.log(`[BaseAgent] Frustration resolved - resetting flag`);
+          this.state.isFrustrationDetected = false;
+        }
       }
 
       // STEP 7: Build Handler Context
