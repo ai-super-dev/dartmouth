@@ -1,12 +1,19 @@
 /**
- * Services Exports
+ * Services
  * 
- * Central export point for all services
+ * Agent routing and orchestration services
  */
 
-export { LLMService } from './LLMService';
-export { DatabaseManager } from './DatabaseManager';
-export { ConfigManager } from './ConfigManager';
-export type { LLMProvider, LLMConfig, LLMContext, LLMResponse } from './LLMService';
-export type { ConfigValidationResult, ConfigTemplate } from './ConfigManager';
+export { AgentRegistry } from './AgentRegistry';
+export type { McCarthyAgent, McCarthyAgentMetadata } from './AgentRegistry';
 
+export { AgentRouter } from './AgentRouter';
+export type { RoutingDecision } from './AgentRouter';
+
+export { AgentOrchestrator } from './AgentOrchestrator';
+export type {
+  OrchestrationPlan,
+  OrchestrationStep,
+  OrchestrationResult,
+  StepResult
+} from './AgentOrchestrator';

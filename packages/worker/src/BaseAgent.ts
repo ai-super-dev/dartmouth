@@ -29,6 +29,7 @@ import { RepetitionDetector } from './components/RepetitionDetector';
 import { FrustrationHandler } from './components/FrustrationHandler';
 import { ConversationQualityValidator } from './components/ConversationQualityValidator';
 import { EmpathyInjector } from './components/EmpathyInjector';
+import { AgentRegistry, AgentRouter, AgentOrchestrator } from './services';
 import { 
   GreetingHandler, 
   FallbackHandler, 
@@ -76,6 +77,11 @@ export class BaseAgent {
   private conversationQualityValidator: ConversationQualityValidator;
   private empathyInjector: EmpathyInjector;
 
+  // Agent Routing System (MCCARTHY AGENT ORCHESTRATION)
+  private agentRegistry: AgentRegistry;
+  private agentRouter: AgentRouter;
+  private agentOrchestrator: AgentOrchestrator;
+
   // Configuration
   private agentId: string;
   private tenantId: string;
@@ -110,8 +116,16 @@ export class BaseAgent {
     this.conversationQualityValidator = new ConversationQualityValidator();
     this.empathyInjector = new EmpathyInjector();
 
+    // Initialize Agent Routing System (MCCARTHY AGENT ORCHESTRATION)
+    this.agentRegistry = new AgentRegistry();
+    this.agentOrchestrator = new AgentOrchestrator();
+    this.agentRouter = new AgentRouter(this.agentRegistry, this.agentOrchestrator);
+
     // Register all handlers
     this.registerHandlers();
+    
+    // Register McCarthy agents (will be populated in Phase 6)
+    this.registerMcCarthyAgents();
 
     console.log(`[BaseAgent] Initialized for agent: ${this.agentId}, tenant: ${this.tenantId}`);
   }
@@ -133,6 +147,25 @@ export class BaseAgent {
     this.responseRouter.setDefaultHandler(new FallbackHandler());
 
     console.log('[BaseAgent] Foundation handlers registered (greeting, repeat, frustration, fallback)');
+  }
+
+  /**
+   * Register McCarthy agents
+   * 
+   * NOTE: This is where specialized agents are registered.
+   * In Phase 6, we'll register the McCarthy Artwork Analyzer here.
+   */
+  private registerMcCarthyAgents(): void {
+    // No McCarthy agents registered yet
+    // Will be populated in Phase 6
+    console.log('[BaseAgent] McCarthy agent registry initialized (0 agents registered)');
+  }
+
+  /**
+   * Get agent registry (for external agent registration)
+   */
+  getAgentRegistry(): AgentRegistry {
+    return this.agentRegistry;
   }
 
   /**
