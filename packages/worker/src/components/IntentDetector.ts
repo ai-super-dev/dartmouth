@@ -165,19 +165,19 @@ export class IntentDetector {
       }
     }
 
-    // If this is a follow-up, inherit context from previous question
+    // If this is a follow-up, mark it as 'information' so LLM handles it with full context
+    // DON'T inherit the previous handler type - the LLM is better at understanding context
     if (intent.type === 'followup' && state.questionsAsked.length > 0) {
       const lastQuestion = state.questionsAsked[state.questionsAsked.length - 1]
       return {
         ...intent,
-        type: lastQuestion.intent.type,
-        confidence: Math.max(intent.confidence, 0.75),
-        requiresArtworkData: lastQuestion.intent.requiresArtworkData,
-        requiresRAG: lastQuestion.intent.requiresRAG,
-        requiresCalculation: lastQuestion.intent.requiresCalculation,
+        type: 'information',  // Route to LLM, not to previous handler
+        confidence: 0.85,
+        requiresContext: true,
         entities: {
-          ...lastQuestion.intent.entities,
-          followUpContext: true
+          followUpContext: true,
+          previousIntent: lastQuestion.intent.type,
+          conversationHistory: true
         }
       }
     }
