@@ -611,6 +611,12 @@ export class BaseAgent {
    * Determine if we should use LLM fallback instead of handler response
    */
   private shouldUseLLMFallback(response: Response, intent: any): boolean {
+    // NEVER use LLM fallback for these specific intents - they have dedicated handlers
+    const noLLMIntents = ['calculation', 'greeting', 'farewell', 'frustration'];
+    if (noLLMIntents.includes(intent.type)) {
+      return false;
+    }
+
     // Use LLM for fallback/unknown intents
     if (intent.type === 'unknown' || intent.type === 'information') {
       return true;
