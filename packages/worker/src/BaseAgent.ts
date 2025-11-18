@@ -28,6 +28,9 @@ import { RAGEngine } from './components/RAGEngine';
 import { RepetitionDetector } from './components/RepetitionDetector';
 import { FrustrationHandler } from './components/FrustrationHandler';
 import { CalculationEngine } from './components/CalculationEngine';
+import { ConversationQualityValidator } from './components/ConversationQualityValidator';
+import { EmpathyInjector } from './components/EmpathyInjector';
+import { PersonalityPrompt } from './components/PersonalityPrompt';
 import { 
   GreetingHandler, 
   FallbackHandler, 
@@ -74,6 +77,10 @@ export class BaseAgent {
   private repetitionDetector: RepetitionDetector;
   private frustrationHandler: FrustrationHandler;
   private calculationEngine: CalculationEngine;
+  
+  // Conversation Quality System (THE HEART OF DARTMOUTH)
+  private conversationQualityValidator: ConversationQualityValidator;
+  private empathyInjector: EmpathyInjector;
 
   // Configuration
   private agentId: string;
@@ -105,6 +112,10 @@ export class BaseAgent {
     this.repetitionDetector = new RepetitionDetector();
     this.frustrationHandler = new FrustrationHandler();
     this.calculationEngine = new CalculationEngine();
+    
+    // Initialize Conversation Quality System (THE HEART OF DARTMOUTH)
+    this.conversationQualityValidator = new ConversationQualityValidator();
+    this.empathyInjector = new EmpathyInjector();
 
     // Register all handlers
     this.registerHandlers();
@@ -201,7 +212,51 @@ export class BaseAgent {
       let response = await this.responseRouter.route(message, intent, context);
       console.log(`[BaseAgent] Handler response generated (${response.content.length} chars)`);
 
-      // STEP 9: Validate Response
+      // STEP 9: Add Empathy (THE HEART OF DARTMOUTH)
+      const userSentiment = this.empathyInjector.detectSentiment(
+        message,
+        this.state.messages.map(m => m.content)
+      );
+      
+      const empathyContext = {
+        sentiment: userSentiment,
+        isFirstMessage: this.state.messages.length === 1,
+        hasIssue: intent.type === 'frustration' || intent.type === 'complaint',
+        isUrgent: message.toLowerCase().includes('urgent') || message.toLowerCase().includes('asap'),
+        conversationLength: this.state.messages.length
+      };
+      
+      response.content = this.empathyInjector.addEmpathy(response.content, empathyContext);
+      console.log(`[BaseAgent] Empathy added (sentiment: ${userSentiment})`);
+
+      // STEP 10: Validate Conversation Quality (THE HEART OF DARTMOUTH)
+      const qualityCheck = this.conversationQualityValidator.validate(response, {
+        userMessage: message,
+        conversationHistory: this.state.messages.map(m => m.content),
+        providedData: response.metadata,
+        userSentiment
+      });
+      
+      if (!qualityCheck.passed) {
+        console.warn(`[BaseAgent] Conversation quality check failed (score: ${qualityCheck.score}/100)`);
+        console.warn(`[BaseAgent] Issues: ${qualityCheck.issues.map(i => i.message).join(', ')}`);
+        
+        // Log suggestions for improvement
+        if (qualityCheck.suggestions.length > 0) {
+          console.log(`[BaseAgent] Suggestions: ${qualityCheck.suggestions.join('; ')}`);
+        }
+        
+        // For critical issues (hallucinations), force fallback
+        const hasCritical = qualityCheck.issues.some(i => i.severity === 'critical');
+        if (hasCritical) {
+          response.content = "I want to make sure I give you accurate information. Could you rephrase your question so I can help you better?";
+          console.log(`[BaseAgent] Critical quality issue - using safe fallback`);
+        }
+      } else {
+        console.log(`[BaseAgent] Conversation quality passed (score: ${qualityCheck.score}/100)`);
+      }
+
+      // STEP 11: Validate Response (Technical)
       const validation = await this.responseValidator.validate(response, message);
       if (!validation.isValid) {
         console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
@@ -211,12 +266,12 @@ export class BaseAgent {
           response.content = validation.suggestedFix;
           console.log(`[BaseAgent] Applied suggested fix`);
         } else {
-          response.content = "I apologize, but I'm having trouble formulating a proper response. Could you rephrase your question?";
+          response.content = "I'm having trouble formulating a proper response. Could you rephrase your question?";
           console.log(`[BaseAgent] Using fallback response`);
         }
       }
 
-      // STEP 10: Create Assistant Message
+      // STEP 12: Create Assistant Message
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -226,30 +281,35 @@ export class BaseAgent {
         metadata: {
           ...response.metadata,
           validationPassed: validation.isValid,
+          conversationQualityScore: qualityCheck.score,
+          conversationQualityPassed: qualityCheck.passed,
+          userSentiment,
           processingTimeMs: Date.now() - startTime
         }
       };
 
-      // STEP 11: Add Assistant Message to State
+      // STEP 13: Add Assistant Message to State
       this.stateManager.addMessage(this.state, assistantMessage);
 
-      // STEP 12: Log Question and Answer
+      // STEP 14: Log Question and Answer
       this.stateManager.logQuestion(this.state, message, intent);
       this.stateManager.logAnswer(this.state, response.content, intent.type);
 
-      // STEP 13: Store in Memory System
+      // STEP 15: Store in Memory System
       await this.memorySystem.setShortTerm(this.state.sessionId, `msg_${assistantMessage.id}`, {
         question: message,
         answer: response.content,
         intent: intent.type,
+        sentiment: userSentiment,
+        qualityScore: qualityCheck.score,
         timestamp: new Date()
       });
 
-      // STEP 14: Save Session State
+      // STEP 16: Save Session State
       await this.stateManager.saveSession(this.state);
       console.log(`[BaseAgent] Session saved`);
 
-      // STEP 15: Return Response
+      // STEP 17: Return Response
       const totalTime = Date.now() - startTime;
       console.log(`[BaseAgent] Message processed in ${totalTime}ms`);
 
@@ -259,6 +319,8 @@ export class BaseAgent {
           ...response.metadata,
           sessionId: this.state.sessionId,
           messageId: assistantMessage.id,
+          conversationQualityScore: qualityCheck.score,
+          userSentiment,
           processingTimeMs: totalTime
         }
       };
