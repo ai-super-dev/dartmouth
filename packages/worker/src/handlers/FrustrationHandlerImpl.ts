@@ -59,19 +59,20 @@ export class FrustrationHandlerImpl implements Handler {
   }
 
   private getEmpathicResponse(level: string, _message: string): string {
+    // Empathetic, solution-focused, genuine (Dartmouth personality)
     switch (level) {
       case 'critical':
-        return "I sincerely apologize for the frustration. I want to help you get this resolved. Would you like me to connect you with someone who can provide more personalized assistance?";
+        return "I'm really sorry this has been so frustrating! Let me connect you with someone who can help you right away. You shouldn't have to deal with this.";
       
       case 'high':
-        return "I understand this is frustrating, and I apologize. Let me try a different approach to help you better. What specific part can I clarify?";
+        return "I can see this is frustrating - I'm really sorry about that! Let me try a completely different approach to help you. What's the main issue you're facing?";
       
       case 'moderate':
-        return "I can see this isn't working as expected, and I'm sorry about that. Let's take a step back - what's the main thing you're trying to accomplish?";
+        return "I understand this isn't working the way you need it to, and I apologize! Let's figure this out together. What's the most important thing you're trying to do?";
       
       case 'mild':
       default:
-        return "I sense some confusion, and I want to make sure I'm helping you effectively. Could you tell me what's not working for you?";
+        return "I want to make sure I'm actually helping you here. What's not quite working for you? Let's get this sorted out!";
     }
   }
 }

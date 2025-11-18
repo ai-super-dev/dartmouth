@@ -52,31 +52,34 @@ export class GreetingHandler implements Handler {
   }
 
   private getFirstTimeGreeting(): string {
+    // Warm, welcoming, personal (Dartmouth personality)
     const greetings = [
-      "Hello! I'm here to help you. What can I assist you with today?",
-      "Hi there! How can I help you today?",
-      "Welcome! I'm ready to assist you. What would you like to know?",
-      "Hello! What can I do for you today?"
+      "Hey there! 👋 I'm here to help make things easier for you. What are you working on today?",
+      "Hi! I'm here to help with whatever you need. What can I do for you?",
+      "Hello! Ready to help you out. What's on your mind?",
+      "Hey! I'm here to make your day easier. What would you like help with?"
     ];
     return greetings[Math.floor(Math.random() * greetings.length)];
   }
 
   private getReturningGreeting(_state: any): string {
+    // Friendly, recognizes returning user (Dartmouth personality)
     const greetings = [
-      "Welcome back! How can I help you today?",
-      "Hello again! What can I assist you with?",
-      "Good to see you again! What would you like to know?",
-      "Hi! Ready to help you with anything you need."
+      "Welcome back! Good to see you again. What can I help you with today?",
+      "Hey! Great to have you back. What are you working on?",
+      "Hi again! Ready to help with whatever you need.",
+      "Welcome back! What can I do for you today?"
     ];
     return greetings[Math.floor(Math.random() * greetings.length)];
   }
 
   private getFarewell(_state: any): string {
+    // Warm, genuine, inviting to return (Dartmouth personality)
     const farewells = [
-      "Goodbye! Feel free to come back if you have more questions.",
-      "Take care! I'm here whenever you need help.",
-      "Bye! Don't hesitate to reach out if you need anything else.",
-      "See you later! Have a great day!"
+      "Take care! I'm here anytime you need help.",
+      "Have a great day! Come back anytime.",
+      "See you later! Feel free to reach out whenever you need.",
+      "Bye! I'm always here if you need anything."
     ];
     return farewells[Math.floor(Math.random() * farewells.length)];
   }

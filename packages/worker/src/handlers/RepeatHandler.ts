@@ -73,11 +73,12 @@ export class RepeatHandler implements Handler {
   }
 
   private getVariedResponse(previousAnswer: string, _question: string): string {
+    // Contextual, remembers what was said, offers different explanation (Dartmouth personality)
     const variations = [
-      `Let me rephrase that: ${previousAnswer}`,
-      `To clarify my previous answer: ${previousAnswer}`,
-      `Here's another way to explain it: ${previousAnswer}`,
-      `I understand this might be confusing. ${previousAnswer}`
+      `Just to recap what we discussed: ${previousAnswer}\n\nIs there a specific part you'd like me to explain differently?`,
+      `Let me try explaining this another way: ${previousAnswer}\n\nDoes that make more sense?`,
+      `I want to make sure this is clear! Here's what I said before: ${previousAnswer}\n\nWhat part would you like me to clarify?`,
+      `Good question - let me break this down differently: ${previousAnswer}\n\nIs there something specific that's confusing?`
     ];
 
     return variations[Math.floor(Math.random() * variations.length)];

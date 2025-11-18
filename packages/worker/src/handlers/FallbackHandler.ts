@@ -52,11 +52,12 @@ export class FallbackHandler implements Handler {
   }
 
   private getFallbackResponse(_message: string, _intent: Intent): string {
+    // Helpful, not robotic - shows willingness to help (Dartmouth personality)
     const responses = [
-      "I'm not quite sure I understand. Could you rephrase that?",
-      "I didn't quite catch that. Can you try asking in a different way?",
-      "I'm here to help, but I need a bit more clarity. Could you elaborate?",
-      "I want to make sure I give you the right information. Could you provide more details?"
+      "Hmm, I'm not quite sure what you're asking. Could you tell me a bit more about what you're trying to do? I'm here to help!",
+      "I want to make sure I give you the right answer! Could you rephrase that or give me a bit more detail?",
+      "I'm not following - but I really want to help! Can you explain what you need in a different way?",
+      "Let me make sure I understand you correctly. Could you give me a bit more context about what you're looking for?"
     ];
 
     return responses[Math.floor(Math.random() * responses.length)];
