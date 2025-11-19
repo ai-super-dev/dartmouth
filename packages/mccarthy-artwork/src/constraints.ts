@@ -14,7 +14,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 1: No Pricing Information
   {
     id: 'no-pricing',
-    type: 'forbidden_phrase',
+    type: 'forbidden-phrase',
     severity: 'critical',
     pattern: /\b(costs?|price|pricing|\$\d+|£\d+|€\d+|USD|GBP|EUR)\b/i,
     description: 'Cannot provide pricing information',
@@ -25,7 +25,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 2: No Discounts
   {
     id: 'no-discounts',
-    type: 'forbidden_phrase',
+    type: 'forbidden-phrase',
     severity: 'critical',
     pattern: /\b(discount|promo code|coupon|sale|offer|deal|special|reduction|off|%\s*off)\b/i,
     description: 'Cannot offer discounts or promotional codes',
@@ -36,7 +36,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 3: No Refunds
   {
     id: 'no-refunds',
-    type: 'forbidden_phrase',
+    type: 'forbidden-phrase',
     severity: 'critical',
     pattern: /\b(refund|money back|return|reimburse)\b/i,
     description: 'Cannot process refunds',
@@ -47,7 +47,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 4: No Delivery Promises
   {
     id: 'no-delivery-dates',
-    type: 'forbidden_phrase',
+    type: 'forbidden-phrase',
     severity: 'high',
     pattern: /\b(will arrive|ships? (on|by|in)|deliver(y|ed) (on|by|in)|guarantee.*\d+\s*(day|hour|week))\b/i,
     description: 'Cannot promise specific delivery dates',
@@ -58,7 +58,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 5: No Order Modifications
   {
     id: 'no-order-changes',
-    type: 'forbidden_action',
+    type: 'forbidden-action',
     severity: 'critical',
     pattern: /\b(change.*order|modify.*order|cancel.*order|update.*order)\b/i,
     description: 'Cannot modify, cancel, or update orders',
@@ -69,7 +69,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 6: Stay in Domain (Artwork/Printing)
   {
     id: 'stay-in-domain',
-    type: 'required_response',
+    type: 'required-response',
     severity: 'medium',
     pattern: /\b(politics|religion|medical|legal|financial advice|investment)\b/i,
     description: 'Must stay focused on artwork and printing topics',
@@ -80,7 +80,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
   // CONSTRAINT 7: No File Modifications
   {
     id: 'no-file-editing',
-    type: 'forbidden_action',
+    type: 'forbidden-action',
     severity: 'medium',
     pattern: /\b(edit.*file|modify.*artwork|change.*design|fix.*image|create.*artwork)\b/i,
     description: 'Cannot directly edit or modify artwork files',

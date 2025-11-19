@@ -38,7 +38,14 @@ export interface ConstraintRule {
   message: string;
   escalateTo?: string; // Who to escalate to if violated
   replacementText?: string; // Suggested replacement text
+  suggestedResponse?: string; // Custom response for this constraint
+  description?: string; // Human-readable description
 }
+
+/**
+ * Constraint (alias for ConstraintRule for backward compatibility)
+ */
+export type Constraint = ConstraintRule;
 
 /**
  * Constraint set (collection of rules)
@@ -62,6 +69,7 @@ export interface ConstraintViolation {
   position: number;
   escalateTo?: string;
   replacementText?: string;
+  suggestedResponse?: string; // Custom response for this violation
 }
 
 /**
@@ -200,7 +208,8 @@ export class ConstraintValidator {
         matchedText: match[0],
         position: match.index,
         escalateTo: rule.escalateTo,
-        replacementText: rule.replacementText
+        replacementText: rule.replacementText,
+        suggestedResponse: rule.suggestedResponse // Pass through custom response
       };
     }
 
@@ -221,10 +230,18 @@ export class ConstraintValidator {
     // If we have critical violations, provide a safe fallback
     const criticalViolations = violations.filter(v => v.severity === 'critical');
     if (criticalViolations.length > 0) {
+      // PRIORITY 1: Use custom suggestedResponse if provided
+      if (criticalViolations[0].suggestedResponse) {
+        return criticalViolations[0].suggestedResponse;
+      }
+      
+      // PRIORITY 2: Generic escalation with contact
       const escalateTo = criticalViolations[0].escalateTo;
       if (escalateTo) {
         return `I'd like to connect you with ${escalateTo} who can better assist you with that. They'll be able to provide the specific information you need.`;
       }
+      
+      // PRIORITY 3: Generic fallback
       return "I want to make sure I give you accurate information. Let me connect you with someone who can help you with that.";
     }
 
@@ -252,11 +269,21 @@ export class ConstraintValidator {
   /**
    * Register agent-specific constraints
    */
-  registerAgentConstraints(agentId: string, constraints: ConstraintSet): void {
-    constraints.level = 'agent';
-    constraints.targetId = agentId;
-    this.agentConstraints.set(agentId, constraints);
-    console.log(`[ConstraintValidator] Registered agent constraints for: ${agentId}`);
+  registerAgentConstraints(agentId: string, constraints: ConstraintSet | Constraint[]): void {
+    // If passed an array of constraints, wrap in ConstraintSet
+    const constraintSet: ConstraintSet = Array.isArray(constraints)
+      ? {
+          level: 'agent',
+          targetId: agentId,
+          rules: constraints,
+          enabled: true
+        }
+      : constraints;
+    
+    constraintSet.level = 'agent';
+    constraintSet.targetId = agentId;
+    this.agentConstraints.set(agentId, constraintSet);
+    console.log(`[ConstraintValidator] Registered ${constraintSet.rules.length} agent constraints for: ${agentId}`);
   }
 
   /**
