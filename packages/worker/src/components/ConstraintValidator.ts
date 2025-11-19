@@ -99,6 +99,39 @@ export class ConstraintValidator {
   }
 
   /**
+   * Check if user message is requesting something forbidden
+   * (separate from validating agent responses)
+   */
+  checkUserIntent(
+    userMessage: string,
+    agentId?: string
+  ): ConstraintViolation[] {
+    const violations: ConstraintViolation[] = [];
+    
+    if (!agentId) return violations;
+    
+    const agentConstraints = this.agentConstraints.get(agentId);
+    if (!agentConstraints || !agentConstraints.enabled) return violations;
+    
+    // Only check constraints that are about user REQUESTS (not agent responses)
+    // These are constraints where we want to proactively respond
+    const requestConstraints = agentConstraints.rules.filter(rule => 
+      rule.id === 'no-refunds' || 
+      rule.id === 'no-discounts' ||
+      rule.id === 'no-pricing'
+    );
+    
+    for (const rule of requestConstraints) {
+      const violation = this.checkRule(rule, userMessage);
+      if (violation) {
+        violations.push(violation);
+      }
+    }
+    
+    return violations;
+  }
+
+  /**
    * Validate a response against all applicable constraints
    */
   validate(
@@ -111,23 +144,12 @@ export class ConstraintValidator {
   ): ConstraintValidationResult {
     const violations: ConstraintViolation[] = [];
 
-    // STEP 0: Check if USER MESSAGE triggers any constraints (proactive detection)
-    // This catches cases like "I want a refund" or "I need a discount"
-    if (context.userMessage) {
-      // Check agent constraints against user message
-      if (context.agentId) {
-        const agentConstraints = this.agentConstraints.get(context.agentId);
-        if (agentConstraints && agentConstraints.enabled) {
-          const userMessageViolations = this.checkConstraintSet(
-            agentConstraints,
-            context.userMessage
-          );
-          if (userMessageViolations.length > 0) {
-            // User is asking for something we can't provide
-            console.log(`[ConstraintValidator] User message triggered ${userMessageViolations.length} constraint(s)`);
-            violations.push(...userMessageViolations);
-          }
-        }
+    // STEP 0: Check if user message is requesting something forbidden
+    if (context.userMessage && context.agentId) {
+      const userIntentViolations = this.checkUserIntent(context.userMessage, context.agentId);
+      if (userIntentViolations.length > 0) {
+        console.log(`[ConstraintValidator] User requesting forbidden action: ${userIntentViolations[0].ruleId}`);
+        violations.push(...userIntentViolations);
       }
     }
 

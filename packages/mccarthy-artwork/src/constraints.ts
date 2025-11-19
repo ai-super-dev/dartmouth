@@ -16,7 +16,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
     id: 'no-pricing',
     type: 'forbidden-phrase',
     severity: 'critical',
-    pattern: /\b(costs?|price|pricing|\$\d+|£\d+|€\d+|USD|GBP|EUR)\b/i,
+    pattern: /\b(how much does|what does.*cost|what.*the cost|how much is|what.*the price|price for|\$\d+|£\d+|€\d+)\b/i,
     description: 'Cannot provide pricing information',
     suggestedResponse: "I focus on artwork technical requirements and can't provide pricing. For quotes and pricing information, please contact our sales team at sales@example.com or visit our pricing page.",
     escalateTo: 'sales'
@@ -27,7 +27,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
     id: 'no-discounts',
     type: 'forbidden-phrase',
     severity: 'critical',
-    pattern: /\b(discount|promo code|coupon|sale|offer|deal|special|reduction|off|%\s*off)\b/i,
+    pattern: /\b(give me.*discount|send.*discount|any discount|get.*discount|have.*discount|promo code|coupon code|\d+%\s*off|percent off)\b/i,
     description: 'Cannot offer discounts or promotional codes',
     suggestedResponse: "Unfortunately I don't have access to the latest information regarding discounts or sales offers. The best place to look would be on our website for the most up to date information. Is there anything else I can help you with?",
     escalateTo: 'sales'
@@ -38,7 +38,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
     id: 'no-refunds',
     type: 'forbidden-phrase',
     severity: 'critical',
-    pattern: /\b(refund|money back|return|reimburse)\b/i,
+    pattern: /\b(want.*refund|need.*refund|get.*refund|give.*refund|money back|process.*refund|request.*refund)\b/i,
     description: 'Cannot process refunds',
     suggestedResponse: "Unfortunately I'm not the best person to help assist you with this request. Please reach out to our friendly team via email at support@example.com and a member of staff will happily help you. Is there anything else I can help you with?",
     escalateTo: 'customer_service_manager'
