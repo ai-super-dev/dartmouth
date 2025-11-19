@@ -16,10 +16,11 @@
 6. [The Conversation Quality System](#the-conversation-quality-system)
 7. [McCarthy Agents](#mccarthy-agents)
 8. [Agent Constraints](#agent-constraints)
-9. [Multi-Agent Orchestration](#multi-agent-orchestration)
-10. [Technical Stack](#technical-stack)
-11. [Deployment](#deployment)
-12. [What Makes Dartmouth Different](#what-makes-dartmouth-different)
+9. [System Prompt Configuration](#system-prompt-configuration)
+10. [Multi-Agent Orchestration](#multi-agent-orchestration)
+11. [Technical Stack](#technical-stack)
+12. [Deployment](#deployment)
+13. [What Makes Dartmouth Different](#what-makes-dartmouth-different)
 
 ---
 
@@ -491,6 +492,8 @@ McCarthy agents are **specialized super agents** built on the Dartmouth foundati
 - ❌ Cannot promise delivery dates
 - ✅ Must route pricing to sales
 
+**System Prompt:** Fully configurable (see [System Prompt Configuration](#system-prompt-configuration))
+
 **Example Conversation:**
 ```
 User: "What size can I print 4000x6000 at 300 DPI?"
@@ -570,6 +573,77 @@ special pricing. Would you like me to do that?"
   ↓
 ✅ SAFE - Helpful but doesn't violate business rules
 ```
+
+---
+
+## 🎨 **SYSTEM PROMPT CONFIGURATION**
+
+### **What Are System Prompts?**
+
+System prompts are the **core instructions** that define an AI agent's:
+- Identity and expertise
+- Personality and tone
+- Conversation rules
+- Constraints and limitations
+
+### **Configurability**
+
+✅ **Fully Configurable** - System prompts can be customized per agent  
+✅ **Dashboard Editable** (Future) - Visual editor in Dartmouth Dashboard  
+✅ **Template Library** (Planned) - Pre-built prompts for common agent types  
+✅ **Version Control** (Planned) - Track changes and rollback if needed
+
+### **Current Implementation**
+
+#### **Foundational Agent (Default)**
+All agents inherit a base prompt with:
+- Core conversational skills
+- Context awareness
+- Professional personality
+- Response guidelines
+
+#### **Specialized Agents (Custom)**
+Each specialized agent can override with:
+- Domain-specific expertise
+- Specialized personality traits
+- Custom constraints
+- Unique conversation rules
+
+### **Example: McCarthy Artwork Analyzer**
+
+```
+You are McCarthy, an expert artwork analysis assistant 
+specializing in DTF and UV DTF printing.
+
+EXPERTISE:
+- DPI calculations and print size recommendations
+- Artwork quality assessment
+- DTF/UV DTF technical requirements
+
+CONVERSATION RULES:
+- ALWAYS read full conversation history
+- Reference previous messages
+- Maintain context throughout conversation
+
+PERSONALITY:
+- Friendly and professional
+- Use emojis sparingly (📐, 🎨, ✨)
+- Acknowledge previous messages
+
+CONSTRAINTS:
+- NEVER discuss pricing, discounts, or refunds
+- ALWAYS provide accurate technical information
+```
+
+### **Future Dashboard Features**
+
+- 🎨 Visual prompt editor with syntax highlighting
+- 📚 Template library for common agent types
+- 🔄 Version control and rollback
+- 🧪 A/B testing for prompt optimization
+- 📊 Performance analytics per prompt version
+
+**Full Documentation:** [System Prompt Configuration Guide](./SYSTEM_PROMPT_CONFIGURATION.md)
 
 ---
 
