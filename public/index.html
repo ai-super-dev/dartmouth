@@ -50,6 +50,26 @@
             opacity: 0.9;
         }
         
+        .session-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            text-align: left;
+            cursor: pointer;
+        }
+        
+        .session-info:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .session-info strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
         .status {
             padding: 10px 20px;
             background: #f7fafc;
@@ -245,6 +265,11 @@
         <div class="header">
             <h1>🎨 McCarthy Artwork Analyzer</h1>
             <p>AI-Powered Artwork Analysis & Print Preparation Assistant</p>
+            <div class="session-info" id="sessionInfo" onclick="copySessionId()" title="Click to copy Session ID">
+                <strong>Session Info:</strong>
+                <div id="sessionId">No session yet - send a message to start</div>
+                <div id="messageCount">Messages: 0</div>
+            </div>
         </div>
         
         <div class="status" id="status">
@@ -285,6 +310,30 @@
     <script>
         const API_URL = 'https://agent-army-worker.dartmouth.workers.dev';
         let sessionId = null;
+        let messageCount = 0;
+        
+        function copySessionId() {
+            if (!sessionId) {
+                alert('No session yet - send a message first!');
+                return;
+            }
+            navigator.clipboard.writeText(sessionId).then(() => {
+                const oldText = document.getElementById('sessionId').textContent;
+                document.getElementById('sessionId').textContent = '✅ Copied to clipboard!';
+                setTimeout(() => {
+                    document.getElementById('sessionId').textContent = oldText;
+                }, 2000);
+            }).catch(() => {
+                alert('Session ID: ' + sessionId);
+            });
+        }
+        
+        function updateSessionInfo() {
+            if (sessionId) {
+                document.getElementById('sessionId').textContent = `Session ID: ${sessionId}`;
+                document.getElementById('messageCount').textContent = `Messages: ${messageCount}`;
+            }
+        }
         
         async function checkHealth() {
             try {
@@ -399,10 +448,14 @@
                 if (data.content) {
                     // New format from BaseAgent
                     sessionId = data.metadata?.sessionId || sessionId;
+                    messageCount += 2; // User message + bot response
+                    updateSessionInfo();
                     addMessage('bot', data.content);
                 } else if (data.response) {
                     // Old format
                     sessionId = data.sessionId;
+                    messageCount += 2;
+                    updateSessionInfo();
                     addMessage('bot', data.response);
                 } else if (data.error) {
                     addMessage('bot', `Error: ${data.error}`);
