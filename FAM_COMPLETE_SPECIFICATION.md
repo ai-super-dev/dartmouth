@@ -1,10 +1,11 @@
 # 🎯 FAM - Foundational Agent McCarthy
 ## Complete Technical Specification
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Date:** November 19, 2024  
 **Status:** Production Ready  
-**Purpose:** The universal foundation for all McCarthy AI agents
+**Purpose:** The universal foundation for all McCarthy AI agents  
+**Runs On:** DARTMOUTH OS (The Operating System for AI Agents)
 
 ---
 
@@ -48,55 +49,108 @@ FAM serves as the **universal template** from which all specialized McCarthy age
 
 ## 🏗️ **ARCHITECTURE OVERVIEW**
 
+### **The Big Picture: FAM runs ON Dartmouth OS**
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                    DARTMOUTH OS & HEART                        ║
+║          (Analytics, Cache, Security, Integrations)            ║
+╚═══════════════════════════════════════════════════════════════╝
+         │
+         │ Provides Platform Services (like an OS)
+         │
+    ┌────▼──────────────────────────────────────────────┐
+    │                                                    │
+    │             FAM (BaseAgent)                        │
+    │       Foundational Agent McCarthy                  │
+    │                                                    │
+    │  ┌───────────────────────────────────────┐        │
+    │  │   14 Agent-Level Components           │        │
+    │  │   (Lightweight, Fast, Focused)        │        │
+    │  └───────────────────────────────────────┘        │
+    │                                                    │
+    └────────────────────────────────────────────────────┘
+```
+
 ### **High-Level Architecture**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    FAM (BaseAgent)                          │
 │              Foundational Agent McCarthy                     │
+│                    14 COMPONENTS                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐               │
-│  │ Conversation     │  │ Intent           │               │
+│  │ 1. Conversation  │  │ 2. Intent        │               │
 │  │ State Manager    │  │ Detector         │               │
 │  └──────────────────┘  └──────────────────┘               │
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐               │
-│  │ Response         │  │ Handler          │               │
+│  │ 3. Response      │  │ 4. Handler       │               │
 │  │ Router           │  │ Registry         │               │
 │  └──────────────────┘  └──────────────────┘               │
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐               │
-│  │ Constraint       │  │ LLM              │               │
+│  │ 5. Constraint    │  │ 6. LLM           │               │
 │  │ Validator        │  │ Service          │               │
 │  └──────────────────┘  └──────────────────┘               │
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐               │
-│  │ Memory           │  │ Response         │               │
-│  │ System           │  │ Validator        │               │
+│  │ 7. Memory        │  │ 8. Sentiment     │               │
+│  │ System           │  │ Analyzer         │               │
 │  └──────────────────┘  └──────────────────┘               │
 │                                                             │
 │  ┌──────────────────┐  ┌──────────────────┐               │
-│  │ Frustration      │  │ Quality          │               │
+│  │ 9. Personality   │  │ 10. Context      │               │
+│  │ Engine           │  │ Window Manager   │               │
+│  └──────────────────┘  └──────────────────┘               │
+│                                                             │
+│  ┌──────────────────┐  ┌──────────────────┐               │
+│  │ 11. Frustration  │  │ 12. Response     │               │
 │  │ Handler          │  │ Validator        │               │
 │  └──────────────────┘  └──────────────────┘               │
 │                                                             │
-│  ┌──────────────────────────────────────────┐              │
-│  │         RAG Infrastructure               │              │
-│  │         (Ready for use)                  │              │
-│  └──────────────────────────────────────────┘              │
+│  ┌──────────────────┐  ┌──────────────────┐               │
+│  │ 13. Quality      │  │ 14. RAG          │               │
+│  │ Validator        │  │ Infrastructure   │               │
+│  └──────────────────┘  └──────────────────┘               │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
+         │
+         │ Calls Dartmouth OS Services
+         │
+         ▼
+    dartmouth.analytics.track()
+    dartmouth.cache.get()
+    dartmouth.security.scan()
+    dartmouth.integrations.crm.sync()
+    etc.
 ```
+
+### **What FAM Does NOT Include**
+
+FAM is **LEAN** and focused. Infrastructure is handled by Dartmouth OS:
+
+- ❌ **NO Analytics** (Dartmouth provides)
+- ❌ **NO Global Caching** (Dartmouth provides)
+- ❌ **NO Authentication** (Dartmouth provides)
+- ❌ **NO External Integrations** (Dartmouth provides)
+- ❌ **NO Multi-Language Translation** (Dartmouth provides)
+- ❌ **NO Cross-Agent Learning** (Dartmouth provides)
+- ❌ **NO SLA Monitoring** (Dartmouth provides)
+- ❌ **NO Event System** (Dartmouth provides)
+
+**FAM stays lightweight, fast, and focused on conversation!** ⚡
 
 ### **Technology Stack**
 
-- **Runtime:** Cloudflare Workers (Edge computing)
+- **Runs On:** DARTMOUTH OS (Cloudflare Workers)
 - **Language:** TypeScript
-- **Database:** D1 (SQLite at the edge)
-- **LLM:** OpenAI GPT-4o-mini (default)
-- **Embeddings:** Workers AI (for RAG, when used)
-- **Deployment:** Cloudflare Pages + Workers
+- **LLM:** OpenAI GPT-4o-mini (via Dartmouth)
+- **Database:** D1 (via Dartmouth)
+- **Cache:** KV (via Dartmouth)
+- **Deployment:** Cloudflare Workers
 
 ---
 
@@ -247,13 +301,153 @@ interface Handler {
 - **Working** - Immediate context (last 5-10 messages)
 
 **Storage:**
-- Session state (in-memory + D1)
-- User preferences (D1)
-- Conversation history (D1)
+- Session state (in-memory, session-level)
+- User preferences (tracked in conversation state)
+- Conversation history (tracked in conversation state)
+
+**Key Methods:**
+```typescript
+- rememberFact(key, value)
+- recallFact(key)
+- getUserPreference(key)
+- setUserPreference(key, value)
+```
 
 ---
 
-### **8. Frustration Handler**
+### **8. Sentiment Analyzer** ⭐ NEW
+
+**Purpose:** Centralized emotional intelligence for the agent
+
+**Capabilities:**
+- **Sentiment Detection:** Positive, Negative, Neutral
+- **Emotion Classification:** Joy, Anger, Frustration, Confusion, Excitement, Fear
+- **Intensity Measurement:** Mild, Moderate, High, Critical
+- **Tone Analysis:** Formal, Casual, Aggressive, Friendly, Professional
+- **Sarcasm Detection:** Identify sarcastic messages
+- **Mood Tracking:** Track emotional trajectory across conversation
+
+**Key Methods:**
+```typescript
+- analyzeSentiment(message): { sentiment, confidence }
+- detectEmotion(message): { emotions[], primaryEmotion }
+- measureIntensity(message): { level, score }
+- analyzeTone(message): { tone, formality }
+- detectSarcasm(message): boolean
+- trackMood(conversationHistory): { trend, currentMood }
+```
+
+**Used By:**
+- FrustrationHandler (detect frustration levels)
+- IntentDetector (context for intent classification)
+- ResponseValidator (tone matching)
+- QualityValidator (empathy scoring)
+
+**Implementation:**
+```typescript
+class SentimentAnalyzer {
+  analyze(message: string): SentimentAnalysis {
+    return {
+      sentiment: 'positive' | 'negative' | 'neutral',
+      emotion: 'joy' | 'anger' | 'frustration' | ...,
+      intensity: 0-100,
+      tone: 'formal' | 'casual' | 'aggressive' | ...,
+      sarcasm: boolean,
+      confidence: 0-1
+    };
+  }
+}
+```
+
+---
+
+### **9. Personality Engine** ⭐ NEW
+
+**Purpose:** Ensure consistent personality and brand voice across all responses
+
+**Capabilities:**
+- **Personality Traits:** Friendliness, Formality, Enthusiasm, Empathy, Humor, Assertiveness (each 0-100)
+- **Brand Voice Enforcement:** Professional, Casual, Technical
+- **Adaptive Personality:** Match user's communication style
+- **Multi-Persona Support:** Switch between formal/casual modes
+- **Personality Consistency Scoring:** Measure adherence to defined personality
+
+**Configuration:**
+```typescript
+interface PersonalityConfig {
+  traits: {
+    friendliness: 80,      // 0-100
+    formality: 50,         // 0-100
+    enthusiasm: 70,        // 0-100
+    empathy: 90,           // 0-100
+    humor: 30,             // 0-100
+    assertiveness: 60      // 0-100
+  },
+  brandVoice: 'professional' | 'casual' | 'technical',
+  adaptToUser: boolean,    // Match user's style
+  emojiUsage: 'none' | 'minimal' | 'moderate' | 'frequent'
+}
+```
+
+**Key Methods:**
+```typescript
+- applyPersonality(response): string
+- checkConsistency(response): { score, violations }
+- adaptToUserStyle(userMessage): PersonalityAdjustment
+- getPersonalityPrompt(): string
+```
+
+**Benefits:**
+- ✅ Consistent brand experience
+- ✅ User preference matching
+- ✅ Context-appropriate tone (formal vs casual)
+- ✅ Enhanced emotional intelligence
+
+---
+
+### **10. Context Window Manager** ⭐ NEW
+
+**Purpose:** Intelligently manage conversation history for optimal LLM performance and cost efficiency
+
+**Capabilities:**
+- **Smart Summarization:** Compress old messages without losing key information
+- **Relevant Context Extraction:** Pull only relevant history for current query
+- **Context Compression:** Reduce token usage while maintaining quality
+- **Important Info Pinning:** Keep critical facts available
+- **Context Decay:** Reduce weight of older messages
+- **Token Optimization:** Stay within LLM context limits
+
+**Key Methods:**
+```typescript
+- summarizeOldContext(messages): string
+- extractRelevantContext(query, history): Message[]
+- pinImportantFact(fact): void
+- calculateRelevance(message, currentQuery): number
+- optimizeForTokenLimit(messages, limit): Message[]
+- compressHistory(messages): CompressedContext
+```
+
+**Strategy:**
+```typescript
+// Example: 50-message conversation
+const context = {
+  pinned: [userFacts, preferences],        // Always include (50 tokens)
+  summary: summarizeLast30Messages(),       // Compressed (200 tokens)
+  recent: last5Messages(),                  // Full detail (500 tokens)
+  relevant: extractRelevantTo(currentQuery) // Context-specific (250 tokens)
+  // Total: ~1000 tokens vs 3000+ for full history
+};
+```
+
+**Benefits:**
+- ✅ Long conversations don't break (100+ messages supported)
+- ✅ Token efficiency = 60-80% cost savings
+- ✅ Better context retention (focused relevance)
+- ✅ Scalability (handles any conversation length)
+
+---
+
+### **11. Frustration Handler**
 
 **Purpose:** Detect and respond to user frustration
 
@@ -262,6 +456,8 @@ interface Handler {
 - **Moderate** - "This isn't working"
 - **High** - "This is terrible"
 - **Critical** - Profanity, extreme frustration
+
+**Uses:** Sentiment Analyzer for emotion detection
 
 **Response Strategy:**
 ```typescript
@@ -273,7 +469,7 @@ Critical → Apology + Immediate Escalation
 
 ---
 
-### **9. Response Validator**
+### **12. Response Validator**
 
 **Purpose:** Ensure response quality before sending
 
@@ -283,20 +479,21 @@ Critical → Apology + Immediate Escalation
 - ✅ Relevant to question
 - ✅ No repetition of previous responses
 - ✅ No hallucinations
-- ✅ Appropriate tone
+- ✅ Appropriate tone (uses Sentiment Analyzer)
 
 ---
 
-### **10. Quality Validator**
+### **13. Quality Validator**
 
 **Purpose:** Score conversation quality
 
 **Quality Metrics:**
 - Conversation flow score
-- Empathy score
+- Empathy score (uses Sentiment Analyzer)
 - Relevance score
 - Conciseness score
 - Context retention score
+- Personality consistency score (uses Personality Engine)
 
 **Scoring:**
 ```
@@ -308,18 +505,28 @@ Critical → Apology + Immediate Escalation
 
 ---
 
-### **11. RAG Infrastructure**
+### **14. RAG Infrastructure**
 
 **Purpose:** Enable knowledge retrieval (when needed by specialized agents)
 
 **Components:**
-- Embedding service (Workers AI)
-- Vector storage (D1 with embeddings)
+- Embedding service (via Dartmouth OS)
+- Vector storage (via Dartmouth OS)
 - Semantic search
 - Document chunking
 - Context injection
 
 **Note:** FAM provides the infrastructure but has NO documents loaded. Specialized agents add their own knowledge bases.
+
+**Integration:**
+```typescript
+// Specialized agents add documents
+await ragEngine.addDocument(document);
+await ragEngine.buildIndex();
+
+// Query at runtime
+const context = await ragEngine.query(userQuestion);
+```
 
 ---
 
