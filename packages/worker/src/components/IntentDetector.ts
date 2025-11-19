@@ -219,8 +219,9 @@ export class IntentDetector {
    */
   private isFarewell(message: string): boolean {
     const farewellPatterns = [
-      /^(bye|goodbye|see you|later|farewell|thanks|thank you)/i,
-      /^(that's all|that is all|i'm done|im done)/i
+      /^(bye|goodbye|see you|later|farewell|take care|chat soon|got to go|gotta go)/i,
+      /^(thanks|thank you|that's all|that is all|i'm done|im done)/i,
+      /\b(bye|goodbye|farewell)\b/i  // Also match these words anywhere in message
     ]
     return farewellPatterns.some(pattern => pattern.test(message))
   }

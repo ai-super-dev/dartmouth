@@ -27,7 +27,7 @@ export class FrustrationHandler {
       { pattern: /(ugh|argh|grrr)/i, weight: 2 },  // Frustration sounds
       { pattern: /this (is|isn't) working/i, weight: 3 },  // Explicit "not working"
       { pattern: /nothing (is )?working/i, weight: 3 },  // "nothing working"
-      { pattern: /\b(fuck|shit|damn|hell|crap)\b/i, weight: 5 }  // Profanity = high frustration
+      { pattern: /\b(fuck|shit|damn|hell|crap)\b/i, weight: 9 }  // Profanity = CRITICAL frustration
     ]
 
     for (const { pattern, weight } of frustrationKeywords) {

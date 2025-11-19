@@ -628,7 +628,9 @@ export class BaseAgent {
       "i don't know",
       "i can't help",
       "i'm not quite sure",
-      "could you rephrase"
+      "could you rephrase",
+      "i'm not following",
+      "please provide more specific"
     ];
 
     const lowerContent = response.content.toLowerCase();
@@ -658,7 +660,10 @@ export class BaseAgent {
     
     // Get active constraints
     const constraints: string[] = [];
-    constraints.push('NEVER offer discounts or pricing without authorization');
+    constraints.push('NEVER provide pricing information - instead say: "I focus on technical requirements and can\'t provide pricing. Please contact our sales team at sales@example.com"');
+    constraints.push('NEVER offer discounts - instead say: "I can\'t provide discount information. Please contact our sales team at sales@example.com"');
+    constraints.push('NEVER process refunds - instead say: "I can\'t process refunds. Please contact our customer service team at support@example.com"');
+    constraints.push('NEVER say "I\'d like to connect you" unless you can actually connect them - provide contact info instead');
     constraints.push('NEVER make promises you cannot keep');
     constraints.push('ALWAYS be honest if you don\'t know something');
     constraints.push('ALWAYS be concise - no more than 2-3 sentences unless asked for details');
