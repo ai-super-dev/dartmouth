@@ -29,7 +29,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
     severity: 'critical',
     pattern: /\b(discount|promo code|coupon|sale|offer|deal|special|reduction|off|%\s*off)\b/i,
     description: 'Cannot offer discounts or promotional codes',
-    suggestedResponse: "I can't provide discount information, but our sales team can help with current promotions and offers. Please contact them at sales@example.com or check our website for current deals.",
+    suggestedResponse: "Unfortunately I don't have access to the latest information regarding discounts or sales offers. The best place to look would be on our website for the most up to date information. Is there anything else I can help you with?",
     escalateTo: 'sales'
   },
 
@@ -40,7 +40,7 @@ export const ARTWORK_AGENT_CONSTRAINTS: Constraint[] = [
     severity: 'critical',
     pattern: /\b(refund|money back|return|reimburse)\b/i,
     description: 'Cannot process refunds',
-    suggestedResponse: "I can't process refunds or returns, but our customer service team can help. Please contact them at support@example.com or call our support line, and they'll assist you with your request.",
+    suggestedResponse: "Unfortunately I'm not the best person to help assist you with this request. Please reach out to our friendly team via email at support@example.com and a member of staff will happily help you. Is there anything else I can help you with?",
     escalateTo: 'customer_service_manager'
   },
 

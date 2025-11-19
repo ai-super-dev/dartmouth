@@ -111,6 +111,26 @@ export class ConstraintValidator {
   ): ConstraintValidationResult {
     const violations: ConstraintViolation[] = [];
 
+    // STEP 0: Check if USER MESSAGE triggers any constraints (proactive detection)
+    // This catches cases like "I want a refund" or "I need a discount"
+    if (context.userMessage) {
+      // Check agent constraints against user message
+      if (context.agentId) {
+        const agentConstraints = this.agentConstraints.get(context.agentId);
+        if (agentConstraints && agentConstraints.enabled) {
+          const userMessageViolations = this.checkConstraintSet(
+            agentConstraints,
+            context.userMessage
+          );
+          if (userMessageViolations.length > 0) {
+            // User is asking for something we can't provide
+            console.log(`[ConstraintValidator] User message triggered ${userMessageViolations.length} constraint(s)`);
+            violations.push(...userMessageViolations);
+          }
+        }
+      }
+    }
+
     // STEP 1: Check global constraints (always apply)
     const globalViolations = this.checkConstraintSet(
       this.globalConstraints,
