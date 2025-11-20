@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const WORKER_URL = 'https://agent-army-worker.dartmouth.workers.dev';
+const WORKER_URL = 'https://dartmouth-os-worker.dartmouth.workers.dev';
 const AGENT_ID = 'mccarthy-artwork';
 
 const documents = [
