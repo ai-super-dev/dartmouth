@@ -1,9 +1,9 @@
-# McCarthy PA Agent - Developer Migration Guide (V7 → V8)
+# McCarthy PA Agent - Developer Build Guide (V8)
 
 **Document Version:** 1.0  
 **Date:** November 19, 2024  
 **Audience:** McCarthy PA Developer  
-**Purpose:** Step-by-step guide to migrate from Firebase (V7) to Dartmouth OS (V8)
+**Purpose:** Step-by-step guide to build PA Agent on Dartmouth OS (fresh build)
 
 ---
 
@@ -25,22 +25,24 @@
 
 ### **What You Need to Know**
 
-1. **Frontend (React Native) stays mostly the same** - Only API calls change
-2. **Backend moves from Firebase to Cloudflare** - Complete rewrite
-3. **Voice integration becomes simpler** - Use Dartmouth Voice Services
-4. **Database changes from Firestore to D1** - SQL instead of NoSQL
-5. **Timeline: 3-4 weeks** - Parallel development, gradual rollout
+1. **Week 1 Complete** - React Native foundation built (Firebase config, screens, navigation)
+2. **Week 2 Starting** - Build backend on Dartmouth OS
+3. **Fresh Build** - No migration, building from scratch
+4. **Voice-First** - Dartmouth Voice Services (STT/TTS/streaming)
+5. **Timeline: 7-8 weeks** - Backend build, integration, testing, production
 
-### **High-Level Changes**
+### **What's Built (Week 1)**
 
-| Component | V7 (Firebase) | V8 (Dartmouth OS) | Change Required |
-|-----------|---------------|-------------------|-----------------|
-| **React Native App** | Existing | Update API calls | ⚠️ Minor |
-| **Backend Functions** | Firebase Functions | Cloudflare Workers | 🔴 Complete rewrite |
-| **Database** | Firestore | Cloudflare D1 | 🔴 Schema + queries |
-| **Storage** | Firebase Storage | Cloudflare R2 | ⚠️ API change |
-| **Auth** | Firebase Auth | Dartmouth Auth | ⚠️ API change |
-| **Voice** | Custom | Dartmouth Voice | ✅ Simpler |
+| Component | Status | Details |
+|-----------|--------|---------|
+| **React Native App** | ✅ Complete | Foundation, navigation, Firebase config |
+| **UI Screens** | ✅ Stubs | 8 screens created (need implementation) |
+| **Firebase Config** | ✅ Complete | Auth, Firestore, Storage initialized |
+| **State Management** | ✅ Complete | React Context API configured |
+| **Navigation** | ✅ Complete | React Navigation configured |
+| **Backend** | ❌ Not Started | Needs to be built on Dartmouth OS |
+| **Voice** | ❌ Not Started | Needs Dartmouth Voice Services |
+| **Handlers** | ❌ Not Started | Tasks, reminders, notes, calendar, contacts |
 
 ---
 
@@ -193,34 +195,28 @@ npm run ios  # or npm run android
 
 ---
 
-## 🗺️ Migration Roadmap
+## 🗺️ Development Roadmap
 
-### **Week 2-3: Parallel Development**
+### **Week 2: Dartmouth OS Core + Voice**
 
-**Goal:** Build V8 while V7 keeps running
+**Goal:** Build Dartmouth OS services for PA Agent
 
-#### **Backend Tasks**
+#### **Dartmouth OS Tasks (You + AI)**
 
-1. ✅ Set up Cloudflare Workers environment
-2. ✅ Create D1 database schema
-3. ✅ Implement Dartmouth Auth integration
-4. ✅ Migrate core handlers:
-   - TaskHandler (tasks CRUD)
-   - ReminderHandler (reminders CRUD)
-   - NoteHandler (notes CRUD)
-   - CalendarHandler (calendar events)
-   - ContactHandler (contacts)
-5. ✅ Integrate Voice Services (STT/TTS)
-6. ✅ Set up caching (Cloudflare KV)
-7. ✅ Implement analytics tracking
+1. ✅ Build API Gateway (routing)
+2. ✅ Build Agent Registry
+3. ✅ Build Auth Service (JWT tokens)
+4. ✅ Build Voice Services (STT/TTS/streaming/VAD)
+5. ✅ Build Database Service (D1 wrapper)
+6. ✅ Build Health Monitoring
+7. ✅ Deploy to Cloudflare
 
-#### **Frontend Tasks**
+#### **PA Agent Tasks (Your Developer)**
 
-1. ✅ Create new API client (`DartmouthClient.ts`)
-2. ✅ Update API calls (Firebase → Dartmouth)
-3. ✅ Update auth flow (Firebase Auth → Dartmouth Auth)
-4. ✅ Update voice integration (use Dartmouth Voice Services)
-5. ✅ Add feature flags (switch between V7/V8)
+1. ✅ Implement UI screens (tasks, reminders, notes, calendar, contacts)
+2. ✅ Use mock data for now
+3. ✅ Prepare for Dartmouth integration
+4. ⏸️ Wait for Dartmouth services (auth, voice, database)
 
 #### **Testing Tasks**
 
@@ -229,67 +225,58 @@ npm run ios  # or npm run android
 3. ✅ E2E tests for critical flows
 4. ✅ Performance testing (latency, throughput)
 
-### **Week 4: Data Migration**
+### **Week 3-4: PA Agent Backend**
 
-**Goal:** Move user data from Firestore to D1
+**Goal:** Build PA Agent handlers on Dartmouth OS
 
-1. ✅ Export Firestore data
-2. ✅ Transform data (NoSQL → SQL)
-3. ✅ Import to D1
-4. ✅ Verify data integrity
-5. ✅ Test with real user data
+1. ✅ Build TaskHandler (CRUD for tasks)
+2. ✅ Build ReminderHandler (CRUD + scheduling)
+3. ✅ Build NoteHandler (CRUD + search)
+4. ✅ Build CalendarHandler (CRUD + integration)
+5. ✅ Build ContactHandler (CRUD)
+6. ✅ Integrate Voice Services
+7. ✅ Connect React Native app to Dartmouth
 
-### **Week 5-6: Gradual Rollout**
+### **Week 5-6: Testing & Refinement**
 
-**Goal:** Transition users from V7 to V8
+**Goal:** Full testing and bug fixes
 
-1. ✅ Deploy V8 to production
-2. ✅ 10% of users → V8 (feature flag)
-3. ✅ Monitor performance, errors, costs
-4. ✅ 50% of users → V8
-5. ✅ 100% of users → V8
+1. ✅ Internal testing (voice + text)
+2. ✅ Bug fixes
+3. ✅ Performance optimization
+4. ✅ UI/UX polish
 
-### **Week 7: Decommission V7**
+### **Week 7-8: Production Rollout**
 
-**Goal:** Shut down Firebase
+**Goal:** Launch to production
 
-1. ✅ Verify all users on V8
-2. ✅ Shut down Firebase Functions
-3. ✅ Delete Firebase project (after backup)
-4. ✅ Archive V7 codebase
+1. ✅ Beta testing (10% of users)
+2. ✅ Monitor performance
+3. ✅ Gradual rollout (50% → 100%)
+4. ✅ Full production
 
 ---
 
-## 💻 Code Migration
+## 💻 Code Examples
 
 ### **1. API Client (Frontend)**
 
-#### **V7 (Firebase)**
+#### **Current (Week 1 - Firebase Stubs)**
 
 ```typescript
-// V7: FirebaseClient.ts
+// Week 1: Firebase configured but not used for backend yet
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, collection, addDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Login
-export async function login(email: string, password: string) {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  return userCredential.user;
-}
-
-// Create task
-export async function createTask(task: Task) {
-  const docRef = await addDoc(collection(db, 'tasks'), task);
-  return docRef.id;
-}
+// These are stubs - backend not built yet
 ```
 
-#### **V8 (Dartmouth OS)**
+#### **Week 3 (Dartmouth OS)**
 
 ```typescript
 // V8: DartmouthClient.ts
@@ -321,28 +308,21 @@ export async function createTask(task: Task, accessToken: string) {
 
 ### **2. Authentication (Frontend)**
 
-#### **V7 (Firebase Auth)**
+#### **Current (Week 1 - React Context)**
 
 ```typescript
-// V7: useAuth.ts
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+// Week 1: AppContext with Firebase Auth (to be replaced)
+import { AppContext } from './context/AppContext';
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const auth = getAuth();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-    });
-    return unsubscribe;
-  }, []);
-
+  const { user, setUser } = useContext(AppContext);
+  // Currently using Firebase Auth
+  // Will switch to Dartmouth Auth in Week 3
   return { user };
 }
 ```
 
-#### **V8 (Dartmouth Auth)**
+#### **Week 3 (Dartmouth Auth)**
 
 ```typescript
 // V8: useAuth.ts
@@ -385,30 +365,15 @@ export function useAuth() {
 
 ### **3. Voice Integration (Frontend)**
 
-#### **V7 (Custom Voice)**
+#### **Current (Week 1 - Not Implemented)**
 
 ```typescript
-// V7: VoiceService.ts
-import Voice from '@react-native-voice/voice';
-import Tts from 'react-native-tts';
-
-export class VoiceService {
-  async startListening() {
-    await Voice.start('en-US');
-    Voice.onSpeechResults = (e) => {
-      const transcript = e.value[0];
-      // Send to backend
-      this.sendToBackend(transcript);
-    };
-  }
-
-  async speak(text: string) {
-    await Tts.speak(text);
-  }
-}
+// Week 1: Voice not implemented yet
+// Expo AV configured for microphone access
+// Will implement in Week 3 with Dartmouth Voice Services
 ```
 
-#### **V8 (Dartmouth Voice Services)**
+#### **Week 3 (Dartmouth Voice Services)**
 
 ```typescript
 // V8: VoiceService.ts
@@ -447,31 +412,19 @@ export class VoiceService {
 
 ### **4. Backend Handlers**
 
-#### **V7 (Firebase Functions)**
+#### **Current (Week 1 - Firebase Functions Stubs)**
 
 ```typescript
-// V7: functions/src/tasks.ts
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+// Week 1: Firebase Functions created but not deployed
+// functions/src/llm/processMessage.js - Stub
+// functions/src/tasks/reminders.js - Stub
+// functions/src/location/geofencing.js - Stub
+// functions/src/notifications/notifications.js - Stub
 
-export const createTask = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
-  }
-
-  const userId = context.auth.uid;
-  const task = {
-    ...data,
-    userId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-
-  const docRef = await admin.firestore().collection('tasks').add(task);
-  return { id: docRef.id };
-});
+// These will be replaced with Dartmouth OS handlers in Week 3
 ```
 
-#### **V8 (Cloudflare Workers)**
+#### **Week 3 (Dartmouth OS Handlers)**
 
 ```typescript
 // V8: packages/worker/src/handlers/TaskHandler.ts
@@ -510,17 +463,15 @@ export class TaskHandler extends BaseHandler {
 
 ### **5. Database Queries**
 
-#### **V7 (Firestore)**
+#### **Current (Week 1 - Firestore Configured)**
 
 ```typescript
-// V7: Get user tasks
-const tasksRef = collection(db, 'tasks');
-const q = query(tasksRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
-const querySnapshot = await getDocs(q);
-const tasks = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+// Week 1: Firestore initialized but not used yet
+// Data models created (User, Group, Message, Task, ShoppingList)
+// Will switch to Cloudflare D1 in Week 3
 ```
 
-#### **V8 (D1 / SQL)**
+#### **Week 3 (D1 / SQL)**
 
 ```typescript
 // V8: Get user tasks
@@ -535,124 +486,98 @@ const tasks = result.results;
 
 ---
 
-## 🗄️ Data Migration
+## 🗄️ Database Setup (Fresh Start)
 
-### **Step 1: Export Firestore Data**
+### **Week 3: Create D1 Database Schema**
 
-```typescript
-// export-firestore.ts
-import * as admin from 'firebase-admin';
-import * as fs from 'fs';
+**NO DATA MIGRATION NEEDED** - This is a fresh build, no existing data.
 
-admin.initializeApp();
-const db = admin.firestore();
+```sql
+-- Create users table
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 
-async function exportCollection(collectionName: string) {
-  const snapshot = await db.collection(collectionName).get();
-  const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  fs.writeFileSync(`${collectionName}.json`, JSON.stringify(data, null, 2));
-  console.log(`Exported ${data.length} documents from ${collectionName}`);
-}
+-- Create tasks table
+CREATE TABLE tasks (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL,
+  priority TEXT,
+  due_date INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
 
-async function main() {
-  await exportCollection('users');
-  await exportCollection('tasks');
-  await exportCollection('reminders');
-  await exportCollection('notes');
-  await exportCollection('calendar_events');
-  await exportCollection('contacts');
-}
+-- Create reminders table
+CREATE TABLE reminders (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  remind_at INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
 
-main();
+-- Create notes table
+CREATE TABLE notes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT,
+  content TEXT NOT NULL,
+  tags TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Create calendar_events table
+CREATE TABLE calendar_events (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  start_time INTEGER NOT NULL,
+  end_time INTEGER NOT NULL,
+  location TEXT,
+  attendees TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Create contacts table
+CREATE TABLE contacts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  notes TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
 ```
 
 Run:
 
 ```bash
-npm install firebase-admin
-node export-firestore.ts
-```
+# Create database
+wrangler d1 create mccarthy-pa-dev
 
-### **Step 2: Transform Data**
-
-```typescript
-// transform-data.ts
-import * as fs from 'fs';
-
-// Load Firestore exports
-const users = JSON.parse(fs.readFileSync('users.json', 'utf-8'));
-const tasks = JSON.parse(fs.readFileSync('tasks.json', 'utf-8'));
-
-// Transform to SQL format
-const usersSql = users.map((user) => ({
-  id: user.id,
-  email: user.email,
-  name: user.name,
-  created_at: user.createdAt?._seconds * 1000 || Date.now(),
-  updated_at: user.updatedAt?._seconds * 1000 || Date.now(),
-}));
-
-const tasksSql = tasks.map((task) => ({
-  id: task.id,
-  user_id: task.userId,
-  title: task.title,
-  description: task.description || null,
-  status: task.status || 'pending',
-  priority: task.priority || null,
-  due_date: task.dueDate?._seconds * 1000 || null,
-  created_at: task.createdAt?._seconds * 1000 || Date.now(),
-  updated_at: task.updatedAt?._seconds * 1000 || Date.now(),
-}));
-
-// Save as SQL
-fs.writeFileSync('users.sql.json', JSON.stringify(usersSql, null, 2));
-fs.writeFileSync('tasks.sql.json', JSON.stringify(tasksSql, null, 2));
-```
-
-### **Step 3: Import to D1**
-
-```typescript
-// import-to-d1.ts
-import * as fs from 'fs';
-
-const users = JSON.parse(fs.readFileSync('users.sql.json', 'utf-8'));
-const tasks = JSON.parse(fs.readFileSync('tasks.sql.json', 'utf-8'));
-
-// Generate SQL INSERT statements
-let sql = '';
-
-users.forEach((user) => {
-  sql += `INSERT INTO users (id, email, name, created_at, updated_at) VALUES ('${user.id}', '${user.email}', '${user.name}', ${user.created_at}, ${user.updated_at});\n`;
-});
-
-tasks.forEach((task) => {
-  sql += `INSERT INTO tasks (id, user_id, title, description, status, priority, due_date, created_at, updated_at) VALUES ('${task.id}', '${task.user_id}', '${task.title}', ${task.description ? `'${task.description}'` : 'NULL'}, '${task.status}', ${task.priority ? `'${task.priority}'` : 'NULL'}, ${task.due_date || 'NULL'}, ${task.created_at}, ${task.updated_at});\n`;
-});
-
-fs.writeFileSync('import.sql', sql);
-console.log('Generated import.sql');
-```
-
-Run:
-
-```bash
-node transform-data.ts
-node import-to-d1.ts
-wrangler d1 execute mccarthy-pa-dev --file=./import.sql
-```
-
-### **Step 4: Verify Data**
-
-```bash
-# Check user count
-wrangler d1 execute mccarthy-pa-dev --command="SELECT COUNT(*) FROM users;"
-
-# Check task count
-wrangler d1 execute mccarthy-pa-dev --command="SELECT COUNT(*) FROM tasks;"
-
-# Sample data
-wrangler d1 execute mccarthy-pa-dev --command="SELECT * FROM users LIMIT 5;"
-wrangler d1 execute mccarthy-pa-dev --command="SELECT * FROM tasks LIMIT 5;"
+# Run schema
+wrangler d1 execute mccarthy-pa-dev --file=./schema.sql
 ```
 
 ---
