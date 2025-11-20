@@ -1,4 +1,4 @@
-name = "agent-army-worker"
+name = "dartmouth-os-worker"
 main = "src/index.ts"
 compatibility_date = "2025-11-16"
 compatibility_flags = ["nodejs_compat"]
@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # D1 Database
 [[d1_databases]]
 binding = "DB"
-database_name = "agent-army-db"
+database_name = "dartmouth-os-db"
 database_id = "7cf1c2ab-a284-49bb-8484-ade563391cb2"
 
 # KV Namespaces
@@ -23,8 +23,8 @@ preview_id = "ddbe6a75fde34a9daac1f58b217bfc61"
 # R2 Buckets
 [[r2_buckets]]
 binding = "FILES"
-bucket_name = "agent-army-files"
-preview_bucket_name = "agent-army-files-preview"
+bucket_name = "dartmouth-os-files"
+preview_bucket_name = "dartmouth-os-files-preview"
 
 # Workers AI
 [ai]
