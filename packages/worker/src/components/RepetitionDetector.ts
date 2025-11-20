@@ -15,6 +15,12 @@ export class RepetitionDetector {
     currentQuestion: string,
     conversationState: ConversationState
   ): { isRepetition: boolean; previousQuestion?: string; count: number } {
+    // Exclude meta-questions (questions ABOUT the conversation) from repetition detection
+    // These should be answered with conversation context, not treated as repetition
+    if (this.isMetaQuestion(currentQuestion)) {
+      return { isRepetition: false, count: 0 };
+    }
+
     if (!conversationState.questionsAsked || !Array.isArray(conversationState.questionsAsked)) {
       return { isRepetition: false, count: 0 };
     }
@@ -84,6 +90,25 @@ export class RepetitionDetector {
 
     const index = Math.min(repetitionCount - 1, variations.length - 1)
     return variations[index]
+  }
+
+  /**
+   * Check if question is a meta-question (asking ABOUT the conversation)
+   * These should NOT be treated as repetition - they should be answered with context
+   */
+  private isMetaQuestion(question: string): boolean {
+    const lowerQuestion = question.toLowerCase();
+    const metaPatterns = [
+      /what did (i|you) (just )?say/i,
+      /what (was|is) my (name|last message)/i,
+      /do you (remember|know) (what|my|about)/i,
+      /tell me (what|about) (i|we|my)/i,
+      /what (do you|have i) (know|said|told)/i,
+      /how many (messages|times|exchanges)/i,
+      /what's my (name|email|address|location)/i
+    ];
+    
+    return metaPatterns.some(pattern => pattern.test(lowerQuestion));
   }
 
   /**
