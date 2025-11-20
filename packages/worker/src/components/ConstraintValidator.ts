@@ -284,9 +284,9 @@ export class ConstraintValidator {
         console.log(`[ConstraintValidator] Using custom response: ${firstViolation.suggestedResponse.substring(0, 50)}...`);
       }
       
-      // PRIORITY 1: Use custom suggestedResponse if provided
+      // PRIORITY 1: Use custom suggestedResponse if provided (with variation)
       if (firstViolation.suggestedResponse) {
-        return firstViolation.suggestedResponse;
+        return this.varyConstraintResponse(firstViolation.ruleId, firstViolation.suggestedResponse);
       }
       
       // PRIORITY 2: Generic escalation with contact
@@ -339,6 +339,44 @@ export class ConstraintValidator {
     constraintSet.targetId = agentId;
     this.agentConstraints.set(agentId, constraintSet);
     console.log(`[ConstraintValidator] Registered ${constraintSet.rules.length} agent constraints for: ${agentId}`);
+  }
+
+  /**
+   * Vary constraint responses to avoid repetition
+   * Returns a varied version of the response while maintaining the core message
+   */
+  private varyConstraintResponse(ruleId: string, baseResponse: string): string {
+    // Define variations for each constraint type
+    const variations: Record<string, string[]> = {
+      'no-refunds': [
+        "Unfortunately, I'm not the best person to help assist you with this request. Please reach out to our friendly team via email, and a member of staff will happily help you. Is there anything else I can help you with?",
+        "I understand you'd like a refund. I'm unable to process that, but our support team can definitely help you out. Please contact them via email. What else can I assist you with?",
+        "I can't handle refund requests directly, but our team is here to help! Please reach out to them via email and they'll sort this out for you. Anything else I can help with?",
+        "Refund requests need to go through our support team. Please drop them an email and they'll take care of you. Is there something else I can help you with in the meantime?"
+      ],
+      'no-discounts': [
+        "Unfortunately, I don't have access to the latest information regarding discounts or sales offers. The best place to look would be on our website for the most up-to-date information. Is there anything else I can help you with?",
+        "I don't have access to current discount information, but you can find the latest offers on our website. Is there something else I can help you with?",
+        "For the most current discount and sales information, I'd recommend checking our website directly. What else can I assist you with?",
+        "I'm not able to provide discount details, but our website has all the latest offers and promotions. Can I help you with anything else?"
+      ],
+      'no-pricing': [
+        "Unfortunately, I don't have access to the latest information regarding pricing. The best place to look would be on our website for the most up-to-date information. Is there anything else I can help you with?",
+        "I don't have current pricing information available, but you can find all pricing details on our website. What else can I help you with?",
+        "For the most accurate pricing, I'd recommend checking our website directly. Is there something else I can assist you with?",
+        "I'm not able to provide pricing details, but our website has all the current pricing information. Can I help you with anything else?"
+      ]
+    };
+
+    // Get variations for this rule
+    const ruleVariations = variations[ruleId];
+    if (!ruleVariations || ruleVariations.length === 0) {
+      return baseResponse; // No variations defined, return base
+    }
+
+    // Select a random variation
+    const randomIndex = Math.floor(Math.random() * ruleVariations.length);
+    return ruleVariations[randomIndex];
   }
 
   /**
