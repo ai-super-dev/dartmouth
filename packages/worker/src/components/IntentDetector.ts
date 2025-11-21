@@ -45,11 +45,16 @@ export class IntentDetector {
   }
 
   /**
-   * Strip artwork context metadata from message
+   * Strip artwork context metadata from message for intent detection
    * Frontend appends "[Artwork Context: {...}]" which should not influence intent detection
+   * BUT we keep it in the message for handlers/LLM to access the data
+   * 
+   * This method only strips it for the PURPOSE of intent classification,
+   * not from the actual message that gets processed.
    */
   private stripArtworkContext(message: string): string {
-    // Remove [Artwork Context: ...] section
+    // Remove [Artwork Context: ...] section for intent detection only
+    // The actual message passed to handlers will still have this data
     return message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
   }
 

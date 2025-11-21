@@ -647,7 +647,10 @@ export class BaseAgent {
       "i'm not quite sure",
       "could you rephrase",
       "i'm not following",
-      "please provide more specific"
+      "please provide more specific",
+      "don't have specific details",  // InformationHandler generic response
+      "i don't have specific",
+      "no specific details"
     ];
 
     const lowerContent = response.content.toLowerCase();
