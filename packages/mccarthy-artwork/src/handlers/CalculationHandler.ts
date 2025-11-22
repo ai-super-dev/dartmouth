@@ -41,10 +41,11 @@ export class CalculationHandler implements Handler {
     if (targetDPI) {
       console.log(`[CalculationHandler] Detected target DPI: ${targetDPI}`);
       
+      // Try to find artwork context in conversation history
       if (context.conversationState?.messages) {
         const sizeAtDPI = this.findSizeAtDPI(targetDPI, context.conversationState.messages);
         if (sizeAtDPI) {
-          console.log(`[CalculationHandler] Found size at DPI: ${sizeAtDPI}`);
+          console.log(`[CalculationHandler] Found size at DPI from history: ${sizeAtDPI}`);
           return {
             content: sizeAtDPI,
             metadata: {
@@ -56,11 +57,56 @@ export class CalculationHandler implements Handler {
             }
           };
         } else {
-          console.log(`[CalculationHandler] findSizeAtDPI returned null`);
+          console.log(`[CalculationHandler] findSizeAtDPI returned null from history`);
         }
-      } else {
-        console.log(`[CalculationHandler] No conversation state or messages`);
       }
+      
+      // Fallback: Try to extract from current message's artwork context
+      const contextMatch = message.match(/\[Artwork Context: ({.*?})\]/s);
+      if (contextMatch) {
+        console.log(`[CalculationHandler] Found artwork context in current message`);
+        try {
+          const artworkContext = JSON.parse(contextMatch[1]);
+          const dimMatch = artworkContext.dimensions?.match(/(\d+)x(\d+)/);
+          
+          if (dimMatch) {
+            const widthPixels = parseInt(dimMatch[1]);
+            const heightPixels = parseInt(dimMatch[2]);
+            const widthInches = widthPixels / targetDPI;
+            const heightInches = heightPixels / targetDPI;
+            const widthCm = widthInches * 2.54;
+            const heightCm = heightInches * 2.54;
+            
+            let quality: string;
+            let emoji: string;
+            if (targetDPI >= 250) {
+              quality = 'Optimal';
+              emoji = '✨';
+            } else if (targetDPI >= 200) {
+              quality = 'Good';
+              emoji = '👌';
+            } else {
+              quality = 'Poor';
+              emoji = '⚠️';
+            }
+            
+            return {
+              content: `At **${targetDPI} DPI**, your artwork will be:\n\n📏 **${widthCm.toFixed(2)} × ${heightCm.toFixed(2)} cm** (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}")\n\n${emoji} **Quality: ${quality}**`,
+              metadata: {
+                handlerName: this.name,
+                handlerVersion: this.version,
+                processingTime: Date.now() - startTime,
+                cached: false,
+                confidence: 1.0
+              }
+            };
+          }
+        } catch (e) {
+          console.log(`[CalculationHandler] Error parsing artwork context from current message:`, e);
+        }
+      }
+      
+      console.log(`[CalculationHandler] No artwork context found anywhere`);
     }
 
     // Use CalculationEngine for accurate calculations
