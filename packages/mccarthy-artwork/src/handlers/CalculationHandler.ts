@@ -205,7 +205,7 @@ export class CalculationHandler implements Handler {
                 emoji = '⚠️';
               }
               
-              return `At **${targetDPI} DPI**, your artwork will be:\n\n📏 **${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"** (${widthCm.toFixed(2)} × ${heightCm.toFixed(2)} cm)\n\n${emoji} **Quality: ${quality}**`;
+              return `At **${targetDPI} DPI**, your artwork will be:\n\n📏 **${widthCm.toFixed(2)} × ${heightCm.toFixed(2)} cm** (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}")\n\n${emoji} **Quality: ${quality}**`;
             }
           } catch (e) {
             // Ignore parse errors
@@ -279,7 +279,7 @@ export class CalculationHandler implements Handler {
       emoji = '⚠️';
     }
     
-    return `At ${widthCm.toFixed(1)} cm × ${heightCm.toFixed(1)} cm (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"), your artwork will be **${avgDPI} DPI**.\n\n${emoji} **Quality: ${quality}**\n\nYour artwork is ${params.widthPixels} × ${params.heightPixels} pixels.`;
+    return `At **${widthCm.toFixed(1)} × ${heightCm.toFixed(1)} cm** (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"), your artwork will be **${avgDPI} DPI**.\n\n${emoji} **Quality: ${quality}**\n\nYour artwork is ${params.widthPixels} × ${params.heightPixels} pixels.`;
   }
 
   private formatCalculationResponse(result: any, params: any): string {
@@ -317,9 +317,11 @@ export class CalculationHandler implements Handler {
 
     // Add recommendations for low DPI
     if (actualDPI < 200) {
-      const recommendedWidth = (params.widthPixels / 300).toFixed(2);
-      const recommendedHeight = (params.heightPixels / 300).toFixed(2);
-      response += `\n\n💡 **My Recommendation:** For sharp, professional prints, try printing at ${recommendedWidth}" x ${recommendedHeight}" (at 300 DPI) instead. The smaller size will look much better!`;
+      const recommendedWidthIn = params.widthPixels / 300;
+      const recommendedHeightIn = params.heightPixels / 300;
+      const recommendedWidthCm = (recommendedWidthIn * 2.54).toFixed(1);
+      const recommendedHeightCm = (recommendedHeightIn * 2.54).toFixed(1);
+      response += `\n\n💡 **My Recommendation:** For sharp, professional prints, try printing at ${recommendedWidthCm} × ${recommendedHeightCm} cm (${recommendedWidthIn.toFixed(2)}" × ${recommendedHeightIn.toFixed(2)}") at 300 DPI instead. The smaller size will look much better!`;
     }
 
     return response;
