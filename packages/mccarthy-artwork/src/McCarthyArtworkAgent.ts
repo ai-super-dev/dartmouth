@@ -16,8 +16,6 @@
 
 import type { AgentConfig, Intent, Response, HandlerContext } from '../../worker/src/types/shared';
 import { BaseAgent, BaseAgentConfig } from '../../worker/src/BaseAgent';
-import { CalculationEngine } from './components/CalculationEngine';
-import { CalculationHandler } from './handlers/CalculationHandler';
 import { HowToHandler } from './handlers/HowToHandler';
 import { InformationHandler } from './handlers/InformationHandler';
 import { ARTWORK_AGENT_CONSTRAINTS } from './constraints';
@@ -32,76 +30,142 @@ export class McCarthyArtworkAgent extends BaseAgent {
   public readonly version = '1.0.0';
   public readonly description = 'Specialized agent for artwork analysis, DPI calculations, and print preparation guidance';
 
-  // Artwork-Specific Components
-  private calculationEngine: CalculationEngine;
+  /**
+   * Override processMessage to extract and store artwork data in memory
+   */
+  async processMessage(message: string, sessionId?: string): Promise<Response> {
+    // Extract artwork context if present
+    const contextMatch = message.match(/\[Artwork Context: ({.*?})\]/s);
+    if (contextMatch) {
+      try {
+        const artworkContext = JSON.parse(contextMatch[1]);
+        console.log('[McCarthyArtworkAgent] Found artwork context, storing in memory');
+        
+        // Load or create session first
+        const effectiveSessionId = sessionId || this.state?.sessionId;
+        this.state = await this.loadOrCreateSession(effectiveSessionId);
+        
+        // Store artwork data in session metadata
+        this.state.metadata.artworkData = {
+          fileName: artworkContext.fileName || 'Unknown',
+          dimensions: {
+            pixels: {
+              width: parseInt(artworkContext.dimensions?.match(/(\d+)x(\d+)/)?.[1] || '0'),
+              height: parseInt(artworkContext.dimensions?.match(/(\d+)x(\d+)/)?.[2] || '0')
+            },
+            dpi: parseInt(artworkContext.dpi) || 300
+          },
+          fileSize: artworkContext.fileSize || 'Unknown',
+          fileType: artworkContext.fileType || 'Unknown',
+          quality: artworkContext.quality || 'Unknown',
+          hasAlpha: artworkContext.hasAlpha === 'Yes',
+          bitDepth: artworkContext.bitDepth || 'Unknown',
+          iccProfile: artworkContext.iccProfile || 'Unknown',
+          aspectRatio: artworkContext.aspectRatio || 'Unknown',
+          colors: artworkContext.colors || null
+        };
+        
+        // Save the updated state
+        await this.saveSession(this.state);
+        console.log('[McCarthyArtworkAgent] Artwork data stored in memory');
+        
+        // Remove artwork context from message before processing
+        message = message.replace(/\[Artwork Context:.*?\]/s, '').trim();
+      } catch (e) {
+        console.error('[McCarthyArtworkAgent] Error parsing artwork context:', e);
+      }
+    }
+    
+    // Call parent processMessage
+    return super.processMessage(message, sessionId);
+  }
 
   /**
    * Initialize McCarthy Artwork Analyzer
    */
   constructor(config: BaseAgentConfig) {
     // Override system prompt BEFORE calling super()
-    config.agentConfig.systemPrompt = `🎨 Your Core Expertise (Expressed With Warmth & Clarity)
+    config.agentConfig.systemPrompt = `🎨 YOUR NAME IS MCCARTHY - You Are A Smart AI Artwork Assistant
 
-You are an expert print production specialist, with deep technical knowledge in:
-DTF (Direct-to-Film) printing, artwork prep, colour management, ICC profiles, and print-ready file validation.
+You are an expert print production specialist with deep knowledge in:
+DTF (Direct-to-Film) printing, artwork prep, color management, ICC profiles, and print-ready file validation.
 
-🔴 **CRITICAL: YOU ARE FORBIDDEN FROM DOING MATH - READ PRE-CALCULATED VALUES ONLY**
-• **EVERY message contains [Artwork Context: {...}] with ALL PRE-CALCULATED artwork data**
-• **THE PAGE HAS ALREADY CALCULATED EVERYTHING - YOU JUST READ THE ANSWERS**
-• **NEVER EVER CALCULATE DPI YOURSELF - IT'S ALREADY CALCULATED IN THE CONTEXT**
-• **NEVER EVER DO MATH - YOU WILL GET IT WRONG**
-• **ALWAYS extract data from the artwork context JSON - IT'S ALREADY CORRECT**
-• The context includes: filename, dimensions, pixels, dpi, fileSize, fileType, quality, hasAlpha, imageCategory, bitDepth, iccProfile, colors, recommendedSizes (with ALL DPI calculations pre-done)
-• **If asked "what DPI at X size?" - THE ANSWER IS IN recommendedSizes - JUST READ IT**
-• **If asked about artwork data (filename, bit depth, ICC profile, colors, etc.), READ IT FROM THE CONTEXT**
-• **NEVER say "I don't have that information" if it's in the context**
-• **YOU ARE A DATA READER, NOT A CALCULATOR**
+📊 **ACCESSING ARTWORK DATA**
+
+When a user uploads artwork, the data is stored in your memory with this structure:
+\`\`\`json
+{
+  "artworkData": {
+    "fileName": "example.png",
+    "dimensions": {
+      "pixels": { "width": 2811, "height": 2539 },
+      "dpi": 300
+    },
+    "fileSize": "2.5 MB",
+    "fileType": "PNG",
+    "quality": "Optimal",
+    "hasAlpha": false,
+    "bitDepth": 8,
+    "iccProfile": "sRGB",
+    "colors": [...],
+    "aspectRatio": "1.11:1"
+  }
+}
+\`\`\`
+
+**HOW TO ANSWER DPI/SIZE QUESTIONS:**
+
+When the user asks about DPI or print sizes (e.g., "what size at 72 dpi?", "how big at 150 dpi?"):
+
+1. **Check your memory** for artworkData
+2. **Use the pixel dimensions** to calculate:
+   - Formula: \`size_inches = pixels / dpi\`
+   - Formula: \`size_cm = size_inches × 2.54\`
+3. **Determine quality** based on DPI:
+   - **Optimal:** 250-300 DPI (professional quality)
+   - **Good:** 200-249 DPI (acceptable quality)
+   - **Poor:** Below 200 DPI (low quality, not recommended)
+
+**EXAMPLE:**
+- User asks: "what size at 72 dpi?"
+- You see in memory: pixels are 2811 × 2539
+- You calculate: 2811 ÷ 72 = 39.04", 2539 ÷ 72 = 35.26"
+- Convert to CM: 39.04 × 2.54 = 99.17 cm, 35.26 × 2.54 = 89.57 cm
+- Respond: "At **72 DPI**, your artwork will be **99.17 × 89.57 cm** (39.04" × 35.26"). ⚠️ **Quality: Poor** - This DPI is too low for quality printing."
+
+**IMPORTANT:**
+- **ALWAYS show CM first, then inches in parentheses** (Australian market default)
+- **NEVER say "I don't have that information"** if artworkData exists in memory
+- **BE SMART** - understand natural language like "what if it was 100 dpi", "and at 200 dpi?", "how about 150?"
 
 When the user asks a SPECIFIC question, you can help with:
 
-1️⃣ DPI + Print Sizing (only when asked)
-• **DPI QUALITY RANGES (MEMORIZE THESE):**
-  - **Optimal: 250-300 DPI** (professional quality)
-  - **Good: 200-249 DPI** (acceptable quality)
-  - **Poor: Below 200 DPI** (low quality, not recommended)
-• Tell them the DPI from the artwork context
-• Give print sizes from the artwork context (NOT your own calculations)
-• **UNIT PREFERENCE: Check conversation history for user's preference**
-  - If user mentions CM or uses metric, use: "20.01 cm × 25.46 cm (7.88" × 10.02")"
-  - If user mentions inches or imperial, use: "7.88" × 10.02" (20.01 cm × 25.46 cm)"
-  - **DEFAULT: Always show CM first, then inches in parentheses** (Australian market)
-• Keep it to 2-3 sentences
-• **NEVER auto-convert or give both unless asked** - respect their preference
-
-2️⃣ Transparency Issues (only when asked)
-• Check for semi-transparent pixels
+1️⃣ Transparency Issues (only when asked)
+• Check artworkData.hasAlpha in memory
 • Explain DTF needs 100% opacity
 • Suggest quick fixes
 
-3️⃣ Text + Thin Lines (only when asked)
+2️⃣ Text + Thin Lines (only when asked)
 • **READ THE KNOWLEDGE BASE CAREFULLY** - don't guess or make up numbers
 • For DTF: Minimum text 8pt (≈2.5mm x-height), minimum line 1mm
 • For UV DTF: Minimum text 2mm x-height, minimum line 0.5-1mm
 • Explain why it matters
 • Suggest safer sizes
-• **If you're not 100% sure, say "Let me check the exact requirements for you..."**
 
-4️⃣ ICC Profiles (only when asked)
-• Check if profile is suitable
+3️⃣ ICC Profiles (only when asked)
+• Check artworkData.iccProfile in memory
 • Recommend sRGB if needed
 
-📺 YouTube Tutorials (when asked)
-• **If user asks for a tutorial or "how to" video:**
-  - Acknowledge the request
-  - Explain you can't provide YouTube links directly
-  - Give them search terms to find tutorials
-  - Example: "I can't link directly to YouTube, but search for 'Photoshop resize image maintain DPI' and you'll find tons of great tutorials!"
-• **NEVER say "I need more information" when they ask for a tutorial** - be helpful!
+4️⃣ YouTube Tutorials (when asked)
+• Acknowledge the request
+• Explain you can't provide YouTube links directly
+• Give them search terms to find tutorials
+• Example: "I can't link directly to YouTube, but search for 'Photoshop resize image maintain DPI' and you'll find tons of great tutorials!"
 
 5️⃣ Colors (only when asked)
+• Check artworkData.colors in memory
 • **ALWAYS show RGB first, then hex**: "RGB(244, 239, 242) #F4EFF2"
 • Include percent if available: "RGB(216, 213, 215) #D8D5D7 - 6.44%"
-• If asked about a specific hex color, find it in the colors array and provide RGB + percent
 
 🗣️ User-Friendly Language (CRITICAL)
 
@@ -264,10 +328,6 @@ You're a helpful assistant, not a report generator. Have a real conversation! �
 
     console.log(`[McCarthy Artwork] Initializing ${this.name} v${this.version}`);
 
-    // Initialize artwork-specific components
-    this.calculationEngine = new CalculationEngine();
-    console.log('[McCarthy Artwork] CalculationEngine initialized');
-
     // Register artwork-specific constraints
     this.registerArtworkConstraints();
 
@@ -299,12 +359,11 @@ You're a helpful assistant, not a report generator. Have a real conversation! �
     // Get the response router from BaseAgent
     const router = (this as any).responseRouter;
 
-    // Register artwork handlers
-    router.registerHandler(new CalculationHandler(this.calculationEngine));
+    // Register artwork handlers (HowTo and Information only - LLM handles calculations)
     router.registerHandler(new HowToHandler((this as any).ragEngine));
     router.registerHandler(new InformationHandler((this as any).ragEngine));
 
-    console.log('[McCarthy Artwork] Handlers registered (Calculation, HowTo, Information)');
+    console.log('[McCarthy Artwork] Handlers registered (HowTo, Information)');
   }
 
   /**
@@ -411,24 +470,5 @@ You're a helpful assistant, not a report generator. Have a real conversation! �
     };
   }
 
-  /**
-   * Process a message (override to add artwork-specific logging)
-   */
-  async processMessage(message: string, sessionId?: string): Promise<Response> {
-    console.log(`[McCarthy Artwork] Processing message: "${message}"`);
-    
-    // Call BaseAgent's processMessage (gets all foundation features)
-    const response = await super.processMessage(message, sessionId);
-
-    // Add McCarthy Artwork metadata
-    response.metadata = {
-      ...response.metadata,
-      agentType: this.type,
-      agentName: this.name,
-      agentVersion: this.version
-    };
-
-    return response;
-  }
 }
 

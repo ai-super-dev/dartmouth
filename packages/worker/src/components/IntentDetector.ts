@@ -274,14 +274,10 @@ export class IntentDetector {
     const hasPixelsAndDPI = /\d+\s*x\s*\d+\s*(pixels?|px)/i.test(message) && /\d+\s*dpi/i.test(message);
     if (hasPixelsAndDPI) return true;
     
-    // CRITICAL: Any question with a specific DPI number and asking about size
-    // Matches: "what size at 150 dpi", "if my artwork is 72 dpi what size", "72 dpi what size", etc.
-    const hasDPIAndSizeQuestion = /\d+\s*dpi/i.test(message) && /(what|how).*(size|dimension|big|large)/i.test(message);
-    if (hasDPIAndSizeQuestion) return true;
-    
-    // CRITICAL: Short DPI questions (e.g., "and 72 dpi?", "at 150 dpi?")
-    const isShortDPIQuestion = /^(and|at|with)?\s*\d+\s*dpi\??$/i.test(message);
-    if (isShortDPIQuestion) return true;
+    // DPI questions - let LLM handle them intelligently
+    // Just detect if they mention DPI at all
+    const mentionsDPI = /\d+\s*dpi/i.test(message);
+    if (mentionsDPI) return true;
     
     // If asking GENERAL questions about DPI (no specific numbers), it's information, not calculation
     const isGeneralDPIQuestion = /what dpi (is )?(recommended|should|best)/i.test(message);
