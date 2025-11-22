@@ -36,6 +36,24 @@ export class CalculationHandler implements Handler {
       calcParams = this.extractArtworkFromContext(context.conversationState.messages);
     }
 
+    // Check if user is asking "what size at X DPI?" (e.g., "what will be the size with 150 dpi")
+    const targetDPI = this.extractTargetDPI(message);
+    if (targetDPI && context.conversationState?.messages) {
+      const sizeAtDPI = this.findSizeAtDPI(targetDPI, context.conversationState.messages);
+      if (sizeAtDPI) {
+        return {
+          content: sizeAtDPI,
+          metadata: {
+            handlerName: this.name,
+            handlerVersion: this.version,
+            processingTime: Date.now() - startTime,
+            cached: false,
+            confidence: 1.0
+          }
+        };
+      }
+    }
+
     // Use CalculationEngine for accurate calculations
     let result: any;
     let responseText: string;
@@ -128,6 +146,60 @@ export class CalculationHandler implements Handler {
                 heightPixels: parseInt(dimMatch[2]),
                 dpi
               };
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private extractTargetDPI(message: string): number | null {
+    // Extract DPI like "150 dpi", "at 72 dpi", "with 300 dpi"
+    const dpiPattern = /(?:at|with|@)?\s*(\d+)\s*dpi/i;
+    const dpiMatch = message.match(dpiPattern);
+    
+    if (dpiMatch) {
+      return parseInt(dpiMatch[1]);
+    }
+    
+    return null;
+  }
+
+  private findSizeAtDPI(targetDPI: number, messages: any[]): string | null {
+    // Look for artwork context with recommendedSizes in recent messages
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.content && msg.content.includes('[Artwork Context:')) {
+        const contextMatch = msg.content.match(/\[Artwork Context: ({.*?})\]/s);
+        if (contextMatch) {
+          try {
+            const context = JSON.parse(contextMatch[1]);
+            const recommendedSizes = context.recommendedSizes;
+            
+            if (recommendedSizes && Array.isArray(recommendedSizes)) {
+              // Find the size with matching DPI
+              const match = recommendedSizes.find((size: any) => size.dpi === targetDPI);
+              
+              if (match) {
+                // Determine quality
+                let quality: string;
+                let emoji: string;
+                if (match.dpi >= 250) {
+                  quality = 'Optimal';
+                  emoji = '✨';
+                } else if (match.dpi >= 200) {
+                  quality = 'Good';
+                  emoji = '👌';
+                } else {
+                  quality = 'Poor';
+                  emoji = '⚠️';
+                }
+                
+                return `At **${match.dpi} DPI**, your artwork will be:\n\n📏 **${match.widthIn}" × ${match.heightIn}"** (${match.widthCm} × ${match.heightCm} cm)\n\n${emoji} **Quality: ${quality}**`;
+              }
             }
           } catch (e) {
             // Ignore parse errors
