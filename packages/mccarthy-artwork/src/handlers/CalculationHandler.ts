@@ -169,7 +169,7 @@ export class CalculationHandler implements Handler {
   }
 
   private findSizeAtDPI(targetDPI: number, messages: any[]): string | null {
-    // Look for artwork context with recommendedSizes in recent messages
+    // Look for artwork context with pixel dimensions in recent messages
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (msg.content && msg.content.includes('[Artwork Context:')) {
@@ -177,29 +177,35 @@ export class CalculationHandler implements Handler {
         if (contextMatch) {
           try {
             const context = JSON.parse(contextMatch[1]);
-            const recommendedSizes = context.recommendedSizes;
             
-            if (recommendedSizes && Array.isArray(recommendedSizes)) {
-              // Find the size with matching DPI
-              const match = recommendedSizes.find((size: any) => size.dpi === targetDPI);
+            // Extract pixel dimensions from "2811x2539 pixels"
+            const dimMatch = context.dimensions?.match(/(\d+)x(\d+)/);
+            
+            if (dimMatch) {
+              const widthPixels = parseInt(dimMatch[1]);
+              const heightPixels = parseInt(dimMatch[2]);
               
-              if (match) {
-                // Determine quality
-                let quality: string;
-                let emoji: string;
-                if (match.dpi >= 250) {
-                  quality = 'Optimal';
-                  emoji = '✨';
-                } else if (match.dpi >= 200) {
-                  quality = 'Good';
-                  emoji = '👌';
-                } else {
-                  quality = 'Poor';
-                  emoji = '⚠️';
-                }
-                
-                return `At **${match.dpi} DPI**, your artwork will be:\n\n📏 **${match.widthIn}" × ${match.heightIn}"** (${match.widthCm} × ${match.heightCm} cm)\n\n${emoji} **Quality: ${quality}**`;
+              // Calculate size at target DPI
+              const widthInches = widthPixels / targetDPI;
+              const heightInches = heightPixels / targetDPI;
+              const widthCm = widthInches * 2.54;
+              const heightCm = heightInches * 2.54;
+              
+              // Determine quality
+              let quality: string;
+              let emoji: string;
+              if (targetDPI >= 250) {
+                quality = 'Optimal';
+                emoji = '✨';
+              } else if (targetDPI >= 200) {
+                quality = 'Good';
+                emoji = '👌';
+              } else {
+                quality = 'Poor';
+                emoji = '⚠️';
               }
+              
+              return `At **${targetDPI} DPI**, your artwork will be:\n\n📏 **${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"** (${widthCm.toFixed(2)} × ${heightCm.toFixed(2)} cm)\n\n${emoji} **Quality: ${quality}**`;
             }
           } catch (e) {
             // Ignore parse errors
