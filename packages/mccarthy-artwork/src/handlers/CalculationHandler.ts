@@ -187,24 +187,18 @@ export class CalculationHandler implements Handler {
     const dpiHeight = params.heightPixels / heightInches;
     const avgDPI = Math.round((dpiWidth + dpiHeight) / 2);
     
-    // Determine quality
+    // Determine quality (CORRECT RANGES)
     let quality: string;
     let emoji: string;
-    if (avgDPI >= 300) {
-      quality = 'EXCELLENT';
+    if (avgDPI >= 250) {
+      quality = 'Optimal';
       emoji = '✨';
-    } else if (avgDPI >= 250) {
-      quality = 'GREAT';
-      emoji = '👍';
     } else if (avgDPI >= 200) {
-      quality = 'GOOD';
+      quality = 'Good';
       emoji = '👌';
-    } else if (avgDPI >= 150) {
-      quality = 'ACCEPTABLE';
-      emoji = '⚠️';
     } else {
-      quality = 'LOW';
-      emoji = '❌';
+      quality = 'Poor';
+      emoji = '⚠️';
     }
     
     return `At ${widthCm.toFixed(1)} cm × ${heightCm.toFixed(1)} cm (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"), your artwork will be **${avgDPI} DPI**.\n\n${emoji} **Quality: ${quality}**\n\nYour artwork is ${params.widthPixels} × ${params.heightPixels} pixels.`;
@@ -222,7 +216,7 @@ export class CalculationHandler implements Handler {
     const widthCm = widthInches * 2.54;
     const heightCm = heightInches * 2.54;
 
-    // Determine quality based on DPI
+    // Determine quality based on DPI (CORRECT RANGES)
     let quality = 'optimal';
     let qualityAdvice = '';
     
@@ -232,12 +226,9 @@ export class CalculationHandler implements Handler {
     } else if (actualDPI >= 200) {
       quality = 'good';
       qualityAdvice = "That's good quality - suitable for most printing needs.";
-    } else if (actualDPI >= 150) {
-      quality = 'acceptable';
-      qualityAdvice = "This will work for larger prints viewed from a distance, but you might notice some pixelation up close.";
     } else {
       quality = 'poor';
-      qualityAdvice = "⚠️ Heads up - 72 DPI is really low for printing. You'll likely see pixelation and the print won't look sharp. For best results, I'd recommend at least 200 DPI, ideally 300 DPI.";
+      qualityAdvice = "⚠️ This DPI is too low for quality printing. You'll likely see pixelation. For best results, I'd recommend at least 200 DPI for good quality, or 250-300 DPI for optimal quality.";
     }
 
     // Format the response with personality
