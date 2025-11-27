@@ -34,9 +34,12 @@ export class HowToHandler implements Handler {
     // Try to get answer from RAG knowledge base
     if (this.ragEngine && intent.requiresRAG) {
       try {
+        // Strip artwork context from message before RAG query (it's too long for KV key limit)
+        const cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        
         const ragResults = await this.ragEngine.retrieve(
           'mccarthy-artwork',  // Use McCarthy's agent ID to get artwork-specific knowledge
-          message,
+          cleanMessage,  // Use clean message without artwork context
           5
         );
 

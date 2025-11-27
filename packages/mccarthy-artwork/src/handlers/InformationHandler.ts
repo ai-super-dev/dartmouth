@@ -88,12 +88,17 @@ export class InformationHandler implements Handler {
     
     if (this.ragEngine && intent.requiresRAG) {
       try {
+        // Strip artwork context from message before RAG query (it's too long for KV key limit)
+        const cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        
         console.log('[InformationHandler] 🔍 CALLING RAG with agentId: mccarthy-artwork');
-        console.log('[InformationHandler] Query:', message);
+        console.log('[InformationHandler] Original message length:', message.length);
+        console.log('[InformationHandler] Clean message length:', cleanMessage.length);
+        console.log('[InformationHandler] Query:', cleanMessage);
         
         const ragResults = await this.ragEngine.retrieve(
           'mccarthy-artwork',  // Use McCarthy's agent ID to get artwork-specific knowledge
-          message,
+          cleanMessage,  // Use clean message without artwork context
           5
         );
 
