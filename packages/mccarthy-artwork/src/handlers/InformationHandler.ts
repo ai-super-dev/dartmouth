@@ -89,7 +89,10 @@ export class InformationHandler implements Handler {
     if (this.ragEngine && intent.requiresRAG) {
       try {
         // Strip artwork context from message before RAG query (it's too long for KV key limit)
-        const cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        // Format: "question\n\n,{...json...}" or "[Artwork Context: {...}]"
+        let cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        // Also strip JSON that starts after double newline
+        cleanMessage = cleanMessage.split('\n\n')[0].trim();
         
         console.log('[InformationHandler] 🔍 CALLING RAG with agentId: mccarthy-artwork');
         console.log('[InformationHandler] Original message length:', message.length);

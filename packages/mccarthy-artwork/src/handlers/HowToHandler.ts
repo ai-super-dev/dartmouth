@@ -35,7 +35,10 @@ export class HowToHandler implements Handler {
     if (this.ragEngine && intent.requiresRAG) {
       try {
         // Strip artwork context from message before RAG query (it's too long for KV key limit)
-        const cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        // Format: "question\n\n,{...json...}" or "[Artwork Context: {...}]"
+        let cleanMessage = message.replace(/\[Artwork Context:.*?\]/gs, '').trim();
+        // Also strip JSON that starts after double newline
+        cleanMessage = cleanMessage.split('\n\n')[0].trim();
         
         const ragResults = await this.ragEngine.retrieve(
           'mccarthy-artwork',  // Use McCarthy's agent ID to get artwork-specific knowledge
