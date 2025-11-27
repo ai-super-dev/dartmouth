@@ -13,48 +13,109 @@ import type { Intent, Response, HandlerContext } from '../../../worker/src/types
 
 export class SizeCalculationHandler {
   name = 'size-calculation';
+  version = '1.0.0';
 
   canHandle(intent: Intent): boolean {
-    // Detect when user asks about DPI for a specific size
-    const message = intent.originalMessage?.toLowerCase() || '';
-    
-    // Patterns that indicate reverse DPI calculation
-    const patterns = [
-      /what.*dpi.*at.*\d+/i,           // "what dpi at 26 cm"
-      /if.*size.*\d+.*what.*dpi/i,     // "if size is 26 cm what dpi"
-      /at.*\d+.*cm.*what.*dpi/i,       // "at 26 cm what dpi"
-      /\d+.*×.*\d+.*cm.*dpi/i,         // "26 × 24 cm dpi"
-      /\d+.*x.*\d+.*cm.*dpi/i,         // "26 x 24 cm dpi"
-    ];
-
-    return patterns.some(pattern => pattern.test(message));
+    // FIXED 2025-11-25: Intent doesn't have originalMessage field
+    // The IntentDetector already determined this is a 'calculation' intent
+    // So we just need to check the intent type
+    return intent.type === 'calculation';
   }
 
-  async handle(intent: Intent, context: HandlerContext): Promise<Response> {
-    const message = intent.originalMessage || '';
+  async handle(message: string, intent: Intent, context: HandlerContext): Promise<Response> {
+    const startTime = Date.now();
     
-    // Get artwork data from context
-    const artworkData = context.state?.metadata?.artworkData;
+    try {
+      console.log('[SizeCalculationHandler] CALLED - message:', message);
+      console.log('[SizeCalculationHandler] CALLED - intent:', intent.type);
+      
+      // Use message parameter or fallback to intent.originalMessage
+      const userMessage = message || intent.originalMessage || '';
+      
+      // DEBUG: Log what we're receiving
+      console.log('[SizeCalculationHandler] DEBUG - context.state:', JSON.stringify(context.state?.metadata, null, 2));
+      
+      // Get artwork data from context
+      const artworkData = context.state?.metadata?.artworkData;
+      
+      console.log('[SizeCalculationHandler] DEBUG - artworkData:', artworkData ? 'EXISTS' : 'NULL');
     
     if (!artworkData || !artworkData.dimensions?.pixels) {
       return {
-        success: false,
-        message: "I need artwork data to calculate DPI. Please upload an artwork first!",
-        intent,
-        handlerUsed: this.name
+        content: "I need artwork data to calculate DPI. Please upload an artwork first!",
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 0.8
+        }
       };
     }
 
-    // Extract size from message
-    const sizeInfo = this.extractSize(message);
+    // Check if this is a REVERSE calculation (DPI → size)
+    const reverseCalc = this.extractReverseDPI(userMessage);
+    if (reverseCalc) {
+      // Calculate size from DPI
+      const widthInches = artworkData.dimensions.pixels.width / reverseCalc.dpi;
+      const heightInches = artworkData.dimensions.pixels.height / reverseCalc.dpi;
+      const widthCm = widthInches * 2.54;
+      const heightCm = heightInches * 2.54;
+      
+      const qualityEmoji = reverseCalc.dpi >= 250 ? '✨' : reverseCalc.dpi >= 200 ? '👌' : '⚠️';
+      const quality = reverseCalc.dpi >= 250 ? 'Optimal' : reverseCalc.dpi >= 200 ? 'Good' : 'Poor';
+      
+      return {
+        content: `At **${reverseCalc.dpi} DPI**, you can print up to **${widthCm.toFixed(1)} × ${heightCm.toFixed(1)} cm** (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}"). ${qualityEmoji} **Quality: ${quality}**`,
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 1.0
+        }
+      };
+    }
+
+    // Extract size from message (FORWARD calculation: size → DPI)
+    const sizeInfo = this.extractSize(userMessage);
     
     if (!sizeInfo) {
+      // ADDED 2025-11-23: Check if user is asking about current slider position
+      const askingAboutCurrent = /current|this|now|my.*dpi|what.*dpi.*at.*this/i.test(userMessage);
+      
+      if (askingAboutCurrent && context.state?.metadata?.currentSliderPosition) {
+        const slider = context.state.metadata.currentSliderPosition;
+        const qualityEmoji = slider.quality === 'Optimal' ? '✨' : slider.quality === 'Good' ? '👌' : '⚠️';
+        
+        return {
+          content: `You're currently at **${slider.widthCm.toFixed(1)} × ${slider.heightCm.toFixed(1)} cm** (${slider.widthInches.toFixed(2)}" × ${slider.heightInches.toFixed(2)}"), **DPI ${slider.dpi}**. ${qualityEmoji} **Quality: ${slider.quality}**`,
+          metadata: {
+            handlerName: this.name,
+            handlerVersion: this.version,
+            processingTime: Date.now() - startTime,
+            cached: false,
+            confidence: 1.0
+          }
+        };
+      }
+      
       return {
-        success: false,
-        message: "I couldn't understand the size you mentioned. Could you specify it like '26.6 × 24.0 cm' or '10 × 9 inches'?",
-        intent,
-        handlerUsed: this.name
+        content: "I couldn't understand the size you mentioned. Could you specify it like '26.6 × 24.0 cm' or '10 × 9 inches'?",
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 0.5
+        }
       };
+    }
+
+    // FIXED 2025-11-25: If height is -1, calculate from aspect ratio
+    if (sizeInfo.heightCm === -1) {
+      const aspectRatio = artworkData.dimensions.pixels.height / artworkData.dimensions.pixels.width;
+      sizeInfo.heightCm = sizeInfo.widthCm * aspectRatio;
     }
 
     // Calculate DPI
@@ -66,15 +127,54 @@ export class SizeCalculationHandler {
     );
 
     // Format response
-    const response = this.formatResponse(result);
+    const responseText = this.formatResponse(result);
 
-    return {
-      success: true,
-      message: response,
-      intent,
-      handlerUsed: this.name,
-      data: result
-    };
+      return {
+        content: responseText,
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 1.0
+        }
+      };
+    } catch (error) {
+      console.error('[SizeCalculationHandler] ERROR:', error);
+      return {
+        content: `Error in SizeCalculationHandler: ${error.message}`,
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 0.0
+        }
+      };
+    }
+  }
+
+  /**
+   * Extract DPI for reverse calculation (DPI → size)
+   */
+  private extractReverseDPI(message: string): { dpi: number } | null {
+    // Patterns: "what size at 300 DPI", "show me sizes for 250 DPI", etc.
+    const reversePatterns = [
+      /what size.*?at (\d+)\s*dpi/i,
+      /size.*?for (\d+)\s*dpi/i,
+      /(\d+)\s*dpi.*?size/i,
+      /print.*?at (\d+)\s*dpi/i,
+      /max.*?size.*?(\d+)\s*dpi/i
+    ];
+    
+    for (const pattern of reversePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        return { dpi: parseInt(match[1]) };
+      }
+    }
+    
+    return null;
   }
 
   /**
@@ -103,7 +203,21 @@ export class SizeCalculationHandler {
       };
     }
 
-    // Try single dimension (assume square or width only)
+    // Try single dimension with "wide" or "width"
+    const singleWidthPattern = /(\d+\.?\d*)\s*(?:cm|centimeter)?\s*(?:wide|width)/i;
+    const singleWidthMatch = message.match(singleWidthPattern);
+    
+    if (singleWidthMatch) {
+      const width = parseFloat(singleWidthMatch[1]);
+      // We have width only - need to calculate height based on aspect ratio
+      // This will be handled in the handle() method where we have access to artwork data
+      return {
+        widthCm: width,
+        heightCm: -1 // Flag to calculate from aspect ratio
+      };
+    }
+
+    // Try single dimension (assume square)
     const singleCmPattern = /(\d+\.?\d*)\s*cm/i;
     const singleCmMatch = message.match(singleCmPattern);
     

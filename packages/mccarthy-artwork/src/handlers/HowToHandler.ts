@@ -35,8 +35,8 @@ export class HowToHandler implements Handler {
     if (this.ragEngine && intent.requiresRAG) {
       try {
         const ragResults = await this.ragEngine.retrieve(
-          message,
           context.state?.agentId || 'default',
+          message,
           5
         );
 

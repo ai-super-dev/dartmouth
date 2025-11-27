@@ -38,6 +38,25 @@ export class LLMService {
   }
 
   /**
+   * Estimate token count for a given text
+   * Uses rough approximation: ~4 characters per token for English text
+   * This is a simplification; real tokenization is more complex and model-specific
+   * 
+   * @param text - The text to estimate tokens for
+   * @returns Estimated token count
+   */
+  estimateTokens(text: string): number {
+    if (!text || text.length === 0) {
+      return 0;
+    }
+    
+    // Rough estimation: 1 token ≈ 4 characters for English text
+    // This is based on OpenAI's rule of thumb
+    // More accurate would be to use tiktoken library, but this is sufficient for estimation
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
    * Generate a response using the configured LLM
    */
   async generate(request: LLMRequest): Promise<LLMResponse> {

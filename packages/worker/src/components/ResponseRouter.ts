@@ -9,10 +9,13 @@ import type { Intent, Response, ConversationState } from '../types/shared'
 
 /**
  * Handler interface - all handlers must implement this
+ * 
+ * UPDATED 2025-11-23: Added priority field for handler ordering
  */
 export interface Handler {
   name: string
   version: string
+  priority?: number  // Higher priority = checked first (default: 0)
   canHandle(intent: Intent): boolean
   handle(
     message: string,
@@ -107,10 +110,17 @@ export class ResponseRouter {
 
   /**
    * Find the best handler for an intent
+   * 
+   * UPDATED 2025-11-23: Sort handlers by priority before checking
+   * This allows specialized agents to override foundation handlers
    */
   private findHandler(intent: Intent): Handler | null {
-    // Check all registered handlers
-    for (const handler of this.handlers.values()) {
+    // Sort handlers by priority (highest first)
+    const sortedHandlers = Array.from(this.handlers.values())
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    
+    // Check handlers in priority order
+    for (const handler of sortedHandlers) {
       if (handler.canHandle(intent)) {
         return handler
       }

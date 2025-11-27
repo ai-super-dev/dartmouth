@@ -80,22 +80,23 @@ export class IntentDetector {
       }
     }
 
-    // Follow-up patterns (check BEFORE calculation - high priority)
-    if (this.isFollowUp(message)) {
-      return {
-        type: 'followup',
-        confidence: 0.70,
-        entities: {}
-      }
-    }
-
-    // Calculation patterns
+    // Calculation patterns (MOVED UP - check BEFORE followup)
+    // This prevents "What is the DPI at 20cm?" from being detected as followup
     if (this.isCalculation(message)) {
       return {
         type: 'calculation',
         confidence: 0.85,
         requiresCalculation: true,
         entities: this.extractCalculationEntities(message)
+      }
+    }
+
+    // Follow-up patterns (MOVED DOWN - check AFTER calculation)
+    if (this.isFollowUp(message)) {
+      return {
+        type: 'followup',
+        confidence: 0.70,
+        entities: {}
       }
     }
 
@@ -292,7 +293,8 @@ export class IntentDetector {
       /what.*(size|dimension).*can.*print/i, // "What size can I print"
       /(what about|can i print).*(pixels|x\d+)/i,  // "What about 6000x9000 pixels"
       /dpi (at|for|if|do i need|should i use)/i,
-      /how (big|large|wide|tall|many pixels)/i,
+      /how (big|large|wide|tall).*can.*(i|we).*(print|make)/i, // "how big can I print?" (NOT "how big is my file?")
+      /how many pixels.*need/i, // "how many pixels do I need?"
       /max(imum)? size/i,
       /print size/i
     ]
@@ -355,9 +357,11 @@ export class IntentDetector {
       /^(and|also|what about|how about)/i,
       /^(ok|okay|alright),?\s+(and|but|so)/i,
       /^(yes|yeah|yep|sure),?\s+(and|but)/i,
-      /^what (is|was|are|were|size)/i,  // "What is...", "What was...", "What size..."
+      // REMOVED: /^what (is|was|are|were|size)/i - Too broad! Catches "What is the DPI at 20cm?"
+      // REPLACED WITH more specific patterns:
+      /^what (was|were) (that|it)/i,  // "What was that?", "What were those?" (references past)
       /\b(that|this|it)\b/i,  // References to previous context (but NOT "my")
-      /^(where|when|why)/i  // Other question words that likely reference context
+      /^(where|when|why) (was|did|were)/i  // Past tense questions (likely followup)
     ]
     return followUpPatterns.some(pattern => pattern.test(message))
   }
@@ -390,9 +394,15 @@ export class IntentDetector {
    * Check if message is an information request
    */
   private isInformation(message: string): boolean {
+    // Check for file information questions FIRST (before general patterns)
+    if (this.isFileInformation(message)) {
+      return true;
+    }
+    
     const informationPatterns = [
       /^what is /i,
       /^what are /i,
+      /^does (it|my|the)/i, // "does it have an ICC profile?"
       /tell me about/i,
       /explain/i,
       /define/i,
@@ -403,6 +413,19 @@ export class IntentDetector {
       /^why is /i
     ]
     return informationPatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Check if message is asking about file information
+   */
+  private isFileInformation(message: string): boolean {
+    const filePatterns = [
+      /how (big|large).*file/i, // "how big is my file?"
+      /file size/i, // "what's the file size?"
+      /what.*file.*size/i, // "what is the file size?"
+      /size.*file/i // "size of my file"
+    ]
+    return filePatterns.some(pattern => pattern.test(message))
   }
 
   /**

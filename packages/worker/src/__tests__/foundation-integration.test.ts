@@ -70,6 +70,18 @@ describe('Foundation Integration Tests', () => {
     it('should detect pricing violations', () => {
       const validator = agent.getConstraintValidator();
       
+      // Register agent-specific constraints (pricing/discounts/refunds are agent-specific, not global)
+      validator.registerAgentConstraints('test-agent', [
+        {
+          id: 'no-pricing',
+          type: 'forbidden-phrase',
+          severity: 'high',
+          pattern: /\$\d+|cost|price|charge/gi,
+          message: 'Cannot discuss pricing',
+          escalateTo: 'sales team'
+        }
+      ]);
+      
       const response = {
         content: 'That will cost $50 for the print.',
         metadata: {}
@@ -89,6 +101,18 @@ describe('Foundation Integration Tests', () => {
     it('should detect discount violations', () => {
       const validator = agent.getConstraintValidator();
       
+      // Register agent-specific discount constraint
+      validator.registerAgentConstraints('test-agent', [
+        {
+          id: 'no-discounts',
+          type: 'forbidden-phrase',
+          severity: 'high',
+          pattern: /discount|%\s*off|sale|special offer/gi,
+          message: 'Cannot offer discounts',
+          escalateTo: 'sales team'
+        }
+      ]);
+      
       const response = {
         content: 'I can offer you a 20% discount!',
         metadata: {}
@@ -106,6 +130,18 @@ describe('Foundation Integration Tests', () => {
 
     it('should detect refund violations', () => {
       const validator = agent.getConstraintValidator();
+      
+      // Register agent-specific refund constraint
+      validator.registerAgentConstraints('test-agent', [
+        {
+          id: 'no-refunds',
+          type: 'forbidden-commitment',
+          severity: 'critical',
+          pattern: /refund|money back|reimburse/gi,
+          message: 'Cannot promise refunds',
+          escalateTo: 'customer service manager'
+        }
+      ]);
       
       const response = {
         content: 'We will refund your money immediately.',
@@ -141,6 +177,19 @@ describe('Foundation Integration Tests', () => {
 
     it('should provide suggested responses for violations', () => {
       const validator = agent.getConstraintValidator();
+      
+      // Register agent-specific pricing constraint with suggested response
+      validator.registerAgentConstraints('test-agent', [
+        {
+          id: 'no-pricing',
+          type: 'forbidden-phrase',
+          severity: 'high',
+          pattern: /\$\d+|costs?|price/gi,
+          message: 'Cannot discuss pricing',
+          escalateTo: 'sales team',
+          suggestedResponse: 'For pricing information, please contact our sales team.'
+        }
+      ]);
       
       const response = {
         content: 'That costs $100.',

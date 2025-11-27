@@ -142,7 +142,7 @@ export class BaseAgent {
     this.initializeLLMService();
 
     // Register all handlers
-    this.registerHandlers();
+    this.registerFoundationHandlers();
     
     // Register McCarthy agents (will be populated in Phase 6)
     this.registerMcCarthyAgents();
@@ -192,10 +192,16 @@ export class BaseAgent {
    * NOTE: Only foundation handlers are registered here.
    * Domain-specific handlers (calculation, howto, information) are now
    * part of specialized McCarthy agents.
+   * 
+   * UPDATED 2025-11-23: Changed to protected to allow child agents to override.
+   * Child agents can now provide custom greeting handlers by overriding hasCustomGreetingHandler().
    */
-  private registerHandlers(): void {
+  protected registerFoundationHandlers(): void {
     // Register foundation handlers only
-    this.responseRouter.registerHandler(new GreetingHandler());
+    // Only register GreetingHandler if child agent doesn't provide custom one
+    if (!this.hasCustomGreetingHandler()) {
+      this.responseRouter.registerHandler(new GreetingHandler());
+    }
     this.responseRouter.registerHandler(new RepeatHandler());
     this.responseRouter.registerHandler(new FrustrationHandlerImpl());
 
@@ -203,6 +209,26 @@ export class BaseAgent {
     this.responseRouter.setDefaultHandler(new FallbackHandler());
 
     console.log('[BaseAgent] Foundation handlers registered (greeting, repeat, frustration, fallback)');
+  }
+
+  /**
+   * Override this in child agents to provide custom greeting handler
+   * 
+   * @returns true if child agent provides custom greeting handler
+   */
+  protected hasCustomGreetingHandler(): boolean {
+    return false; // Default: use FAM's GreetingHandler
+  }
+
+  /**
+   * Expose ResponseRouter to child agents
+   * 
+   * Allows specialized agents to register their own handlers
+   * 
+   * @returns ResponseRouter instance
+   */
+  protected getResponseRouter() {
+    return this.responseRouter;
   }
 
   /**

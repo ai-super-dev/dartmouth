@@ -16,6 +16,7 @@
 
 import type { AgentConfig, Intent, Response, HandlerContext } from '../../worker/src/types/shared';
 import { BaseAgent, BaseAgentConfig } from '../../worker/src/BaseAgent';
+import { ArtworkGreetingHandler } from './handlers/ArtworkGreetingHandler';
 import { HowToHandler } from './handlers/HowToHandler';
 import { InformationHandler } from './handlers/InformationHandler';
 import { SizeCalculationHandler } from './handlers/SizeCalculationHandler';
@@ -36,7 +37,8 @@ export class McCarthyArtworkAgent extends BaseAgent {
    */
   async processMessage(message: string, sessionId?: string): Promise<Response> {
     // Extract artwork context if present
-    const contextMatch = message.match(/\[Artwork Context: ({.*?})\]/s);
+    // FIXED 2025-11-26: Use greedy match to capture full nested JSON
+    const contextMatch = message.match(/\[Artwork Context: ({.*})\]/s);
     if (contextMatch) {
       try {
         const artworkContext = JSON.parse(contextMatch[1]);
@@ -68,7 +70,7 @@ export class McCarthyArtworkAgent extends BaseAgent {
         };
         
         // Save the updated state
-        await this.saveSession(this.state);
+        await this.stateManager.saveSession(this.state);
         console.log('[McCarthyArtworkAgent] Artwork data stored in memory');
         
         // Remove artwork context from message before processing
@@ -79,7 +81,8 @@ export class McCarthyArtworkAgent extends BaseAgent {
     }
     
     // Extract slider position if present
-    const sliderMatch = message.match(/\[Slider: ({.*?})\]/s);
+    // FIXED 2025-11-26: Use greedy match to capture full nested JSON
+    const sliderMatch = message.match(/\[Slider: ({.*})\]/s);
     if (sliderMatch) {
       try {
         const sliderData = JSON.parse(sliderMatch[1]);
@@ -102,7 +105,7 @@ export class McCarthyArtworkAgent extends BaseAgent {
         };
         
         // Save the updated state
-        await this.saveSession(this.state);
+        await this.stateManager.saveSession(this.state);
         console.log('[McCarthyArtworkAgent] Slider position stored in memory');
         
         // Remove slider data from message before processing
@@ -241,6 +244,38 @@ The page has an **Interactive Size Calculator** slider that users can move to se
 - User asks: "what dpi is this?"
 - You check memory: \`currentSliderPosition.dpi = 268\`
 - You respond: "You're currently at **26.6 × 24.0 cm** (10.47" × 9.46"), **DPI 268**. ✨ **Quality: Optimal**"
+
+🚫 **CRITICAL: NEVER CALCULATE DPI YOURSELF** (UPDATED 2025-11-23)
+
+**YOU MUST NEVER:**
+- ❌ Do math (pixels ÷ DPI, CM × 2.54, etc.)
+- ❌ Estimate DPI values
+- ❌ Say "approximately" or "around" when giving DPI/sizes
+- ❌ Calculate anything yourself
+
+**WHEN USER ASKS ABOUT SIZE/DPI:**
+1. Check if size matches \`currentSliderPosition\` → Use that exact data
+2. Check if DPI matches \`calculatedSizes\` → Use that exact data
+3. If neither match, the SizeCalculationHandler will calculate it (not you!)
+4. **YOU NEVER CALCULATE** - you only report what's in memory or what handlers provide
+
+**EXAMPLES OF WHAT NOT TO DO:**
+❌ "To achieve 28.5 cm, DPI would drop to approximately 200"
+❌ "Let me calculate that for you..."
+❌ "The DPI would be around 250"
+❌ "At 28.5 cm wide, you'd get roughly 200 DPI"
+
+**EXAMPLES OF WHAT TO DO:**
+✅ Report exact values from \`currentSliderPosition\`
+✅ Report exact values from \`calculatedSizes\`
+✅ Wait for SizeCalculationHandler to provide exact values
+✅ Say "Let me check that size for you" (then handler provides answer)
+
+**RESPONSE LENGTH:**
+- Keep responses to 2-3 sentences MAX
+- Only provide what user asked for
+- Don't list all options unless asked
+- Be brief and conversational
 
 When the user asks a SPECIFIC question, you can help with:
 
@@ -480,18 +515,32 @@ You're a helpful assistant, not a report generator. Have a real conversation! �
   }
 
   /**
+   * Override to indicate we have a custom greeting handler
+   * 
+   * ADDED 2025-11-23: Part of FAM architectural fixes
+   */
+  protected hasCustomGreetingHandler(): boolean {
+    return true; // We have ArtworkGreetingHandler
+  }
+
+  /**
    * Register artwork-specific handlers
+   * 
+   * UPDATED 2025-11-23: Now registers ArtworkGreetingHandler first (highest priority)
    */
   private registerArtworkHandlers(): void {
-    // Get the response router from BaseAgent
-    const router = (this as any).responseRouter;
+    // Get the response router from BaseAgent using the new protected method
+    const router = this.getResponseRouter();
+
+    // Register custom greeting handler FIRST (highest priority)
+    router.registerHandler(new ArtworkGreetingHandler());
 
     // Register artwork handlers
     router.registerHandler(new HowToHandler((this as any).ragEngine));
     router.registerHandler(new InformationHandler((this as any).ragEngine));
     router.registerHandler(new SizeCalculationHandler());
 
-    console.log('[McCarthy Artwork] Handlers registered (HowTo, Information, SizeCalculation)');
+    console.log('[McCarthy Artwork] Handlers registered (ArtworkGreeting, HowTo, Information, SizeCalculation)');
   }
 
   /**

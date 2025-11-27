@@ -31,12 +31,51 @@ export class InformationHandler implements Handler {
     let sources: any[] = [];
     let confidence = 0.7;
 
+    // Check if question is about artwork file properties (ICC profile, file size, etc.)
+    const artworkData = context.state?.metadata?.artworkData;
+    if (artworkData) {
+      // ICC Profile questions
+      if (/icc profile|color profile|embedded profile/i.test(message)) {
+        const hasICC = artworkData.iccProfile && artworkData.iccProfile !== 'Unknown' && artworkData.iccProfile !== 'None';
+        responseText = hasICC 
+          ? `Yes, your artwork has an embedded ICC profile (${artworkData.iccProfile}).`
+          : `No, your artwork does not have an embedded ICC profile.`;
+        
+        return {
+          content: responseText,
+          metadata: {
+            handlerName: this.name,
+            handlerVersion: this.version,
+            processingTime: Date.now() - startTime,
+            cached: false,
+            confidence: 1.0
+          }
+        };
+      }
+      
+      // File size questions
+      if (/file size|how big.*file/i.test(message)) {
+        responseText = `Your file is ${artworkData.fileSize}.`;
+        
+        return {
+          content: responseText,
+          metadata: {
+            handlerName: this.name,
+            handlerVersion: this.version,
+            processingTime: Date.now() - startTime,
+            cached: false,
+            confidence: 1.0
+          }
+        };
+      }
+    }
+
     // Try to get answer from RAG knowledge base
     if (this.ragEngine && intent.requiresRAG) {
       try {
         const ragResults = await this.ragEngine.retrieve(
-          message,
           context.state?.agentId || 'default',
+          message,
           5
         );
 
