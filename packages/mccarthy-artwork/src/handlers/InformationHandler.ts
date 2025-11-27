@@ -159,24 +159,60 @@ export class InformationHandler implements Handler {
     };
   }
 
-  private formatInformationResponse(_question: string, ragResults: any[]): string {
-    // Combine RAG results into coherent answer
-    let response = "";
-
-    // Use the most relevant result as the primary answer
-    if (ragResults.length > 0) {
-      response = ragResults[0].text;
+  private formatInformationResponse(question: string, ragResults: any[]): string {
+    if (ragResults.length === 0) {
+      return this.getGenericInformationResponse(question);
     }
 
-    // Add additional context from other results if available
-    if (ragResults.length > 1) {
-      response += "\n\nAdditional information:\n";
-      for (let i = 1; i < Math.min(ragResults.length, 3); i++) {
-        response += `\n• ${ragResults[i].text}`;
+    // Combine all unique chunks into one context
+    const allText = ragResults
+      .map(r => r.text)
+      .join('\n\n')
+      .trim();
+
+    // Extract key information based on question type
+    const lowerQuestion = question.toLowerCase();
+    
+    // UV DTF application questions
+    if (lowerQuestion.includes('uv dtf') && (lowerQuestion.includes('applied') || lowerQuestion.includes('used for') || lowerQuestion.includes('what can'))) {
+      if (allText.includes('hard substrates') || allText.includes('HARD SURFACES')) {
+        return "UV DTF can be applied to **hard substrates only**, including:\n\n" +
+               "• Glass\n" +
+               "• Metal\n" +
+               "• Wood\n" +
+               "• Acrylic\n" +
+               "• Ceramic\n" +
+               "• Rigid plastics\n\n" +
+               "**Important:** UV DTF is NOT suitable for textiles or apparel. For fabric applications, use regular DTF transfers instead.";
       }
     }
 
-    return response;
+    // DTF application questions
+    if (lowerQuestion.includes('dtf') && !lowerQuestion.includes('uv') && (lowerQuestion.includes('applied') || lowerQuestion.includes('used for'))) {
+      if (allText.includes('textile') || allText.includes('fabric')) {
+        return "DTF (Direct-to-Film) transfers are designed exclusively for **textiles and fabrics**, including:\n\n" +
+               "• Cotton\n" +
+               "• Polyester\n" +
+               "• Blends\n" +
+               "• T-shirts, hoodies, bags\n\n" +
+               "**Note:** For hard surfaces like glass, metal, or wood, use UV DTF instead.";
+      }
+    }
+
+    // For other questions, return a cleaned version of the top result
+    // Remove markdown headers and excessive formatting
+    let cleanedText = ragResults[0].text
+      .replace(/^#+\s+/gm, '') // Remove markdown headers
+      .replace(/\*\*/g, '') // Remove bold markers
+      .trim();
+
+    // If the text is very long, summarize the key points
+    if (cleanedText.length > 500) {
+      const lines = cleanedText.split('\n').filter(line => line.trim().length > 0);
+      cleanedText = lines.slice(0, 8).join('\n');
+    }
+
+    return cleanedText;
   }
 
   private getGenericInformationResponse(_question: string): string {
