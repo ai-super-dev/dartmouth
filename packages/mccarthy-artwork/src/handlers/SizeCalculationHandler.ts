@@ -158,13 +158,16 @@ export class SizeCalculationHandler {
    * Extract DPI for reverse calculation (DPI → size)
    */
   private extractReverseDPI(message: string): { dpi: number } | null {
-    // Patterns: "what size at 300 DPI", "show me sizes for 250 DPI", etc.
+    // Patterns: "what size at 300 DPI", "show me sizes for 250 DPI", "what about 250 DPI?", "and 200 DPI?"
     const reversePatterns = [
       /what size.*?at (\d+)\s*dpi/i,
       /size.*?for (\d+)\s*dpi/i,
       /(\d+)\s*dpi.*?size/i,
       /print.*?at (\d+)\s*dpi/i,
-      /max.*?size.*?(\d+)\s*dpi/i
+      /max.*?size.*?(\d+)\s*dpi/i,
+      /(?:what about|and|also)\s*(\d+)\s*dpi/i,  // Follow-up questions
+      /^(\d+)\s*dpi\??$/i,  // Just "250 DPI?" or "200 DPI"
+      /at\s*(\d+)\s*dpi/i   // "at 250 DPI"
     ];
     
     for (const pattern of reversePatterns) {
