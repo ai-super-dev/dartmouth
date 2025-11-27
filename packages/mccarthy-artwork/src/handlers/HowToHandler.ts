@@ -35,7 +35,7 @@ export class HowToHandler implements Handler {
     if (this.ragEngine && intent.requiresRAG) {
       try {
         const ragResults = await this.ragEngine.retrieve(
-          context.state?.agentId || 'default',
+          'mccarthy-artwork',  // Use McCarthy's agent ID to get artwork-specific knowledge
           message,
           5
         );
