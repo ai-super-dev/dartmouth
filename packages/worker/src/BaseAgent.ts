@@ -446,18 +446,23 @@ export class BaseAgent {
       }
 
       // STEP 12: Validate Response (Technical)
-      const validation = await this.responseValidator.validate(response, message);
-      if (!validation.isValid) {
-        console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
-        
-        // If validation fails, try to fix or use fallback
-        if (validation.suggestedFix) {
-          response.content = validation.suggestedFix;
-          console.log(`[BaseAgent] Applied suggested fix`);
-        } else {
-          response.content = "I'm having trouble formulating a proper response. Could you rephrase your question?";
-          console.log(`[BaseAgent] Using fallback response`);
+      // Skip validation for howto intents (step-by-step instructions are naturally longer)
+      if (intent.type !== 'howto') {
+        const validation = await this.responseValidator.validate(response, message);
+        if (!validation.isValid) {
+          console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
+          
+          // If validation fails, try to fix or use fallback
+          if (validation.suggestedFix) {
+            response.content = validation.suggestedFix;
+            console.log(`[BaseAgent] Applied suggested fix`);
+          } else {
+            response.content = "I'm having trouble formulating a proper response. Could you rephrase your question?";
+            console.log(`[BaseAgent] Using fallback response`);
+          }
         }
+      } else {
+        console.log(`[BaseAgent] Skipping response validation for howto intent`);
       }
 
       // STEP 13: Create Assistant Message

@@ -144,8 +144,8 @@ export class ConversationQualityValidator {
       }
     }
     
-    // Medium: Over 10 sentences
-    if (sentenceCount > 10) {
+    // Medium: Over 10 sentences (skip for howto)
+    if (sentenceCount > 10 && intentType !== 'howto') {
       return {
         type: 'verbosity',
         severity: 'medium',
