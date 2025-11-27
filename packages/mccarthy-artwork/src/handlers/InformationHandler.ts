@@ -224,6 +224,36 @@ export class InformationHandler implements Handler {
       }
     }
 
+    // DPI quality questions
+    const hasDPIQuality = lowerQuestion.includes('dpi') && 
+                          (lowerQuestion.includes('good') || 
+                           lowerQuestion.includes('optimal') || 
+                           lowerQuestion.includes('poor') || 
+                           lowerQuestion.includes('quality'));
+    
+    if (hasDPIQuality) {
+      console.log('[InformationHandler] ✅ Matched DPI quality question');
+      
+      if (lowerQuestion.includes('optimal') || lowerQuestion.includes('when is dpi considered optimal')) {
+        return "DPI is considered **Optimal** when it's **250 DPI or higher**. This ensures crisp, professional-quality prints with excellent detail.";
+      }
+      
+      if (lowerQuestion.includes('good') || lowerQuestion.includes('when is dpi considered good')) {
+        return "DPI is considered **Good** when it's **between 200-249 DPI**. This produces quality prints suitable for most applications.";
+      }
+      
+      if (lowerQuestion.includes('poor') || lowerQuestion.includes('when is dpi considered poor')) {
+        return "DPI is considered **Poor** when it's **below 200 DPI**. Prints may appear pixelated or blurry, especially at larger sizes.";
+      }
+      
+      // General DPI quality question
+      return "**DPI Quality Standards:**\n\n" +
+             "• **Optimal**: 250+ DPI - Professional quality, crisp details\n" +
+             "• **Good**: 200-249 DPI - Quality prints for most uses\n" +
+             "• **Poor**: Below 200 DPI - May appear pixelated\n\n" +
+             "For professional printing, aim for at least 300 DPI.";
+    }
+
     // For other questions, return a cleaned version of the top result
     // Remove markdown headers and excessive formatting
     let cleanedText = ragResults[0].text

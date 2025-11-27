@@ -53,6 +53,35 @@ export class SizeCalculationHandler {
       };
     }
 
+    // Check for MULTIPLE DPI values (e.g., "show me sizes for 300, 250, and 200 DPI")
+    const multipleDPI = this.extractMultipleDPI(userMessage);
+    if (multipleDPI) {
+      let response = "Here are the maximum print sizes for each DPI:\n\n";
+      
+      for (const dpi of multipleDPI) {
+        const widthInches = artworkData.dimensions.pixels.width / dpi;
+        const heightInches = artworkData.dimensions.pixels.height / dpi;
+        const widthCm = widthInches * 2.54;
+        const heightCm = heightInches * 2.54;
+        
+        const qualityEmoji = dpi >= 250 ? '✨' : dpi >= 200 ? '👌' : '⚠️';
+        const quality = dpi >= 250 ? 'Optimal' : dpi >= 200 ? 'Good' : 'Poor';
+        
+        response += `• **${dpi} DPI**: ${widthCm.toFixed(1)} × ${heightCm.toFixed(1)} cm (${widthInches.toFixed(2)}" × ${heightInches.toFixed(2)}") ${qualityEmoji} **${quality}**\n`;
+      }
+      
+      return {
+        content: response.trim(),
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 1.0
+        }
+      };
+    }
+
     // Check if this is a REVERSE calculation (DPI → size)
     const reverseCalc = this.extractReverseDPI(userMessage);
     if (reverseCalc) {
@@ -175,6 +204,25 @@ export class SizeCalculationHandler {
       if (match) {
         return { dpi: parseInt(match[1]) };
       }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Extract multiple DPI values for batch calculation
+   */
+  private extractMultipleDPI(message: string): number[] | null {
+    // Pattern: "show me sizes for 300, 250, and 200 DPI"
+    const multiPattern = /(\d+)(?:\s*,\s*|\s+and\s+)(\d+)(?:\s*,?\s*and\s+|\s*,\s*)(\d+)\s*dpi/i;
+    const match = message.match(multiPattern);
+    
+    if (match) {
+      return [
+        parseInt(match[1]),
+        parseInt(match[2]),
+        parseInt(match[3])
+      ];
     }
     
     return null;
