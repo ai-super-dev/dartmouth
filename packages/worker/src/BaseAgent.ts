@@ -668,8 +668,9 @@ export class BaseAgent {
       return false;
     }
 
-    // Use LLM for fallback/unknown intents
-    if (intent.type === 'unknown' || intent.type === 'information') {
+    // Use LLM for fallback/unknown intents ONLY
+    // DO NOT use LLM for 'information' - let InformationHandler use RAG!
+    if (intent.type === 'unknown') {
       console.log(`[BaseAgent] LLM fallback: YES (intent is ${intent.type})`);
       return true;
     }
