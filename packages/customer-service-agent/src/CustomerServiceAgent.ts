@@ -5,16 +5,18 @@
  * Extends BaseAgent from Dartmouth OS.
  * 
  * Features:
- * - Handles order status, production status, invoice, and general inquiries
- * - Auto-escalates based on confidence, sentiment, VIP status
- * - Integrates with Shopify, PERP, TicketManager
- * - Supports auto-reply or draft-for-approval modes
+ * - Order status inquiries (Shopify integration)
+ * - Production status updates (PERP integration)
+ * - Invoice requests (PERP integration)
+ * - General customer support
+ * - Auto-escalation based on confidence, sentiment, VIP status
+ * - Auto-reply or draft-for-approval modes
  * 
  * Created: Nov 28, 2025
  */
 
-import { BaseAgent } from '../../worker/src/BaseAgent';
-import type { AgentRequest, AgentResponse } from '../../worker/src/types/shared';
+import { BaseAgent, BaseAgentConfig } from '../../worker/src/BaseAgent';
+import type { Response } from '../../worker/src/types/shared';
 import type { D1Database, KVNamespace } from '../../worker/src/types/shared';
 import {
   ShopifyIntegration,
@@ -25,463 +27,211 @@ import {
   GmailIntegration,
   type GmailCredentials,
 } from '../../worker/src/services';
-
-// Import handlers
 import { OrderStatusHandler } from './handlers/OrderStatusHandler';
 import { ProductionStatusHandler } from './handlers/ProductionStatusHandler';
 import { InvoiceHandler } from './handlers/InvoiceHandler';
 import { GeneralInquiryHandler } from './handlers/GeneralInquiryHandler';
 
-// ============================================================================
-// TYPES & INTERFACES
-// ============================================================================
-
-export interface CustomerServiceConfig {
-  db: D1Database;
-  kv: KVNamespace;
+/**
+ * Customer Service Agent configuration (extends BaseAgentConfig)
+ */
+export interface CustomerServiceConfig extends BaseAgentConfig {
   shopifyApiUrl: string;
   shopifyAccessToken: string;
   perpApiUrl: string;
   perpApiKey: string;
   gmailCredentials: GmailCredentials;
-  aiResponseMode: 'auto' | 'draft'; // auto = send immediately, draft = save for approval
+  aiResponseMode: 'auto' | 'draft';
 }
 
-export interface EscalationReason {
-  type: 'low_confidence' | 'angry_customer' | 'vip_critical' | 'refund_request' | 'complex_query';
-  confidence?: number;
-  sentiment?: string;
-  details: string;
-}
-
-// ============================================================================
-// CUSTOMER SERVICE AGENT
-// ============================================================================
-
+/**
+ * Customer Service Agent
+ */
 export class CustomerServiceAgent extends BaseAgent {
-  private db: D1Database;
+  // Agent Metadata
+  public readonly type = 'customer_service';
+  public readonly name = 'Customer Service Agent';
+  public readonly version = '1.0.0';
+  public readonly description = 'Specialized agent for customer service inquiries including order status, production updates, and general questions';
+
+  // Dartmouth OS Services
   private shopify: ShopifyIntegration;
   private perp: PERPIntegration;
   private ticketManager: TicketManager;
   private handoffProtocol: AgentHandoffProtocol;
   private analytics: AnalyticsService;
   private gmail: GmailIntegration;
+  
+  // Customer Service specific config
   private aiResponseMode: 'auto' | 'draft';
 
-  // Handlers
-  private orderStatusHandler: OrderStatusHandler;
-  private productionStatusHandler: ProductionStatusHandler;
-  private invoiceHandler: InvoiceHandler;
-  private generalInquiryHandler: GeneralInquiryHandler;
-
+  /**
+   * Initialize Customer Service Agent
+   */
   constructor(config: CustomerServiceConfig) {
-    // Validate config
-    if (!config.db) throw new Error('[CustomerServiceAgent] Database is required');
-    if (!config.kv) throw new Error('[CustomerServiceAgent] KV store is required');
+    // Validate Customer Service specific config
     if (!config.shopifyApiUrl) throw new Error('[CustomerServiceAgent] Shopify API URL is required');
     if (!config.shopifyAccessToken) throw new Error('[CustomerServiceAgent] Shopify access token is required');
     if (!config.perpApiUrl) throw new Error('[CustomerServiceAgent] PERP API URL is required');
     if (!config.perpApiKey) throw new Error('[CustomerServiceAgent] PERP API key is required');
     if (!config.gmailCredentials) throw new Error('[CustomerServiceAgent] Gmail credentials are required');
-    // Initialize BaseAgent
-    super({
-      id: 'customer-service-agent',
-      name: 'Customer Service Agent',
-      description: 'Handles customer service inquiries including order status, production updates, and general questions',
-      capabilities: [
-        'order_status',
-        'production_status',
-        'invoice_requests',
-        'general_inquiries',
-        'customer_support',
-      ],
-      constraints: [
-        'Cannot process refunds without manager approval',
-        'Cannot modify orders without customer confirmation',
-        'Cannot share other customers\' information',
-        'Must escalate angry customers to human agent',
-        'Must escalate VIP customers with critical issues',
-      ],
-      personality: {
-        tone: 'professional, friendly, helpful',
-        style: 'Clear and concise, empathetic',
-        guidelines: [
-          'Always acknowledge customer frustration',
-          'Provide specific timelines when available',
-          'Offer proactive solutions',
-          'End with "How else can I help?"',
-        ],
-      },
-    });
 
-    // Store config
-    this.db = config.db;
+    // Override system prompt BEFORE calling super()
+    config.agentConfig.systemPrompt = `🎧 YOUR NAME IS CUSTOMER SERVICE AGENT - You Are A Professional Customer Support AI
+
+You are an expert customer service representative with access to:
+- Order management systems (Shopify)
+- Production tracking (PERP)
+- Invoice systems (PERP)
+- Customer history and context
+
+**YOUR CAPABILITIES:**
+1. **Order Status** - Track orders, shipping, delivery
+2. **Production Status** - Check printing, artwork approval, production progress
+3. **Invoice Information** - Provide payment details, balances, receipts
+4. **General Support** - Answer questions, provide guidance, escalate when needed
+
+**YOUR PERSONALITY:**
+- Professional, friendly, and empathetic
+- Patient and understanding
+- Proactive in offering solutions
+- Clear and concise in communication
+
+**RESPONSE GUIDELINES:**
+- Always acknowledge customer frustration or concerns
+- Provide specific information when available (order numbers, dates, tracking)
+- Offer next steps or alternatives
+- End with "How else can I help?" or similar
+- Escalate to human agent when:
+  * Customer is angry or frustrated
+  * Issue is complex or sensitive
+  * Refund or order modification requested
+  * VIP customer with critical issue
+  * Confidence in response is low (<60%)
+
+**CONSTRAINTS:**
+- NEVER process refunds without manager approval
+- NEVER modify orders without customer confirmation
+- NEVER share other customers' information
+- NEVER make promises about timelines you're not certain of
+- ALWAYS escalate angry customers to human agent
+- ALWAYS escalate VIP customers with critical issues
+
+**TONE:**
+Professional, empathetic, solution-oriented, and reassuring.`;
+
+    // Call BaseAgent constructor
+    super(config);
+
+    // Store Customer Service specific config
     this.aiResponseMode = config.aiResponseMode;
 
     // Initialize Dartmouth OS services
     this.shopify = new ShopifyIntegration({
       apiUrl: config.shopifyApiUrl,
       accessToken: config.shopifyAccessToken,
-      cache: config.kv,
+      cache: config.env.CACHE,
     });
 
     this.perp = new PERPIntegration({
       apiUrl: config.perpApiUrl,
       apiKey: config.perpApiKey,
-      cache: config.kv,
+      cache: config.env.CACHE,
     });
 
-    this.ticketManager = new TicketManager(config.db);
-    this.handoffProtocol = new AgentHandoffProtocol(config.db);
-    this.analytics = new AnalyticsService(config.db);
-    this.gmail = new GmailIntegration(config.db, config.gmailCredentials);
+    this.ticketManager = new TicketManager(config.env.DB);
+    this.handoffProtocol = new AgentHandoffProtocol(config.env.DB);
+    this.analytics = new AnalyticsService(config.env.DB);
+    this.gmail = new GmailIntegration(config.env.DB, config.gmailCredentials);
 
-    // Initialize handlers
-    this.orderStatusHandler = new OrderStatusHandler(this.shopify, this.perp);
-    this.productionStatusHandler = new ProductionStatusHandler(this.perp);
-    this.invoiceHandler = new InvoiceHandler(this.perp);
-    this.generalInquiryHandler = new GeneralInquiryHandler();
+    // Register Customer Service handlers
+    this.registerCustomerServiceHandlers();
 
     console.log('[CustomerServiceAgent] Initialized');
   }
 
-  // ==========================================================================
-  // MAIN PROCESSING METHOD
-  // ==========================================================================
+  /**
+   * Register Customer Service specific handlers
+   */
+  private registerCustomerServiceHandlers(): void {
+    const router = this.getResponseRouter();
+
+    // Register handlers in priority order (higher priority = checked first)
+    router.registerHandler(new OrderStatusHandler(this.shopify, this.perp));
+    router.registerHandler(new ProductionStatusHandler(this.perp));
+    router.registerHandler(new InvoiceHandler(this.perp));
+    router.registerHandler(new GeneralInquiryHandler());
+
+    console.log('[CustomerServiceAgent] Customer Service handlers registered');
+  }
 
   /**
-   * Process customer service request
+   * Override processMessage to add Customer Service specific logic
    */
-  async processMessage(request: AgentRequest): Promise<AgentResponse> {
-    console.log(`[CustomerServiceAgent] Processing message: ${request.message.substring(0, 50)}...`);
+  async processMessage(message: string, sessionId?: string): Promise<Response> {
+    console.log(`[CustomerServiceAgent] Processing message: ${message.substring(0, 50)}...`);
 
     try {
-      // 1. Use BaseAgent to process (handles intent detection, memory, RAG, quality)
-      const baseResponse = await super.processMessage(request);
+      // Call parent processMessage (handles intent detection, routing, RAG, memory, etc.)
+      const response = await super.processMessage(message, sessionId);
 
-      // 2. Get ticket context if available
-      const ticket = await this.getTicketContext(request.conversationId);
-
-      // 3. Check if we should escalate
-      const escalation = this.shouldEscalate(baseResponse, ticket);
-      if (escalation) {
-        return await this.escalateToHuman(request, baseResponse, escalation);
-      }
-
-      // 4. Route to appropriate handler based on intent
-      const handlerResponse = await this.routeToHandler(
-        baseResponse.intent?.type || 'general',
-        request,
-        baseResponse
-      );
-
-      // 5. Enrich response with customer context
-      const enrichedResponse = await this.enrichWithCustomerContext(
-        handlerResponse,
-        request.metadata?.customerEmail
-      );
-
-      // 6. Send response (auto-reply or draft)
-      if (ticket && !escalation) {
-        await this.sendResponse(ticket.ticket_id, enrichedResponse);
-      }
-
-      // 7. Log analytics
-      await this.logInteraction(request, enrichedResponse, ticket);
-
-      // 8. Return response
-      return enrichedResponse;
+      // Customer Service specific post-processing
+      // (e.g., check if we should escalate, send email, create ticket, etc.)
+      
+      // For now, just return the response
+      // TODO: Add escalation logic, ticket creation, email sending, etc.
+      
+      return response;
 
     } catch (error) {
       console.error('[CustomerServiceAgent] Error processing message:', error);
       
       return {
         content: "I apologize, but I'm having trouble processing your request right now. Let me connect you with a human agent who can help you immediately.",
-        confidence: 0.0,
-        intent: { type: 'error', confidence: 1.0 },
         metadata: {
+          handlerName: 'ErrorHandler',
+          handlerVersion: '1.0.0',
+          processingTime: 0,
+          confidence: 0.0,
           error: error instanceof Error ? error.message : 'Unknown error',
-          escalated: true,
-        },
+          escalate: true
+        }
       };
     }
   }
 
-  // ==========================================================================
-  // HANDLER ROUTING
-  // ==========================================================================
-
   /**
-   * Route to appropriate handler based on intent
+   * Get Shopify integration (for handlers)
    */
-  private async routeToHandler(
-    intentType: string,
-    request: AgentRequest,
-    baseResponse: AgentResponse
-  ): Promise<AgentResponse> {
-    console.log(`[CustomerServiceAgent] Routing to handler: ${intentType}`);
-
-    switch (intentType) {
-      case 'order_status':
-        return await this.orderStatusHandler.handle(request, baseResponse);
-
-      case 'production_status':
-        return await this.productionStatusHandler.handle(request, baseResponse);
-
-      case 'invoice_request':
-        return await this.invoiceHandler.handle(request, baseResponse);
-
-      case 'general':
-      default:
-        return await this.generalInquiryHandler.handle(request, baseResponse);
-    }
-  }
-
-  // ==========================================================================
-  // ESCALATION LOGIC
-  // ==========================================================================
-
-  /**
-   * Determine if request should be escalated to human
-   */
-  private shouldEscalate(response: AgentResponse, ticket: any): EscalationReason | null {
-    // 1. Low confidence
-    if (response.confidence < 0.6) {
-      return {
-        type: 'low_confidence',
-        confidence: response.confidence,
-        details: `AI confidence too low: ${(response.confidence * 100).toFixed(0)}%`,
-      };
-    }
-
-    // 2. Angry customer
-    if (ticket?.sentiment === 'angry') {
-      return {
-        type: 'angry_customer',
-        sentiment: ticket.sentiment,
-        details: 'Customer is angry - requires human touch',
-      };
-    }
-
-    // 3. VIP customer with critical issue
-    if (ticket?.is_vip && ticket?.priority === 'urgent') {
-      return {
-        type: 'vip_critical',
-        details: 'VIP customer with critical priority',
-      };
-    }
-
-    // 4. Refund request
-    if (response.intent?.type === 'refund_request') {
-      return {
-        type: 'refund_request',
-        details: 'Refund requests require manager approval',
-      };
-    }
-
-    // 5. Complex query (multiple intents)
-    if (response.metadata?.multipleIntents) {
-      return {
-        type: 'complex_query',
-        details: 'Query requires multiple specialized handlers',
-      };
-    }
-
-    return null;
+  getShopify(): ShopifyIntegration {
+    return this.shopify;
   }
 
   /**
-   * Escalate to human agent
+   * Get PERP integration (for handlers)
    */
-  private async escalateToHuman(
-    request: AgentRequest,
-    response: AgentResponse,
-    reason: EscalationReason
-  ): Promise<AgentResponse> {
-    console.log(`[CustomerServiceAgent] Escalating: ${reason.type}`);
-
-    // Update ticket status
-    const ticket = await this.getTicketContext(request.conversationId);
-    if (ticket) {
-      await this.ticketManager.escalateTicket(
-        ticket.ticket_id,
-        'ai-agent', // escalatedBy
-        'human-agent', // escalatedTo
-        `${reason.type}: ${reason.details}` // reason
-      );
-    }
-
-    // Generate warm handoff message
-    const handoffMessage = this.generateHandoffMessage(reason);
-
-    return {
-      content: handoffMessage,
-      confidence: 1.0,
-      intent: { type: 'escalation', confidence: 1.0 },
-      metadata: {
-        escalated: true,
-        escalationReason: reason,
-        requiresHuman: true,
-      },
-    };
+  getPerp(): PERPIntegration {
+    return this.perp;
   }
 
   /**
-   * Generate warm handoff message
+   * Get Ticket Manager (for handlers)
    */
-  private generateHandoffMessage(reason: EscalationReason): string {
-    switch (reason.type) {
-      case 'angry_customer':
-        return "I understand your frustration, and I want to make sure you get the best possible help. Let me connect you with one of our senior support specialists who can give your situation their full attention.";
-
-      case 'vip_critical':
-        return "As one of our valued VIP customers, I want to ensure you receive immediate assistance. I'm connecting you with our priority support team right now.";
-
-      case 'refund_request':
-        return "I understand you'd like to discuss a refund. Let me connect you with our customer service manager who can review your request and help find the best solution for you.";
-
-      case 'complex_query':
-        return "Your question involves several aspects of your order. To give you the most accurate information, let me connect you with a specialist who can address all your concerns comprehensively.";
-
-      case 'low_confidence':
-      default:
-        return "To make sure I give you the most accurate information, let me connect you with one of our customer service specialists who can help you right away.";
-    }
-  }
-
-  // ==========================================================================
-  // CUSTOMER CONTEXT
-  // ==========================================================================
-
-  /**
-   * Get ticket context
-   */
-  private async getTicketContext(conversationId: string): Promise<any> {
-    try {
-      // Find ticket by conversation ID
-      const { results } = await this.db
-        .prepare(`SELECT * FROM tickets WHERE conversation_id = ? LIMIT 1`)
-        .bind(conversationId)
-        .all();
-
-      return results.length > 0 ? results[0] : null;
-    } catch (error) {
-      console.error('[CustomerServiceAgent] Error getting ticket context:', error);
-      return null;
-    }
+  getTicketManager(): TicketManager {
+    return this.ticketManager;
   }
 
   /**
-   * Enrich response with customer context
+   * Get Gmail Integration (for handlers)
    */
-  private async enrichWithCustomerContext(
-    response: AgentResponse,
-    customerEmail?: string
-  ): Promise<AgentResponse> {
-    if (!customerEmail) return response;
-
-    try {
-      // Get customer from Shopify
-      const customer = await this.shopify.getCustomerByEmail(customerEmail);
-      
-      if (customer) {
-        response.metadata = {
-          ...response.metadata,
-          customerContext: {
-            customerId: customer.id,
-            customerName: `${customer.first_name} ${customer.last_name}`,
-            totalOrders: customer.orders_count,
-            isVIP: customer.tags?.includes('VIP'),
-          },
-        };
-      }
-    } catch (error) {
-      console.error('[CustomerServiceAgent] Error enriching customer context:', error);
-    }
-
-    return response;
+  getGmail(): GmailIntegration {
+    return this.gmail;
   }
 
-  // ==========================================================================
-  // ANALYTICS
-  // ==========================================================================
-
   /**
-   * Log interaction for analytics
+   * Get AI Response Mode
    */
-  private async logInteraction(
-    request: AgentRequest,
-    response: AgentResponse,
-    ticket: any
-  ): Promise<void> {
-    try {
-      await this.analytics.trackEvent({
-        type: 'agent_response',
-        agentId: 'customer-service-agent',
-        conversationId: request.conversationId,
-        metadata: {
-          intent: response.intent?.type,
-          confidence: response.confidence,
-          escalated: response.metadata?.escalated || false,
-          ticketId: ticket?.ticket_id,
-          responseLength: response.content.length,
-        },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('[CustomerServiceAgent] Error logging analytics:', error);
-    }
-  }
-
-  // ==========================================================================
-  // AUTO-REPLY vs DRAFT MODE
-  // ==========================================================================
-
-  /**
-   * Send response (auto-reply or draft based on config)
-   */
-  private async sendResponse(
-    ticketId: string,
-    response: AgentResponse
-  ): Promise<void> {
-    try {
-      const ticket = await this.ticketManager.getTicket(ticketId);
-      if (!ticket) {
-        console.error(`[CustomerServiceAgent] Ticket not found: ${ticketId}`);
-        return;
-      }
-      
-      if (this.aiResponseMode === 'auto') {
-        // Auto-send
-        await this.gmail.sendEmail({
-          to: ticket.customer_email,
-          subject: `Re: ${ticket.subject}`,
-          body: response.content,
-          threadId: ticket.conversation_id,
-        });
-
-        console.log(`[CustomerServiceAgent] ✅ Auto-sent response for ticket ${ticket.ticket_number}`);
-      } else {
-        // Create draft for approval
-        await this.gmail.createDraft({
-          to: ticket.customer_email,
-          subject: `Re: ${ticket.subject}`,
-          body: response.content,
-          threadId: ticket.conversation_id,
-        });
-
-        // Add internal note
-        await this.ticketManager.addInternalNote(
-          ticketId,
-          'ai-agent', // userId
-          `AI generated draft response (confidence: ${(response.confidence * 100).toFixed(0)}%)`
-        );
-
-        console.log(`[CustomerServiceAgent] ✅ Created draft for ticket ${ticket.ticket_number}`);
-      }
-    } catch (error) {
-      console.error('[CustomerServiceAgent] Error sending response:', error);
-    }
+  getAIResponseMode(): 'auto' | 'draft' {
+    return this.aiResponseMode;
   }
 }
-
