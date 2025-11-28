@@ -80,5 +80,46 @@ export type {
   ChannelMember
 } from './InternalCommunicationSystem';
 
+export { OmnichannelRouter } from './OmnichannelRouter';
+export type {
+  NormalizedMessage,
+  ChannelConfig,
+  RoutingResult,
+  EmailMessage,
+  ChatMessage,
+  WhatsAppMessage,
+  InstagramMessage,
+  FacebookMessage,
+  PhoneMessage
+} from './OmnichannelRouter';
+
+export { TicketManager } from './TicketManager';
+export type {
+  Ticket,
+  TicketMessage,
+  TicketStatus,
+  TicketPriority,
+  TicketCategory,
+  TicketFilterOptions,
+  TicketStatistics
+} from './TicketManager';
+
+export { ShopifyIntegration } from './ShopifyIntegration';
+export type {
+  ShopifyCustomer,
+  ShopifyOrder,
+  ShopifyProductSimple
+} from './ShopifyIntegration';
+
+export { PERPIntegration } from './PERPIntegration';
+export type {
+  ProductionOrder,
+  ProductionStatus,
+  ArtworkStatus,
+  VIPWallet,
+  VIPTransaction,
+  Invoice
+} from './PERPIntegration';
+
 export { LLMService } from './LLMService';
 export type { LLMRequest, LLMResponse } from './LLMService';
