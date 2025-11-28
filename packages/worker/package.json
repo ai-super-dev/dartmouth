@@ -24,6 +24,7 @@
     "logs:pretty": "wrangler tail --format=pretty"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "hono": "^3.11.7",
     "zod": "^3.22.4"
   },

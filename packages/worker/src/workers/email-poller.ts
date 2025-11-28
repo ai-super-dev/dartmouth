@@ -7,7 +7,7 @@
  * 3. Process tickets with CustomerServiceAgent
  * 4. Send auto-replies or create drafts
  * 
- * Cron: */5 * * * * (every 5 minutes)
+ * Cron: every 5 minutes
  */
 
 import type { Env } from '../types/shared';

@@ -7,6 +7,7 @@ import { DartmouthOS } from '../../dartmouth-core/src/DartmouthOS';
 import { createFAMAgent, createArtworkAnalyzerAgent, createTestAgent } from './createDartmouthAgents';
 // import { McCarthyPAAgent } from '../../mccarthy-pa/src'; // TODO: Enable after package build
 import { router } from './routes';
+import { createAPIRouter } from './routes/api';
 import { handleEmailPolling } from './workers/email-poller';
 import type { Env } from './types/shared';
 import type { Env as DartmouthEnv } from '../../dartmouth-core/src/types';
@@ -112,18 +113,38 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
 /**
  * Cloudflare Worker fetch handler
  */
+// Create API router instance
+const apiRouter = createAPIRouter();
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
-      // Initialize Dartmouth OS (if not already initialized)
-      const dartmouthOS = await initializeDartmouth(env);
-
-      // Check if request should be routed through Dartmouth OS
       const url = new URL(request.url);
       
+      // Route Dartmouth OS V2 requests (check this first!)
       if (url.pathname.startsWith('/api/v2/')) {
-        // Route through Dartmouth OS
+        const dartmouthOS = await initializeDartmouth(env);
         return await dartmouthOS.handleRequest(request);
+      }
+      
+      // Manual email polling trigger (for testing)
+      if (url.pathname === '/trigger-email-poll') {
+        try {
+          await handleEmailPolling(env);
+          return new Response(JSON.stringify({ success: true, message: 'Email polling triggered' }), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } catch (error: any) {
+          return new Response(JSON.stringify({ success: false, error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+      
+      // Route Customer Service API requests
+      if (url.pathname.startsWith('/api/')) {
+        return await apiRouter.fetch(request, env);
       }
 
       // Otherwise, use legacy routing (for backward compatibility)

@@ -34,6 +34,11 @@ binding = "WORKERS_AI"
 [observability]
 enabled = true
 
+# Dev configuration
+[dev]
+inspector_port = 0  # Disable inspector/devtools
+local_protocol = "http"
+
 # Environment Variables (non-secret)
 [vars]
 ENVIRONMENT = "production"
