@@ -123,3 +123,9 @@ export type {
 
 export { LLMService } from './LLMService';
 export type { LLMRequest, LLMResponse } from './LLMService';
+
+export { GmailIntegration } from './GmailIntegration';
+export type { Email, EmailAddress, Attachment, Draft, SendEmailOptions, GmailCredentials } from './GmailIntegration';
+
+export { MentionManager } from './MentionManager';
+export type { Mention as StaffMention, CreateMentionData, ThreadReply, MentionPriority, MentionType } from './MentionManager';

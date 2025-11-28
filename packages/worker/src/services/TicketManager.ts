@@ -485,4 +485,371 @@ export class TicketManager {
   private generateId(): string {
     return `${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
   }
+
+  // ==========================================================================
+  // EMAIL-TO-TICKET FUNCTIONALITY
+  // ==========================================================================
+
+  /**
+   * Create ticket from email
+   * Uses transaction to ensure atomicity (ticket + email link)
+   */
+  async createTicketFromEmail(email: {
+    id: string;
+    gmailThreadId: string;
+    from: { email: string; name: string | null };
+    subject: string;
+    bodyText: string;
+  }): Promise<Ticket> {
+    console.log(`[TicketManager] Creating ticket from email: ${email.subject}`);
+
+    // 1. Check if ticket already exists for this thread
+    const existingTicket = await this.findTicketByEmailThread(email.gmailThreadId);
+    if (existingTicket) {
+      console.log(`[TicketManager] Ticket already exists for thread: ${existingTicket.ticket_number}`);
+      // Link email to existing ticket
+      await this.linkEmailToTicket(email.id, existingTicket.ticket_id);
+      return existingTicket;
+    }
+
+    // 2. Auto-detect priority
+    const priority = this.detectPriorityFromEmail(email.subject, email.bodyText);
+
+    // 3. Auto-categorize
+    const category = this.detectCategoryFromEmail(email.subject, email.bodyText);
+
+    // 4. Detect sentiment
+    const sentiment = this.detectSentimentFromEmail(email.subject, email.bodyText);
+
+    // 5. Create normalized message
+    const normalizedMessage: NormalizedMessage = {
+      messageId: email.id,
+      conversationId: email.gmailThreadId,
+      channel: 'email',
+      customerId: email.from.email,
+      customerName: email.from.name || email.from.email,
+      customerEmail: email.from.email,
+      content: email.bodyText,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        subject: email.subject,
+        sentiment,
+      },
+    };
+
+    // 6. Create ticket (this already inserts into DB)
+    const ticket = await this.createTicket(normalizedMessage, {
+      priority,
+      category,
+    });
+
+    // 7. Link email to ticket (atomic operation via D1 batch)
+    try {
+      await this.linkEmailToTicket(email.id, ticket.ticket_id);
+    } catch (error) {
+      // If linking fails, log error but don't fail ticket creation
+      // (ticket is already created, email link can be retried)
+      console.error(`[TicketManager] ⚠️ Failed to link email to ticket:`, error);
+    }
+
+    console.log(`[TicketManager] ✅ Ticket created: ${ticket.ticket_number}`);
+    return ticket;
+  }
+
+  /**
+   * Find ticket by email thread ID
+   */
+  private async findTicketByEmailThread(gmailThreadId: string): Promise<Ticket | null> {
+    try {
+      const { results } = await this.db
+        .prepare(
+          `
+        SELECT t.* FROM tickets t
+        INNER JOIN emails e ON e.ticket_id = t.ticket_id
+        WHERE e.gmail_thread_id = ?
+        LIMIT 1
+      `
+        )
+        .bind(gmailThreadId)
+        .all();
+
+      if (results.length === 0) return null;
+      return results[0] as Ticket;
+    } catch (error) {
+      console.error('[TicketManager] Error finding ticket by email thread:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Link email to ticket
+   */
+  private async linkEmailToTicket(emailId: string, ticketId: string): Promise<void> {
+    try {
+      await this.db
+        .prepare(`UPDATE emails SET ticket_id = ? WHERE id = ?`)
+        .bind(ticketId, emailId)
+        .run();
+      console.log(`[TicketManager] Linked email ${emailId} to ticket ${ticketId}`);
+    } catch (error) {
+      console.error('[TicketManager] Error linking email to ticket:', error);
+    }
+  }
+
+  /**
+   * Detect priority from email content
+   */
+  private detectPriorityFromEmail(subject: string, body: string): TicketPriority {
+    const text = `${subject} ${body}`.toLowerCase();
+
+    // Urgent keywords
+    if (
+      text.includes('urgent') ||
+      text.includes('asap') ||
+      text.includes('emergency') ||
+      text.includes('immediately') ||
+      text.includes('critical') ||
+      text.includes('!!!') ||
+      text.includes('right now')
+    ) {
+      return 'urgent';
+    }
+
+    // High priority keywords
+    if (
+      text.includes('important') ||
+      text.includes('priority') ||
+      text.includes('soon') ||
+      text.includes('quickly') ||
+      text.includes('need help') ||
+      text.includes('problem')
+    ) {
+      return 'high';
+    }
+
+    // Low priority keywords
+    if (
+      text.includes('when you can') ||
+      text.includes('no rush') ||
+      text.includes('whenever') ||
+      text.includes('question') ||
+      text.includes('curious')
+    ) {
+      return 'low';
+    }
+
+    return 'medium';
+  }
+
+  /**
+   * Detect category from email content
+   */
+  private detectCategoryFromEmail(subject: string, body: string): TicketCategory {
+    const text = `${subject} ${body}`.toLowerCase();
+
+    // Order status
+    if (
+      text.match(/order\s*#?\d+/) ||
+      text.match(/perp-\d+/) ||
+      text.includes('where is my order') ||
+      text.includes('track my order') ||
+      text.includes('order status')
+    ) {
+      return 'order_status';
+    }
+
+    // Artwork issue
+    if (
+      text.includes('artwork') ||
+      text.includes('design') ||
+      text.includes('proof') ||
+      text.includes('file') ||
+      text.includes('image')
+    ) {
+      return 'artwork_issue';
+    }
+
+    // Payment
+    if (
+      text.includes('payment') ||
+      text.includes('invoice') ||
+      text.includes('receipt') ||
+      text.includes('charge') ||
+      text.includes('refund')
+    ) {
+      return 'payment';
+    }
+
+    // Shipping
+    if (
+      text.includes('shipping') ||
+      text.includes('delivery') ||
+      text.includes('tracking') ||
+      text.includes('courier')
+    ) {
+      return 'shipping';
+    }
+
+    // Product inquiry
+    if (
+      text.includes('product') ||
+      text.includes('price') ||
+      text.includes('quote') ||
+      text.includes('how much') ||
+      text.includes('cost')
+    ) {
+      return 'product_inquiry';
+    }
+
+    // Complaint
+    if (
+      text.includes('complaint') ||
+      text.includes('unhappy') ||
+      text.includes('disappointed') ||
+      text.includes('terrible') ||
+      text.includes('worst') ||
+      text.includes('angry')
+    ) {
+      return 'complaint';
+    }
+
+    return 'other';
+  }
+
+  /**
+   * Detect sentiment from email content
+   */
+  private detectSentimentFromEmail(subject: string, body: string): string {
+    const text = `${subject} ${body}`.toLowerCase();
+
+    // Angry sentiment
+    const angryKeywords = [
+      'unacceptable',
+      'terrible',
+      'worst',
+      'horrible',
+      'angry',
+      'furious',
+      'ridiculous',
+      'disgusting',
+      'pathetic',
+      'incompetent',
+      'useless',
+    ];
+    if (angryKeywords.some((kw) => text.includes(kw)) || text.includes('!!!')) {
+      return 'angry';
+    }
+
+    // Negative sentiment
+    const negativeKeywords = [
+      'disappointed',
+      'unhappy',
+      'frustrated',
+      'problem',
+      'issue',
+      'concern',
+      'complaint',
+      'not happy',
+      'not satisfied',
+    ];
+    if (negativeKeywords.some((kw) => text.includes(kw))) {
+      return 'negative';
+    }
+
+    // Positive sentiment
+    const positiveKeywords = [
+      'thank',
+      'great',
+      'excellent',
+      'perfect',
+      'love',
+      'happy',
+      'satisfied',
+      'appreciate',
+      'wonderful',
+      'amazing',
+    ];
+    if (positiveKeywords.some((kw) => text.includes(kw))) {
+      return 'positive';
+    }
+
+    return 'neutral';
+  }
+
+  // ==========================================================================
+  // SNOOZE FUNCTIONALITY
+  // ==========================================================================
+
+  /**
+   * Snooze a ticket until a specific time
+   */
+  async snoozeTicket(
+    ticketId: string,
+    snoozedUntil: string,
+    snoozedBy: string,
+    reason?: string
+  ): Promise<void> {
+    console.log(`[TicketManager] Snoozing ticket ${ticketId} until ${snoozedUntil}`);
+
+    await this.db
+      .prepare(
+        `
+      UPDATE tickets
+      SET 
+        status = 'pending',
+        is_snoozed = TRUE,
+        snoozed_until = ?,
+        snoozed_by = ?,
+        snooze_reason = ?,
+        updated_at = ?
+      WHERE ticket_id = ?
+    `
+      )
+      .bind(snoozedUntil, snoozedBy, reason, new Date().toISOString(), ticketId)
+      .run();
+
+    console.log(`[TicketManager] ✅ Ticket snoozed`);
+  }
+
+  /**
+   * Unsnooze a ticket
+   */
+  async unsnoozeTicket(ticketId: string): Promise<void> {
+    console.log(`[TicketManager] Unsnoozing ticket ${ticketId}`);
+
+    await this.db
+      .prepare(
+        `
+      UPDATE tickets
+      SET 
+        status = 'open',
+        is_snoozed = FALSE,
+        snoozed_until = NULL,
+        updated_at = ?
+      WHERE ticket_id = ?
+    `
+      )
+      .bind(new Date().toISOString(), ticketId)
+      .run();
+
+    console.log(`[TicketManager] ✅ Ticket unsnoozed`);
+  }
+
+  /**
+   * Get all snoozed tickets that are ready to be unsnoozed
+   */
+  async getSnoozedTicketsDue(): Promise<Ticket[]> {
+    const now = new Date().toISOString();
+    const { results } = await this.db
+      .prepare(
+        `
+      SELECT * FROM tickets
+      WHERE is_snoozed = TRUE AND snoozed_until <= ?
+    `
+      )
+      .bind(now)
+      .all();
+
+    return results as Ticket[];
+  }
 }

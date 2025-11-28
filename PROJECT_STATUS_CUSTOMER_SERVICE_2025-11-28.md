@@ -7,6 +7,28 @@
 
 ---
 
+## 🏗️ **ARCHITECTURE NOTE**
+
+**IMPORTANT:** The Customer Service System is an **APPLICATION** built **ON TOP OF** Dartmouth OS.
+
+### **The Relationship:**
+```
+Customer Service System (Application)
+    ↓ uses
+Dartmouth OS (Platform)
+    ↓ runs on
+Cloudflare Workers (Infrastructure)
+```
+
+### **What This Means:**
+- ✅ **Dartmouth OS (85% complete)** - Foundation is already built
+- 🔴 **Customer Service System (0% complete)** - Application to be built
+- ✅ We're building a **thin layer** that leverages DOS services
+
+**See:** `DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md` for full architecture details.
+
+---
+
 ## 🎯 **PROJECT OVERVIEW**
 
 ### **What We're Building:**
@@ -521,25 +543,42 @@ D:\coding\DARTMOUTH_OS_PROJECT\
 
 ## 📝 **IMPORTANT NOTES**
 
-### **What's Already Built:**
+### **What's Already Built (Dartmouth OS):**
 
-1. ✅ **Dartmouth Foundation** - Complete agent framework
-2. ✅ **McCarthy Artwork Agent** - Working example
-3. ✅ **TicketManager** - Already has D1 integration
-4. ✅ **AuthenticationService** - Already has D1 integration
-5. ✅ **InternalCommunicationSystem** - Already has D1 integration
-6. ✅ **Database Schema** - 26 tables already defined
-7. ✅ **Tailwind UI Template** - Available at `D:\coding\Tailwind UI`
+1. ✅ **Dartmouth Foundation** - Complete agent framework (BaseAgent, Memory, RAG, Quality)
+2. ✅ **McCarthy Artwork Agent** - Working example (95% complete)
+3. ✅ **ShopifyIntegration** - Shared by Sales, CS, Product agents
+4. ✅ **PERPIntegration** - Shared by CS, Production, Artwork agents
+5. ✅ **ProductKnowledgeSystem** - Shared by Sales, CS agents
+6. ✅ **TicketManager** - Shared by all agents (D1 integrated, tested)
+7. ✅ **AuthenticationService** - Shared by all dashboards (D1 integrated, tested)
+8. ✅ **InternalCommunicationSystem** - Shared by all staff (D1 integrated, tested)
+9. ✅ **AgentHandoffProtocol** - Shared by all agents (D1 integrated, tested)
+10. ✅ **AnalyticsService** - Shared by all agents
+11. ✅ **WebSocketService** - Shared by all dashboards
+12. ✅ **Database Schema** - 26 tables already defined
+13. ✅ **Tailwind UI Template** - Available at `D:\coding\Tailwind UI`
 
-### **What We're Building:**
+**Why This Matters:**
+- We're NOT building from scratch
+- We're building a thin application layer on top of DOS
+- Most heavy lifting is already done by DOS
 
-1. 🔴 **Gmail Integration** - New service
-2. 🔴 **Email-to-Ticket** - Extension of TicketManager
-3. 🔴 **Customer Service AI Agent** - New agent
-4. 🔴 **Snooze & Mentions** - New features
-5. 🔴 **Staff Group Chat** - New system
-6. 🔴 **Dashboard Frontend** - New React app
-7. 🔴 **Admin Settings** - New feature
+### **What We're Building (CS-Specific Only):**
+
+1. 🔴 **GmailIntegration** - CS-specific (only CS monitors email inbox)
+2. 🔴 **Email-to-Ticket** - Extension of TicketManager (DOS)
+3. 🔴 **CustomerServiceAgent** - Extends BaseAgent (DOS)
+4. 🔴 **CS Handlers** - OrderStatus, Production, Invoice, General (uses DOS services)
+5. 🔴 **SnoozeManager** - CS-specific (only CS snoozes tickets)
+6. 🔴 **MentionManager** - CS-specific (only CS uses ticket mentions)
+7. 🔴 **Dashboard Frontend** - CS-specific React app
+8. 🔴 **Admin Settings** - CS-specific settings
+
+**Key Point:**
+- These are **thin wrappers** around DOS services
+- They **orchestrate** DOS services, not rebuild functionality
+- Example: CS Agent uses ShopifyIntegration (DOS), PERPIntegration (DOS), TicketManager (DOS), etc.
 
 ### **What We're NOT Building (Yet):**
 

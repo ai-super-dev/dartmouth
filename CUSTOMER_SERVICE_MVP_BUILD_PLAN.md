@@ -1,9 +1,40 @@
 # 🚀 CUSTOMER SERVICE SYSTEM - MVP BUILD PLAN
 
-**Version:** 2.0 (Final)  
+**Version:** 3.0 (Architecture-Aligned)  
 **Date:** November 28, 2025  
 **Status:** Ready to Build  
 **Timeline:** 4 weeks
+
+---
+
+## 🏗️ **ARCHITECTURE NOTE**
+
+**The Customer Service System is an APPLICATION built ON TOP OF Dartmouth OS.**
+
+### **What This Means:**
+- ✅ **Dartmouth OS** provides the foundation (BaseAgent, Memory, RAG, Shopify, PERP, Tickets, Auth, etc.)
+- ✅ **Customer Service System** adds CS-specific features (Gmail, CS Agent, CS Dashboard)
+- ✅ We're building a **thin layer** that leverages DOS services
+
+### **What's Already Built (Dartmouth OS):**
+- ✅ BaseAgent framework
+- ✅ ShopifyIntegration (shared by Sales, CS, Product agents)
+- ✅ PERPIntegration (shared by CS, Production, Artwork agents)
+- ✅ TicketManager (shared by all agents)
+- ✅ AuthenticationService (shared by all dashboards)
+- ✅ InternalCommunicationSystem (shared by all staff)
+- ✅ AgentHandoffProtocol (shared by all agents)
+- ✅ AnalyticsService (shared by all agents)
+
+### **What We're Building (CS-Specific):**
+- 🔴 GmailIntegration (only CS uses email)
+- 🔴 CustomerServiceAgent (extends BaseAgent)
+- 🔴 CS Handlers (OrderStatus, Production, Invoice, General)
+- 🔴 SnoozeManager (only CS snoozes tickets)
+- 🔴 MentionManager (only CS uses ticket mentions)
+- 🔴 CS Dashboard (React app for CS staff)
+
+**See:** `DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md` for full architecture details.
 
 ---
 

@@ -7,27 +7,54 @@
 
 ---
 
+## 🏗️ **CRITICAL: UNDERSTAND THE ARCHITECTURE FIRST**
+
+### **Dartmouth OS vs Applications**
+
+**Dartmouth OS** = The Operating System (like Windows, macOS)  
+**Applications** = Programs that run on it (like Word, Slack)
+
+```
+Applications (Customer Service, Sales, etc.)
+    ↓ uses
+Dartmouth OS (BaseAgent, Shopify, PERP, Tickets, etc.)
+    ↓ runs on
+Cloudflare Workers
+```
+
+**Read First:** `DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md` (10 min) - **ESSENTIAL**
+
+---
+
 ## 🚨 **IMPORTANT: TWO ACTIVE PROJECTS**
 
-### **Project 1: McCarthy Artwork Agent - 95% Complete**
+### **Project 1: Dartmouth OS (Platform) - 85% Complete**
+- Status: Core framework complete, optional features pending
+- What: Foundation for all agents
+- Read: `DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md`
+
+### **Project 2: McCarthy Artwork Agent (Application) - 95% Complete**
 - Status: Testing Phase
+- What: Specialized agent for artwork analysis
 - Read: `SESSION_SUMMARY_2025-11-27_EVENING.md`
 
-### **Project 2: Customer Service System - 0% Complete**
+### **Project 3: Customer Service System (Application) - 0% Complete**
 - Status: Planning Complete, Ready to Build
+- What: Email support, ticketing, AI agent, staff dashboard
 - Read: `PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md`
 
 ---
 
 ## 📖 **READING ORDER**
 
-### **🚀 QUICK START (5 minutes)**
+### **🚀 QUICK START (15 minutes)**
 
 **If you need to understand the current state:**
 
 1. **START_HERE.md** (This document) ← You are here!
-2. **PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md** - Complete project status
-3. **CUSTOMER_SERVICE_MVP_BUILD_PLAN.md** - Detailed build plan
+2. **DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md** - Architecture (10 min) **← CRITICAL**
+3. **PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md** - Complete project status (5 min)
+4. **CUSTOMER_SERVICE_MVP_BUILD_PLAN.md** - Detailed build plan (5 min)
 
 **Then:** Start building Customer Service System (Week 1, Day 1)
 
