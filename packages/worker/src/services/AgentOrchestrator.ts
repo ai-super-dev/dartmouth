@@ -8,6 +8,7 @@
 import type { Intent, Response } from '../types/shared';
 import type { HandlerContext } from '../components/ResponseRouter';
 import type { McCarthyAgent } from './AgentRegistry';
+import { AgentHandoffProtocol, type HandoffRequest, type ConversationContext } from './AgentHandoffProtocol';
 
 /**
  * Orchestration plan
@@ -57,6 +58,19 @@ export interface StepResult {
  * Coordinates multiple McCarthy agents to handle complex requests.
  */
 export class AgentOrchestrator {
+  private handoffProtocol: AgentHandoffProtocol;
+
+  constructor() {
+    this.handoffProtocol = new AgentHandoffProtocol();
+  }
+
+  /**
+   * Get the handoff protocol instance
+   */
+  getHandoffProtocol(): AgentHandoffProtocol {
+    return this.handoffProtocol;
+  }
+
   /**
    * Orchestrate multiple agents to handle a request
    */
@@ -253,19 +267,57 @@ export class AgentOrchestrator {
   async handoff(
     fromAgent: McCarthyAgent,
     toAgent: McCarthyAgent,
-    context: any
+    conversationContext: ConversationContext,
+    reason: string,
+    options?: {
+      customerContext?: any;
+      urgency?: 'low' | 'normal' | 'high' | 'critical';
+      metadata?: Record<string, any>;
+    }
   ): Promise<Response> {
     console.log(`[AgentOrchestrator] Handoff from ${fromAgent.metadata.name} to ${toAgent.metadata.name}`);
 
-    return {
-      content: `I'm connecting you with ${toAgent.metadata.name} who can better assist you with this.`,
-      metadata: {
-        handoff: true,
-        fromAgent: fromAgent.metadata.id,
-        toAgent: toAgent.metadata.id,
-        context
-      }
+    // Create handoff request
+    const handoffRequest: HandoffRequest = {
+      fromAgentId: fromAgent.metadata.id,
+      fromAgentName: fromAgent.metadata.name,
+      toAgentId: toAgent.metadata.id,
+      toAgentName: toAgent.metadata.name,
+      reason,
+      conversationContext,
+      customerContext: options?.customerContext,
+      urgency: options?.urgency || 'normal',
+      metadata: options?.metadata
     };
+
+    // Initiate handoff
+    const result = await this.handoffProtocol.initiateHandoff(handoffRequest);
+
+    if (result.success) {
+      return {
+        content: result.message,
+        metadata: {
+          handoff: true,
+          handoffId: result.handoffId,
+          fromAgent: fromAgent.metadata.id,
+          toAgent: toAgent.metadata.id,
+          toAgentName: toAgent.metadata.name,
+          context: result.context,
+          timestamp: result.timestamp
+        }
+      };
+    } else {
+      return {
+        content: result.message,
+        metadata: {
+          handoff: false,
+          handoffFailed: true,
+          error: result.error,
+          fromAgent: fromAgent.metadata.id,
+          toAgent: toAgent.metadata.id
+        }
+      };
+    }
   }
 }
 
