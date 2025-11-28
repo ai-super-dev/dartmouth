@@ -2,19 +2,34 @@
 
 **Welcome to Dartmouth!** This guide tells you exactly what to read and in what order.
 
+**Last Updated:** November 28, 2025  
+**Status:** Multiple Projects in Progress
+
+---
+
+## 🚨 **IMPORTANT: TWO ACTIVE PROJECTS**
+
+### **Project 1: McCarthy Artwork Agent - 95% Complete**
+- Status: Testing Phase
+- Read: `SESSION_SUMMARY_2025-11-27_EVENING.md`
+
+### **Project 2: Customer Service System - 0% Complete**
+- Status: Planning Complete, Ready to Build
+- Read: `PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md`
+
 ---
 
 ## 📖 **READING ORDER**
 
 ### **🚀 QUICK START (5 minutes)**
 
-**If you need to understand Dartmouth quickly:**
+**If you need to understand the current state:**
 
 1. **START_HERE.md** (This document) ← You are here!
-2. **WHERE_WE_ARE_RIGHT_NOW.md** - Current status and next steps
-3. **BUILD_PLAN_COMPLETE.md** - See Phase 3 (current phase)
+2. **PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md** - Complete project status
+3. **CUSTOMER_SERVICE_MVP_BUILD_PLAN.md** - Detailed build plan
 
-**Then:** Continue building from Phase 3
+**Then:** Start building Customer Service System (Week 1, Day 1)
 
 ---
 
