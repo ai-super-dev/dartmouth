@@ -186,6 +186,30 @@ export class IntentDetector {
       }
     }
 
+    // Check if user is responding to YouTube tutorial offer
+    // ONLY if this looks like a yes/no/steps response (not a greeting or new question)
+    const lastAssistantMessage = state.messages
+      .filter((m: any) => m.role === 'assistant')
+      .pop();
+    
+    // Check if this is a direct response to the tutorial offer
+    const isYesNoStepsResponse = /^(yes|yeah|yep|sure|ok|okay|no|nope|nah|steps?|written|text)/i.test(message.trim());
+    
+    if (isYesNoStepsResponse && 
+        lastAssistantMessage?.content?.includes('Would you like a quick YouTube tutorial?')) {
+      // User is responding to YouTube tutorial offer - route back to HowToHandler
+      console.log('[IntentDetector] ✅ Detected response to YouTube tutorial offer - routing to HOWTO');
+      return {
+        type: 'howto',
+        confidence: 0.95,
+        requiresRAG: true,
+        entities: {
+          isFollowUp: true,
+          respondingToTutorialOffer: true
+        }
+      };
+    }
+
     // If this is a follow-up, mark it as 'information' so LLM handles it with full context
     // DON'T inherit the previous handler type - the LLM is better at understanding context
     if (intent.type === 'followup' && state.questionsAsked.length > 0) {
