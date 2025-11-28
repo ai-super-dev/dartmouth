@@ -170,10 +170,10 @@ export class AgentHandoffProtocol {
     try {
       const result = await this.db.prepare(`
         SELECT * FROM agent_handoffs
-        WHERE context LIKE ?
+        WHERE session_id = ?
         ORDER BY timestamp DESC
         LIMIT 50
-      `).bind(`%"sessionId":"${sessionId}"%`).all();
+      `).bind(sessionId).all();
       
       return result.results.map((row: any) => ({
         fromAgentId: row.from_agent_id,
@@ -194,18 +194,48 @@ export class AgentHandoffProtocol {
   /**
    * Check if a session has had handoffs
    */
-  hasHandoffHistory(sessionId: string): boolean {
-    const history = this.handoffHistory.get(sessionId);
-    return history !== undefined && history.length > 0;
+  async hasHandoffHistory(sessionId: string): Promise<boolean> {
+    try {
+      const result = await this.db.prepare(`
+        SELECT COUNT(*) as count FROM agent_handoffs
+        WHERE session_id = ?
+      `).bind(sessionId).first();
+      
+      return (result?.count as number) > 0;
+    } catch (error) {
+      console.error(`[AgentHandoffProtocol] ❌ Error checking handoff history:`, error);
+      return false;
+    }
   }
 
   /**
    * Get the last handoff for a session
    */
-  getLastHandoff(sessionId: string): HandoffRequest | null {
-    const history = this.handoffHistory.get(sessionId);
-    if (!history || history.length === 0) return null;
-    return history[history.length - 1];
+  async getLastHandoff(sessionId: string): Promise<HandoffRequest | null> {
+    try {
+      const result = await this.db.prepare(`
+        SELECT * FROM agent_handoffs
+        WHERE session_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `).bind(sessionId).first();
+      
+      if (!result) return null;
+      
+      return {
+        fromAgentId: result.from_agent_id as string,
+        fromAgentName: 'Agent',
+        toAgentId: result.to_agent_id as string,
+        toAgentName: 'Agent',
+        reason: result.reason as string,
+        conversationContext: JSON.parse(result.context as string),
+        urgency: 'normal' as const,
+        metadata: {}
+      };
+    } catch (error) {
+      console.error(`[AgentHandoffProtocol] ❌ Error fetching last handoff:`, error);
+      return null;
+    }
   }
 
   /**
@@ -303,19 +333,32 @@ export class AgentHandoffProtocol {
   }
 
   /**
-   * Record handoff in history
+   * Store handoff in database
    */
-  private recordHandoff(sessionId: string, request: HandoffRequest): void {
-    if (!this.handoffHistory.has(sessionId)) {
-      this.handoffHistory.set(sessionId, []);
-    }
-
-    this.handoffHistory.get(sessionId)!.push(request);
-
-    // Limit history to last 10 handoffs per session
-    const history = this.handoffHistory.get(sessionId)!;
-    if (history.length > 10) {
-      history.shift();
+  private async storeHandoffInDatabase(request: HandoffRequest, handoffId: string): Promise<void> {
+    try {
+      await this.db.prepare(`
+        INSERT INTO agent_handoffs (
+          handoff_id, from_agent_id, to_agent_id, ticket_id, status,
+          context, message, reason, timestamp, session_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        handoffId,
+        request.fromAgentId,
+        request.toAgentId,
+        null, // ticket_id (not used yet)
+        'pending',
+        JSON.stringify(request.conversationContext),
+        request.conversationContext.conversationSummary || 'Handoff initiated',
+        request.reason,
+        new Date().toISOString(),
+        request.conversationContext.sessionId // Add session_id for efficient querying
+      ).run();
+      
+      console.log(`[AgentHandoffProtocol] ✅ Handoff stored in database: ${handoffId}`);
+    } catch (error) {
+      console.error(`[AgentHandoffProtocol] ❌ Error storing handoff:`, error);
+      throw error;
     }
   }
 
@@ -360,15 +403,29 @@ export class AgentHandoffProtocol {
   /**
    * Clear handoff history for a session (cleanup)
    */
-  clearHistory(sessionId: string): void {
-    this.handoffHistory.delete(sessionId);
+  async clearHistory(sessionId: string): Promise<void> {
+    try {
+      await this.db.prepare(`
+        DELETE FROM agent_handoffs
+        WHERE session_id = ?
+      `).bind(sessionId).run();
+      
+      console.log(`[AgentHandoffProtocol] ✅ Cleared handoff history for session: ${sessionId}`);
+    } catch (error) {
+      console.error(`[AgentHandoffProtocol] ❌ Error clearing handoff history:`, error);
+    }
   }
 
   /**
    * Clear all handoff history (cleanup)
    */
-  clearAllHistory(): void {
-    this.handoffHistory.clear();
+  async clearAllHistory(): Promise<void> {
+    try {
+      await this.db.prepare(`DELETE FROM agent_handoffs`).run();
+      console.log(`[AgentHandoffProtocol] ✅ Cleared all handoff history`);
+    } catch (error) {
+      console.error(`[AgentHandoffProtocol] ❌ Error clearing all handoff history:`, error);
+    }
   }
 }
 
