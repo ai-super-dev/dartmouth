@@ -2,8 +2,22 @@
 
 **Welcome to Dartmouth!** This guide tells you exactly what to read and in what order.
 
-**Last Updated:** November 28, 2025  
-**Status:** Multiple Projects in Progress
+**Last Updated:** November 28, 2025 23:50  
+**Status:** Customer Service System - Phase 3 Complete (48.6%)
+
+---
+
+## 🚨 **RESUMING WORK? READ THIS FIRST!**
+
+**→ `NEXT_SESSION_START_HERE_2025-11-28.md`** (5 min) **← START HERE!**
+
+This document tells you:
+- ✅ Exactly where we are (Phase 3 complete)
+- ✅ What we just built (email processing)
+- ✅ What to do next (test or build APIs)
+- ✅ How to avoid mistakes (critical rules)
+
+**DO NOT SKIP THIS!** It will save you hours of confusion.
 
 ---
 
@@ -38,10 +52,12 @@ Cloudflare Workers
 - What: Specialized agent for artwork analysis
 - Read: `SESSION_SUMMARY_2025-11-27_EVENING.md`
 
-### **Project 3: Customer Service System (Application) - 0% Complete**
-- Status: Planning Complete, Ready to Build
+### **Project 3: Customer Service System (Application) - 48.6% Complete**
+- Status: Phase 3 Complete (Email Processing & Agent Integration)
 - What: Email support, ticketing, AI agent, staff dashboard
-- Read: `PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md`
+- Read: `NEXT_SESSION_START_HERE_2025-11-28.md` **← START HERE!**
+- Then: `PHASE_3_COMPLETE_2025-11-28.md`
+- Then: `PROJECT_STATUS_CUSTOMER_SERVICE_2025-11-28.md`
 
 ---
 
