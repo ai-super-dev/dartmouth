@@ -19,8 +19,12 @@
 - 🟡 **McCarthy Artwork Testing** - 33% of tests run (85% passing)
 - 🟡 **Customer Service Agent** - Planning phase complete, ready to build
 
+### **⚠️ IMPORTANT NOTES:**
+- 🔴 **ADVANCED LOGGING IS ON** - McCarthy Artwork Agent has verbose logging enabled for testing. Remember to disable before production use.
+
 ### **What's Next:**
 - 🔜 **Complete Artwork Agent Testing** (2-3 hours)
+- 🔜 **Disable advanced logging** (after testing complete)
 - 🔜 **Dartmouth OS Extensions** (3-4 weeks)
 - 🔜 **Sales Agent** (2-3 weeks)
 - 🔜 **Customer Service Agent** (7-8 weeks)
