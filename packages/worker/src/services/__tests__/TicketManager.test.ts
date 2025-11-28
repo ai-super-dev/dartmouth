@@ -16,6 +16,25 @@ const createMockDB = () => {
       bind: (...params: any[]) => ({
         run: async () => {
           console.log('[MockDB] RUN:', query, params);
+          // Store tickets when they're inserted
+          if (query.includes('INSERT INTO tickets')) {
+            mockResults.set(params[0], {
+              ticket_id: params[0],
+              ticket_number: params[1],
+              customer_id: params[2],
+              customer_email: params[3],
+              customer_name: params[4],
+              subject: params[5],
+              description: params[6],
+              status: params[7],
+              priority: params[8],
+              category: params[9],
+              channel: params[10],
+              sla_due_at: params[11],
+              created_at: params[12],
+              updated_at: params[13]
+            });
+          }
           return { success: true };
         },
         first: async () => {
@@ -24,6 +43,13 @@ const createMockDB = () => {
             return { count: 5 };
           }
           if (query.includes('SELECT * FROM tickets WHERE ticket_id')) {
+            // Return the ticket that was just created (stored in mockResults)
+            const ticketId = params[0];
+            const storedTicket = mockResults.get(ticketId);
+            if (storedTicket) {
+              return storedTicket;
+            }
+            // Fallback
             return {
               ticket_id: params[0],
               ticket_number: 'TKT-000001',

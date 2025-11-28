@@ -405,22 +405,28 @@ export class TicketManager {
   private detectCategory(content: string): TicketCategory {
     const lowerContent = content.toLowerCase();
 
-    if (lowerContent.match(/order|status|tracking|where is|shipped/)) {
+    // Order status - check for order-related keywords
+    if (lowerContent.match(/\b(order|tracking|where\s+is|shipped|delivery\s+status|order\s+status)\b/i)) {
       return 'order_status';
     }
-    if (lowerContent.match(/artwork|design|file|dpi|resolution|image/)) {
+    // Artwork issues
+    if (lowerContent.match(/\b(artwork|design|file|dpi|resolution|image|graphic)\b/i)) {
       return 'artwork_issue';
     }
-    if (lowerContent.match(/payment|charge|refund|invoice|credit card/)) {
+    // Payment issues
+    if (lowerContent.match(/\b(payment|charge|refund|invoice|credit\s+card|billing)\b/i)) {
       return 'payment';
     }
-    if (lowerContent.match(/shipping|delivery|address|carrier/)) {
+    // Shipping issues
+    if (lowerContent.match(/\b(shipping|delivery|address|carrier|fedex|ups|usps)\b/i)) {
       return 'shipping';
     }
-    if (lowerContent.match(/product|item|what|how much|price|available/)) {
+    // Product inquiries
+    if (lowerContent.match(/\b(product|item|price|cost|available|stock|inventory)\b/i)) {
       return 'product_inquiry';
     }
-    if (lowerContent.match(/complaint|unhappy|disappointed|terrible|awful/)) {
+    // Complaints
+    if (lowerContent.match(/\b(complaint|unhappy|disappointed|terrible|awful|angry|frustrated)\b/i)) {
       return 'complaint';
     }
 
