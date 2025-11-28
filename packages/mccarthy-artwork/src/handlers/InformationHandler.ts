@@ -41,8 +41,8 @@ export class InformationHandler implements Handler {
     // Check if question is about artwork file properties (ICC profile, file size, etc.)
     const artworkData = context.state?.metadata?.artworkData;
     if (artworkData) {
-      // ICC Profile questions
-      if (/icc profile|color profile|embedded profile/i.test(message)) {
+      // ICC Profile questions (including common typos like "iic")
+      if (/i[ic]c profile|color profile|colour profile|embedded profile/i.test(message)) {
         const hasICC = artworkData.iccProfile && artworkData.iccProfile !== 'Unknown' && artworkData.iccProfile !== 'None';
         responseText = hasICC 
           ? `Yes, your artwork has an embedded ICC profile (${artworkData.iccProfile}).`
