@@ -1,6 +1,6 @@
 # 📧 Customer Service System - Complete Guide
-**Version:** 1.0 MVP  
-**Status:** ✅ Operational (Core Features Working)  
+**Version:** 0.35 Alpha  
+**Status:** ⚠️ Partially Operational (Email-to-Ticket Working, Management Features Missing)  
 **Last Updated:** November 29, 2025
 
 ---
@@ -455,24 +455,28 @@ npx wrangler secret put OPENAI_API_KEY
 
 ## 🎯 Feature Roadmap
 
-### **✅ Completed (MVP)**
+### **✅ Completed (Phase 1)**
 - Email polling & ticket creation
 - Gmail integration
-- Basic dashboard
+- Basic ticket list view
 - Priority & category detection
 - Duplicate prevention
 
-### **🚧 In Progress**
-- Message history
-- AI draft responses
-- Ticket detail view
+### **🚧 In Progress (Phase 2 - CRITICAL)**
+- Message history (table created, not saving)
+- AI draft responses (has error)
+- Ticket detail view (NOT STARTED)
+- Reply functionality (NOT STARTED)
+- Ticket updates (NOT STARTED)
 
-### **📋 Planned (Phase 2)**
+### **📋 Planned (Phase 3)**
 - Staff assignments
 - Internal notes
 - Ticket escalation
 - SLA monitoring
 - Email templates
+- Search & filtering
+- Bulk actions
 
 ### **🔮 Future (Phase 3)**
 - Customer portal
