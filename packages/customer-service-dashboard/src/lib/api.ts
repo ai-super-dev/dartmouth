@@ -47,7 +47,7 @@ export const authApi = {
 
 // Tickets API
 export const ticketsApi = {
-  list: (params?: { status?: string; priority?: string; assignedTo?: string }) =>
+  list: (params?: { status?: string; priority?: string; assignedTo?: string; limit?: number; offset?: number }) =>
     api.get('/api/tickets', { params }),
   get: (id: string) => api.get(`/api/tickets/${id}`),
   assign: (id: string, assignedTo: string) =>

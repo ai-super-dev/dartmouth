@@ -100,20 +100,34 @@ export class TicketManager {
   async createTicket(message: NormalizedMessage, options?: {
     subject?: string;
     isVIP?: boolean;
+    priority?: TicketPriority;
+    category?: TicketCategory;
     metadata?: Record<string, any>;
   }): Promise<Ticket> {
     const ticketId = this.generateTicketId();
     const ticketNumber = await this.generateTicketNumber();
     const now = new Date().toISOString();
 
-    // Detect priority
-    const priority = this.detectPriority(message.content, options?.isVIP || false);
+    // Detect priority (use provided or auto-detect)
+    const priority = options?.priority || this.detectPriority(message.content, options?.isVIP || false);
 
-    // Detect category
-    const category = this.detectCategory(message.content);
+    // Detect category (use provided or auto-detect)
+    const category = options?.category || this.detectCategory(message.content);
 
-    // Calculate SLA
-    const slaDueAt = new Date(Date.now() + this.slaConfig.firstResponse[priority]).toISOString();
+    // Calculate SLA - with error handling
+    let slaDueAt: string;
+    try {
+      const slaTime = this.slaConfig.firstResponse[priority as keyof typeof this.slaConfig.firstResponse];
+      if (!slaTime) {
+        // Default to medium if priority not found
+        slaDueAt = new Date(Date.now() + this.slaConfig.firstResponse.medium).toISOString();
+      } else {
+        slaDueAt = new Date(Date.now() + slaTime).toISOString();
+      }
+    } catch (error) {
+      // Fallback to 4 hours from now
+      slaDueAt = new Date(Date.now() + (4 * 60 * 60 * 1000)).toISOString();
+    }
 
     const subject = options?.subject || this.generateSubject(message.content, category);
 
@@ -129,8 +143,8 @@ export class TicketManager {
         ticketId,
         ticketNumber,
         message.customerId,
-        message.customerEmail,
-        message.customerName,
+        message.customerEmail || null,
+        message.customerName || null,
         subject,
         message.content,
         'open',
@@ -146,7 +160,7 @@ export class TicketManager {
       await this.addMessage(ticketId, {
         sender_type: 'customer',
         sender_id: message.customerId,
-        sender_name: message.customerName,
+        sender_name: message.customerName || message.customerId,
         content: message.content
       });
 
@@ -249,7 +263,7 @@ export class TicketManager {
     try {
       await this.db.prepare(`
         INSERT INTO ticket_messages (
-          message_id, ticket_id, sender_type, sender_id, sender_name, content, created_at
+          id, ticket_id, sender_type, sender_id, sender_name, content, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
         this.generateId(),
@@ -396,7 +410,7 @@ export class TicketManager {
       return 'low';
     }
 
-    return 'medium';
+    return 'normal';
   }
 
   /**
@@ -523,14 +537,15 @@ export class TicketManager {
 
     // 5. Create normalized message
     const normalizedMessage: NormalizedMessage = {
-      messageId: email.id,
-      conversationId: email.gmailThreadId,
-      channel: 'email',
+      id: email.id,
+      channelType: 'email',
+      direction: 'inbound',
       customerId: email.from.email,
       customerName: email.from.name || email.from.email,
       customerEmail: email.from.email,
       content: email.bodyText,
       timestamp: new Date().toISOString(),
+      conversationId: email.gmailThreadId,
       metadata: {
         subject: email.subject,
         sentiment,
@@ -539,6 +554,7 @@ export class TicketManager {
 
     // 6. Create ticket (this already inserts into DB)
     const ticket = await this.createTicket(normalizedMessage, {
+      subject: email.subject,
       priority,
       category,
     });
@@ -638,7 +654,7 @@ export class TicketManager {
       return 'low';
     }
 
-    return 'medium';
+    return 'normal';
   }
 
   /**

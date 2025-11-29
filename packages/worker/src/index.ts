@@ -130,12 +130,31 @@ export default {
       // Manual email polling trigger (for testing)
       if (url.pathname === '/trigger-email-poll') {
         try {
+          const logs: string[] = [];
+          const originalConsoleLog = console.log;
+          const originalConsoleError = console.error;
+          
+          // Capture console logs
+          console.log = (...args: any[]) => {
+            logs.push(args.join(' '));
+            originalConsoleLog(...args);
+          };
+          console.error = (...args: any[]) => {
+            logs.push('ERROR: ' + args.join(' '));
+            originalConsoleError(...args);
+          };
+          
           await handleEmailPolling(env);
-          return new Response(JSON.stringify({ success: true, message: 'Email polling triggered' }), {
+          
+          // Restore console
+          console.log = originalConsoleLog;
+          console.error = originalConsoleError;
+          
+          return new Response(JSON.stringify({ success: true, message: 'Email polling triggered', logs }), {
             headers: { 'Content-Type': 'application/json' }
           });
         } catch (error: any) {
-          return new Response(JSON.stringify({ success: false, error: error.message }), {
+          return new Response(JSON.stringify({ success: false, error: error.message, stack: error.stack }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
           });

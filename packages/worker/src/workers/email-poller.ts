@@ -66,7 +66,15 @@ export async function handleEmailPolling(env: Env): Promise<void> {
           console.log(`[EmailPoller] ✅ Updated ticket #${ticket.ticket_number} with new email`);
         }
 
-        // 3c. Process ticket with AI agent (if new ticket)
+        // 3c. Mark email as read in Gmail (prevent duplicate processing)
+        try {
+          await gmail.markAsRead(email.gmailMessageId);
+        } catch (markReadError) {
+          console.error(`[EmailPoller] ⚠️ Failed to mark email as read (non-fatal):`, markReadError);
+          // Don't fail the whole process if marking as read fails
+        }
+
+        // 3d. Process ticket with AI agent (if new ticket)
         if (ticketsCreated > 0) {
           await processTicketWithAI(ticket, env);
         }

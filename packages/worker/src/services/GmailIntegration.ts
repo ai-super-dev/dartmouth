@@ -187,9 +187,10 @@ export class GmailIntegration {
     const token = await this.getAccessToken();
 
     // 1. List message IDs (with rate limiting)
+    // TESTING FILTER: Only process emails from johnpaulhutchison@gmail.com
     await this.rateLimit();
     const listResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=is:unread in:inbox`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=is:unread in:inbox from:johnpaulhutchison@gmail.com`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -255,7 +256,30 @@ export class GmailIntegration {
     const from = this.findHeader(headers, 'From') || '';
     const to = this.findHeader(headers, 'To') || '';
     const subject = this.findHeader(headers, 'Subject') || '(No Subject)';
-    const date = this.findHeader(headers, 'Date') || new Date().toISOString();
+    const dateHeader = this.findHeader(headers, 'Date');
+
+    // Parse date with fallback to internalDate (Unix timestamp in milliseconds)
+    let receivedAt: string;
+    try {
+      if (dateHeader) {
+        const parsedDate = new Date(dateHeader);
+        if (isNaN(parsedDate.getTime())) {
+          // Invalid date from header, use Gmail's internalDate
+          receivedAt = new Date(parseInt(data.internalDate)).toISOString();
+        } else {
+          receivedAt = parsedDate.toISOString();
+        }
+      } else if (data.internalDate) {
+        // No Date header, use Gmail's internalDate (Unix timestamp in milliseconds)
+        receivedAt = new Date(parseInt(data.internalDate)).toISOString();
+      } else {
+        // Fallback to current time
+        receivedAt = new Date().toISOString();
+      }
+    } catch (error) {
+      console.warn('[GmailIntegration] ⚠️ Error parsing date, using current time:', error);
+      receivedAt = new Date().toISOString();
+    }
 
     // Parse body
     const body = this.parseEmailBody(data.payload);
@@ -267,7 +291,7 @@ export class GmailIntegration {
     const labels = data.labelIds || [];
 
     return {
-      id: crypto.randomUUID(),
+      id: messageId, // Use Gmail message ID as the unique ID (not crypto.randomUUID())
       gmailMessageId: messageId,
       gmailThreadId: data.threadId,
       from: this.parseEmailAddress(from),
@@ -275,11 +299,42 @@ export class GmailIntegration {
       subject,
       bodyText: body.text,
       bodyHtml: body.html,
-      receivedAt: new Date(date).toISOString(),
+      receivedAt,
       hasAttachments: attachments.length > 0,
       attachments,
       labels,
     };
+  }
+
+  /**
+   * Mark email as read in Gmail
+   */
+  async markAsRead(gmailMessageId: string): Promise<void> {
+    console.log(`[GmailIntegration] Marking email ${gmailMessageId} as read...`);
+    const token = await this.getAccessToken();
+
+    await this.rateLimit();
+    
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailMessageId}/modify`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          removeLabelIds: ['UNREAD']
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to mark email as read: ${error}`);
+    }
+
+    console.log('[GmailIntegration] ✅ Email marked as read');
   }
 
   // ==========================================================================

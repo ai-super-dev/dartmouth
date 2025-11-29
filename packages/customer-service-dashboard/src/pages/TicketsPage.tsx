@@ -25,7 +25,7 @@ export default function TicketsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['tickets'],
     queryFn: async () => {
-      const response = await ticketsApi.list()
+      const response = await ticketsApi.list({ limit: 100 })
       return response.data.tickets
     },
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -61,6 +61,9 @@ export default function TicketsPage() {
                     Ticket #
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    Created
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Customer
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
@@ -71,9 +74,6 @@ export default function TicketsPage() {
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Priority
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Created
                   </th>
                   <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-0">
                     <span className="sr-only">View</span>
@@ -94,6 +94,10 @@ export default function TicketsPage() {
                         {ticket.ticket_number}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        <div>{new Date(ticket.created_at).toLocaleString()}</div>
+                        <div className="text-xs text-gray-400">{formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         <div>{ticket.customer_name}</div>
                         <div className="text-gray-400">{ticket.customer_email}</div>
                       </td>
@@ -109,9 +113,6 @@ export default function TicketsPage() {
                         <span className={priorityColors[ticket.priority as keyof typeof priorityColors] || priorityColors.normal}>
                           {ticket.priority}
                         </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
                         <Link to={`/tickets/${ticket.ticket_id}`} className="text-primary-600 hover:text-primary-900">
