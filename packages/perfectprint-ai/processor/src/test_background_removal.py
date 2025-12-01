@@ -11,8 +11,9 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Set Hugging Face token
-os.environ['HUGGING_FACE_HUB_TOKEN'] = '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'
+# Set Hugging Face token from environment variable
+# Get token from environment or use empty string (will fail gracefully)
+os.environ['HUGGING_FACE_HUB_TOKEN'] = os.environ.get('HUGGING_FACE_HUB_TOKEN', '')
 
 from services.background import BackgroundRemovalService
 from utils.logger import logger
