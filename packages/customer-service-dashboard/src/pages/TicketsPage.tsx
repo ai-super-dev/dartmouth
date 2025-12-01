@@ -273,22 +273,25 @@ export default function TicketsPage() {
 
   return (
     <div className="p-6">
-      <div className="sm:flex sm:items-center sm:justify-between">
-        <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold leading-6 text-gray-900 flex items-center gap-3">
-            {getQueueTitle()}
-            <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-600/20">
-              {tickets.length}
-            </span>
-          </h1>
-          <p className="mt-2 text-sm text-gray-700">
-            A list of all customer service tickets including their status, priority, and assignment.
-          </p>
+      {/* Sticky Header + Filters */}
+      <div className="sticky top-0 z-10 bg-white pb-4 -mx-6 px-6 -mt-6 pt-6 border-b border-gray-200 mb-4">
+        <div className="sm:flex sm:items-center sm:justify-between">
+          <div className="sm:flex-auto">
+            <h1 className="text-2xl font-semibold leading-6 text-gray-900 flex items-center gap-3">
+              {getQueueTitle()}
+              <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-600/20">
+                {tickets.length}
+              </span>
+            </h1>
+            <p className="mt-2 text-sm text-gray-700">
+              A list of all customer service tickets including their status, priority, and assignment.
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Filters */}
+        <div className="mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <select
           value={channelFilter}
           onChange={(e) => setChannelFilter(e.target.value)}
@@ -366,79 +369,82 @@ export default function TicketsPage() {
           <option value="week">This Week</option>
           <option value="month">This Month</option>
         </select>
+        </div>
+        </div>
       </div>
-      <div className="mt-8 flow-root">
-        <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-            <table className="min-w-full divide-y divide-gray-300">
-              <thead>
-                <tr>
-                  <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('ticket_number')}>
-                    <div className="flex items-center gap-1">
-                      Ticket #
-                      {sortColumn === 'ticket_number' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('created_at')}>
-                    <div className="flex items-center gap-1">
-                      Created
-                      {sortColumn === 'created_at' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('customer_name')}>
-                    <div className="flex items-center gap-1">
-                      Customer
-                      {sortColumn === 'customer_name' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('subject')}>
-                    <div className="flex items-center gap-1">
-                      Subject
-                      {sortColumn === 'subject' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('priority')}>
-                    <div className="flex items-center gap-1">
-                      Priority
-                      {sortColumn === 'priority' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('status')}>
-                    <div className="flex items-center gap-1">
-                      Status
-                      {sortColumn === 'status' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('assigned_to')}>
-                    <div className="flex items-center gap-1">
-                      Assignment
-                      {sortColumn === 'assigned_to' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-50" onClick={() => handleSort('sentiment')}>
-                    <div className="flex items-center gap-1">
-                      Sentiment
-                      {sortColumn === 'sentiment' && (
-                        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </th>
-                </tr>
-              </thead>
+
+      {/* Table Section */}
+      <div className="mt-4">
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <table className="w-full divide-y divide-gray-300" style={{tableLayout: 'fixed'}}>
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="py-3.5 pl-2 pr-1 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('ticket_number')} style={{width: '7%'}}>
+                  <div className="flex items-center gap-1">
+                    Ticket #
+                    {sortColumn === 'ticket_number' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_at')} style={{width: '11%'}}>
+                  <div className="flex items-center gap-1">
+                    Created
+                    {sortColumn === 'created_at' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('customer_name')} style={{width: '16%'}}>
+                  <div className="flex items-center gap-1">
+                    Customer
+                    {sortColumn === 'customer_name' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('subject')} style={{width: '25%'}}>
+                  <div className="flex items-center gap-1">
+                    Subject
+                    {sortColumn === 'subject' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('priority')} style={{width: '9%'}}>
+                  <div className="flex items-center gap-1">
+                    Priority
+                    {sortColumn === 'priority' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status')} style={{width: '9%'}}>
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortColumn === 'status' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('assigned_to')} style={{width: '11%'}}>
+                  <div className="flex items-center gap-1">
+                    Assignment
+                    {sortColumn === 'assigned_to' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-1 py-3.5 pr-2 text-left text-xs font-semibold text-gray-900 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('sentiment')} style={{width: '12%'}}>
+                  <div className="flex items-center gap-1">
+                    Sentiment
+                    {sortColumn === 'sentiment' && (
+                      <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+              </tr>
+            </thead>
               <tbody className="divide-y divide-gray-200">
                 {tickets.length === 0 ? (
                   <tr>
@@ -467,76 +473,68 @@ export default function TicketsPage() {
                     
                     return (
                     <tr key={ticket.ticket_id} className={rowBgClass}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium">
+                      <td className="py-3 pl-2 pr-1 text-sm font-medium">
                         <Link 
                           to={ticketUrl}
-                          className="text-indigo-600 hover:text-indigo-900 font-medium flex items-center gap-2"
+                          className="text-indigo-600 hover:text-indigo-900 font-medium flex items-center gap-1"
                         >
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          {ticket.ticket_number}
+                          <Mail className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs truncate">{ticket.ticket_number}</span>
                         </Link>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        <div>{new Date(ticket.created_at).toLocaleString()}</div>
-                        <div className="text-xs text-gray-400">{formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</div>
+                      <td className="px-1 py-3 text-sm text-gray-500">
+                        <div className="text-xs truncate">{new Date(ticket.created_at).toLocaleString()}</div>
+                        <div className="text-xs text-gray-400 truncate">{formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      <td className="px-1 py-3 text-sm text-gray-500">
                         <Link 
                           to={`/tickets?customer=${encodeURIComponent(ticket.customer_email)}`}
-                          className="block hover:bg-gray-50 -m-2 p-2 rounded transition-colors"
+                          className="block hover:bg-gray-50 -m-1 p-1 rounded transition-colors"
                         >
                           <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-gray-900 hover:text-indigo-600 font-medium">{ticket.customer_name}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-900 hover:text-indigo-600 font-medium text-xs truncate">{ticket.customer_name}</span>
                               {ticket.vip === 1 && (
-                                <span className="text-yellow-500" title="VIP Customer">⭐</span>
-                              )}
-                              {/* Show Shopify icon for customers with purchase history - temporary mock based on VIP or specific emails */}
-                              {(ticket.vip === 1 || ticket.customer_email.includes('sarah') || ticket.customer_email.includes('john')) && (
-                                <span title="Shopify Customer - Has Purchase History">
-                                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                  </svg>
-                                </span>
+                                <span className="text-yellow-500 text-xs flex-shrink-0" title="VIP Customer">⭐</span>
                               )}
                             </div>
-                            <div className="text-gray-500 hover:text-indigo-500 text-xs">{ticket.customer_email}</div>
+                            <div className="text-gray-500 hover:text-indigo-500 text-xs truncate">{ticket.customer_email}</div>
                           </div>
                         </Link>
                       </td>
-                      <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate">
-                        {ticket.subject || ticket.description || 'No subject'}
+                      <td className="px-1 py-3 text-sm text-gray-500">
+                        <div className="truncate text-xs">{ticket.subject || ticket.description || 'No subject'}</div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${priorityColors[ticket.priority as keyof typeof priorityColors] || priorityColors.normal}`}>
+                      <td className="px-1 py-3 text-sm">
+                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${priorityColors[ticket.priority as keyof typeof priorityColors] || priorityColors.normal}`}>
                           {ticket.priority}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                      <td className="px-1 py-3 text-sm">
                         <div className="relative inline-block">
-                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${statusColors[ticket.status as keyof typeof statusColors] || statusColors.open}`}>
+                          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusColors[ticket.status as keyof typeof statusColors] || statusColors.open}`}>
                             {ticket.status}
                           </span>
                           {ticket.is_escalated_to_me === 1 && (
-                            <span className="absolute -top-2 -right-2 text-sm leading-none" title="Escalated - You've been asked for help">
+                            <span className="absolute -top-1 -right-1 text-xs leading-none" title="Escalated - You've been asked for help">
                               ⚠️
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      <td className="px-1 py-3 text-sm text-gray-500">
                         {ticket.assigned_to ? (
-                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 truncate">
                             {staffNames[ticket.assigned_to] || ticket.assigned_to}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-500 ring-1 ring-inset ring-gray-300">
+                          <span className="inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-xs font-medium text-gray-500 ring-1 ring-inset ring-gray-300">
                             Unassigned
                           </span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${sentimentColors[ticket.sentiment as keyof typeof sentimentColors] || sentimentColors.neutral}`}>
+                      <td className="px-1 py-3 pr-2 text-sm">
+                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${sentimentColors[ticket.sentiment as keyof typeof sentimentColors] || sentimentColors.neutral}`}>
                           {sentimentIcons[ticket.sentiment as keyof typeof sentimentIcons] || '😐'} {ticket.sentiment || 'neutral'}
                         </span>
                       </td>
@@ -545,8 +543,7 @@ export default function TicketsPage() {
                   })
                 )}
               </tbody>
-            </table>
-          </div>
+          </table>
         </div>
       </div>
     </div>

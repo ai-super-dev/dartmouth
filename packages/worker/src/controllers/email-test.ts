@@ -6,7 +6,7 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/shared';
 import { handleInboundEmail } from '../services/EmailHandler';
-import { sendEmailThroughMailChannels } from '../services/MailChannelsService';
+import { sendEmailThroughResend } from '../services/ResendService';
 
 /**
  * Simulate an inbound email from a customer
@@ -96,7 +96,7 @@ export async function testOutboundEmail(c: Context<{ Bindings: Env }>) {
     }
 
     // Send test email
-    await sendEmailThroughMailChannels(c.env, {
+    await sendEmailThroughResend(c.env, {
       tenantId: conversation.tenant_id as string,
       conversationId: conversationId,
       mailboxId: conversation.mailbox_id as string,
@@ -110,7 +110,7 @@ export async function testOutboundEmail(c: Context<{ Bindings: Env }>) {
 
     return c.json({
       success: true,
-      message: 'Outbound email sent successfully via MailChannels',
+      message: 'Outbound email sent successfully via Resend',
     });
   } catch (error) {
     console.error('[Test] Error sending outbound email:', error);
@@ -193,7 +193,7 @@ export async function testFullEmailFlow(c: Context<{ Bindings: Env }>) {
       .first();
 
     try {
-      await sendEmailThroughMailChannels(c.env, {
+      await sendEmailThroughResend(c.env, {
         tenantId: conversation.tenant_id as string,
         conversationId: conversation.id as string,
         mailboxId: conversation.mailbox_id as string,

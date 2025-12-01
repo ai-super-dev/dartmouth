@@ -722,24 +722,32 @@ export default function TicketDetailPage() {
             {/* Additional Messages */}
             {messages.map((msg: any) => (
               <div key={msg.id} className={`flex ${msg.sender_type === 'customer' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-sm rounded-lg p-3 ${
+                <div className={`max-w-sm rounded-lg p-3 relative ${
                   msg.sender_type === 'customer' 
                     ? 'bg-white border border-gray-200' 
                     : 'bg-indigo-100 border border-indigo-200'
                 }`}>
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-xs font-medium">
-                    {msg.sender_type === 'customer' 
-                      ? (msg.sender_name || 'Customer')
-                      : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'John')  // First name for staff
-                    }
-                  </span>
-                  <span className="text-xs opacity-60">
-                    {msg.created_at && typeof msg.created_at === 'string'
-                      ? formatDistanceToNow(new Date(msg.created_at.includes('Z') ? msg.created_at : msg.created_at + 'Z'), { addSuffix: true })
-                      : ''}
-                  </span>
-                </div>
+                  {/* Scheduled message indicator - top right */}
+                  {msg.was_scheduled === true && msg.sender_type === 'agent' && (
+                    <div className="absolute top-1 right-1" title="This message was scheduled">
+                      <svg className="w-3.5 h-3.5 text-blue-400 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-xs font-medium">
+                      {msg.sender_type === 'customer' 
+                        ? (msg.sender_name || 'Customer')
+                        : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'John')  // First name for staff
+                      }
+                    </span>
+                    <span className="text-xs opacity-60">
+                      {msg.created_at && typeof msg.created_at === 'string'
+                        ? formatDistanceToNow(new Date(msg.created_at.includes('Z') ? msg.created_at : msg.created_at + 'Z'), { addSuffix: true })
+                        : ''}
+                    </span>
+                  </div>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 </div>
               </div>

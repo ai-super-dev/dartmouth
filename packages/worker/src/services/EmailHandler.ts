@@ -3,13 +3,16 @@
  * Receives inbound emails and stores them in D1
  */
 
+import { TicketManager } from './TicketManager';
+import type { NormalizedMessage } from './OmnichannelRouter';
+
 export interface Env {
   DB: D1Database;
 }
 
 export interface EmailMessage {
   from: string;
-  to: string[];
+  to: string | string[]; // Cloudflare sends as string, but support array too
   headers: Map<string, string>;
   raw: ReadableStream<Uint8Array>;
 }
@@ -24,6 +27,8 @@ interface ParsedAddress {
   name: string | null;
   email: string | null;
 }
+
+// Removed duplicate detection functions - using TicketManager instead
 
 /**
  * Parse raw MIME email into headers and body.
@@ -54,15 +59,81 @@ async function parseRawMime(raw: ReadableStream<Uint8Array>): Promise<ParsedEmai
 
   // Split headers from body
   const [rawHeaders, ...bodyParts] = text.split(/\r?\n\r?\n/);
-  const body = bodyParts.join('\n\n');
+  const fullBody = bodyParts.join('\n\n');
 
-  // Detect if body is HTML
-  const hasHtmlTags = /<html[\s>]|<body[\s>]|<\/p>|<\/div>/.test(body);
+  // Check if this is a multipart message
+  const contentTypeMatch = rawHeaders.match(/Content-Type:\s*([^;\r\n]+)/i);
+  const contentType = contentTypeMatch ? contentTypeMatch[1].trim() : '';
+  
+  let bodyText: string | null = null;
+  let bodyHtml: string | null = null;
+
+  if (contentType.startsWith('multipart/')) {
+    // Extract boundary
+    const boundaryMatch = rawHeaders.match(/boundary=["']?([^"'\s;]+)["']?/i);
+    if (boundaryMatch) {
+      const boundary = boundaryMatch[1];
+      const parts = fullBody.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'));
+      
+      for (const part of parts) {
+        if (!part.trim() || part.trim() === '--') continue;
+        
+        // Split part headers from content
+        const [partHeaders, ...partContentParts] = part.split(/\r?\n\r?\n/);
+        const partContent = partContentParts.join('\n\n').trim();
+        
+        if (!partContent) continue;
+        
+        // Check content type and encoding
+        const partContentType = partHeaders.match(/Content-Type:\s*([^;\r\n]+)/i)?.[1]?.trim() || '';
+        const partEncoding = partHeaders.match(/Content-Transfer-Encoding:\s*([^\r\n]+)/i)?.[1]?.trim() || '';
+        
+        // Decode content if base64
+        let decodedContent = partContent;
+        if (partEncoding.toLowerCase() === 'base64') {
+          try {
+            decodedContent = atob(partContent.replace(/\s/g, ''));
+          } catch (e) {
+            console.warn('[EmailHandler] Failed to decode base64 content:', e);
+            decodedContent = partContent;
+          }
+        }
+        
+        // Store text or HTML part
+        if (partContentType.includes('text/plain') && !bodyText) {
+          bodyText = decodedContent;
+        } else if (partContentType.includes('text/html') && !bodyHtml) {
+          bodyHtml = decodedContent;
+        }
+      }
+    }
+  } else {
+    // Single part message
+    const encoding = rawHeaders.match(/Content-Transfer-Encoding:\s*([^\r\n]+)/i)?.[1]?.trim() || '';
+    let decodedBody = fullBody;
+    
+    if (encoding.toLowerCase() === 'base64') {
+      try {
+        decodedBody = atob(fullBody.replace(/\s/g, ''));
+      } catch (e) {
+        console.warn('[EmailHandler] Failed to decode base64 content:', e);
+      }
+    }
+    
+    const hasHtmlTags = /<html[\s>]|<body[\s>]|<\/p>|<\/div>/.test(decodedBody);
+    bodyText = hasHtmlTags ? decodedBody.replace(/<[^>]+>/g, '').trim() : decodedBody;
+    bodyHtml = hasHtmlTags ? decodedBody : null;
+  }
+
+  // If we have HTML but no text, extract text from HTML
+  if (bodyHtml && !bodyText) {
+    bodyText = bodyHtml.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  }
 
   return {
     headersText: rawHeaders,
-    bodyText: hasHtmlTags ? body.replace(/<[^>]+>/g, '') : body,
-    bodyHtml: hasHtmlTags ? body : null,
+    bodyText: bodyText || '',
+    bodyHtml: bodyHtml || null,
   };
 }
 
@@ -287,24 +358,125 @@ async function insertInboundEmail(
 }
 
 /**
+ * Create or update ticket in the customer service system using TicketManager
+ */
+async function createOrUpdateTicket(
+  env: Env,
+  opts: {
+    conversationId: string;
+    customerEmail: string;
+    customerName: string;
+    subject: string;
+    messageContent: string;
+    isReply: boolean;
+  }
+): Promise<void> {
+  try {
+    // Initialize TicketManager
+    const ticketManager = new TicketManager(env.DB);
+
+    // Check if ticket already exists for this conversation
+    const existingTicket = await env.DB.prepare(`
+      SELECT ticket_id FROM tickets WHERE conversation_id = ?
+    `)
+      .bind(opts.conversationId)
+      .first<{ ticket_id: string }>();
+
+    if (existingTicket) {
+      // This is a reply to an existing ticket - add as a customer message
+      console.log(`[EmailHandler] Adding customer reply to ticket ${existingTicket.ticket_id}`);
+      
+      await ticketManager.addMessage(existingTicket.ticket_id, {
+        content: opts.messageContent,
+        sender_type: 'customer',
+        sender_name: opts.customerName,
+      });
+
+      // Update ticket timestamp and status
+      const now = new Date().toISOString();
+      await env.DB.prepare(`
+        UPDATE tickets SET updated_at = ?, status = 'open' WHERE ticket_id = ?
+      `)
+        .bind(now, existingTicket.ticket_id)
+        .run();
+    } else {
+      // New ticket - create it using TicketManager
+      console.log(`[EmailHandler] Creating new ticket for conversation ${opts.conversationId}`);
+      
+      // Create customer if doesn't exist
+      const customerId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO customers (id, email, name, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `)
+        .bind(customerId, opts.customerEmail, opts.customerName, now, now)
+        .run();
+
+      // Get customer ID
+      const customer = await env.DB.prepare(`
+        SELECT id FROM customers WHERE email = ?
+      `)
+        .bind(opts.customerEmail)
+        .first<{ id: string }>();
+
+      // Create normalized message for TicketManager
+      const normalizedMessage: NormalizedMessage = {
+        id: crypto.randomUUID(),
+        channelType: 'email',
+        direction: 'inbound',
+        customerId: customer?.id || customerId,
+        customerEmail: opts.customerEmail,
+        customerName: opts.customerName,
+        content: opts.messageContent,
+        metadata: {
+          channelMessageId: opts.conversationId,
+          timestamp: now,
+        },
+      };
+
+      // Use TicketManager to create ticket (it will auto-detect priority, category, sentiment)
+      const ticket = await ticketManager.createTicket(normalizedMessage, {
+        subject: opts.subject,
+      });
+
+      // Link ticket to conversation
+      await env.DB.prepare(`
+        UPDATE tickets SET conversation_id = ? WHERE ticket_id = ?
+      `)
+        .bind(opts.conversationId, ticket.ticket_id)
+        .run();
+
+      console.log(`[EmailHandler] ✅ Created ticket ${ticket.ticket_number} with priority: ${ticket.priority}, sentiment: ${ticket.sentiment}`);
+    }
+  } catch (error) {
+    console.error('[EmailHandler] Error creating/updating ticket:', error);
+    // Don't throw - we still want to store the email even if ticket creation fails
+  }
+}
+
+/**
  * Main email handler - called by Cloudflare Email Worker
  */
 export async function handleInboundEmail(message: EmailMessage, env: Env): Promise<void> {
   try {
     console.log(`[EmailHandler] Processing inbound email from: ${message.from}`);
 
-    // Get recipient address
-    const toRaw = message.to && message.to.length > 0 ? message.to[0] : null;
-    if (!toRaw) {
+    // Get recipient address - handle both string and array formats
+    let to: string;
+    if (typeof message.to === 'string') {
+      // Cloudflare sends it as a string
+      to = message.to;
+    } else if (Array.isArray(message.to) && message.to.length > 0) {
+      // If it's an array, get first element
+      const toRaw = message.to[0];
+      to = typeof toRaw === 'string' ? toRaw : (toRaw as any).address || toRaw;
+    } else {
       console.warn('[EmailHandler] Email missing "to" address');
       return;
     }
 
-    console.log(`[EmailHandler] To (raw): ${JSON.stringify(toRaw)}`);
-    
-    // Parse the "to" address (might be an object or string)
-    const to = typeof toRaw === 'string' ? toRaw : (toRaw as any).address || toRaw;
-    console.log(`[EmailHandler] To (parsed): ${to}`);
+    console.log(`[EmailHandler] To: ${to}`);
 
     // Look up mailbox and tenant
     const mailbox = await resolveMailboxAndTenant(env, to);
@@ -365,6 +537,16 @@ export async function handleInboundEmail(message: EmailMessage, env: Env): Promi
       bodyText,
       bodyHtml,
       rawHeaders: headersText,
+    });
+
+    // Create or update ticket for customer service dashboard
+    await createOrUpdateTicket(env, {
+      conversationId,
+      customerEmail: fromEmail,
+      customerName: from.name || fromEmail,
+      subject,
+      messageContent: bodyText || bodyHtml || '',
+      isReply: !!inReplyTo, // If it has In-Reply-To, it's a reply to existing ticket
     });
 
     console.log(`[EmailHandler] ✅ Email processed successfully`);

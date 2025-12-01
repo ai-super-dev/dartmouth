@@ -5,7 +5,7 @@
 
 import type { Context } from 'hono';
 import type { Env } from '../types/shared';
-import { sendEmailThroughMailChannels } from '../services/MailChannelsService';
+import { sendEmailThroughResend } from '../services/ResendService';
 
 interface AuthUser {
   id: string;
@@ -69,8 +69,8 @@ export async function replyToConversation(c: Context<{ Bindings: Env }>) {
     // Build final HTML body
     const bodyHtml = `<p>${content.replace(/\n/g, '<br>')}</p>${renderedSignature}`;
 
-    // Send email via MailChannels
-    await sendEmailThroughMailChannels(c.env, {
+    // Send email via Resend
+    await sendEmailThroughResend(c.env, {
       tenantId: conversation.tenant_id as string,
       conversationId: conversationId,
       mailboxId: conversation.mailbox_id as string,

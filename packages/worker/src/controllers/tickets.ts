@@ -228,7 +228,7 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
 
     // Get ticket details
     const ticket = await c.env.DB.prepare(`
-      SELECT customer_email, subject FROM tickets WHERE ticket_id = ?
+      SELECT customer_email, subject, conversation_id FROM tickets WHERE ticket_id = ?
     `).bind(ticketId).first();
 
     if (!ticket) {
@@ -244,51 +244,50 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
       ? `${staffInfo.first_name} ${staffInfo.last_name}` 
       : user.email;
 
-    // Get the Gmail message ID from our database
-    const emailRecord = await c.env.DB.prepare(`
-      SELECT gmail_message_id, gmail_thread_id, message_id FROM emails WHERE ticket_id = ? ORDER BY created_at DESC LIMIT 1
-    `).bind(ticketId).first();
-
-    if (!emailRecord?.gmail_message_id) {
-      console.error(`[Tickets] No Gmail message ID found for ticket ${ticketId}`);
-      // Still save the message in the database, but don't send email
-    } else {
-      // Send the email to the customer using Gmail API
-      try {
-        const { GmailIntegration } = await import('../services/GmailIntegration');
-        const gmail = new GmailIntegration(c.env.DB, {
-          clientId: c.env.GMAIL_CLIENT_ID!,
-          clientSecret: c.env.GMAIL_CLIENT_SECRET!,
-          redirectUri: c.env.GMAIL_REDIRECT_URI!,
-          refreshToken: c.env.GMAIL_REFRESH_TOKEN!
-        });
-
-        // Fetch the original message metadata from Gmail to get exact threading info
-        const originalMessage = await gmail.getOriginalMessageForReply(emailRecord.gmail_message_id as string);
-        
-        console.log(`[Tickets] Original message thread ID:`, originalMessage.threadId);
-        console.log(`[Tickets] Original message Message-ID:`, originalMessage.messageId);
-        console.log(`[Tickets] Original message Subject:`, originalMessage.subject);
-        
-        // Build reply subject (ensure it has Re: prefix)
-        const replySubject = originalMessage.subject.startsWith('Re:') 
-          ? originalMessage.subject 
-          : `Re: ${originalMessage.subject}`;
-        
-        await gmail.sendEmail({
-          from: 'john@dtf.com.au',
-          to: ticket.customer_email as string,
-          subject: replySubject,
-          body: content,
-          threadId: originalMessage.threadId,
-          replyToMessageId: originalMessage.messageId
-        });
-
-        console.log(`[Tickets] ✅ Email sent to ${ticket.customer_email}`);
-      } catch (emailError) {
-        console.error(`[Tickets] Failed to send email:`, emailError);
-        // Don't fail the entire request if email fails - still save the message
+    // Send email via Resend (Email System V2)
+    try {
+      const { sendEmailThroughResend } = await import('../services/ResendService');
+      
+      // Get conversation ID from ticket
+      const conversationId = ticket.conversation_id as string;
+      
+      if (!conversationId) {
+        console.error(`[Tickets] No conversation_id found for ticket ${ticketId}`);
+        throw new Error('Ticket has no conversation_id - cannot send email');
       }
+
+      // Get mailbox info (assuming john@directtofilm.com.au for now)
+      const mailbox = await c.env.DB.prepare(`
+        SELECT id, email_address FROM mailboxes WHERE email_address = 'john@directtofilm.com.au' LIMIT 1
+      `).first<{ id: string; email_address: string }>();
+
+      if (!mailbox) {
+        console.error(`[Tickets] No mailbox found for john@directtofilm.com.au`);
+        throw new Error('Mailbox not configured');
+      }
+
+      // Build reply subject (ensure it has Re: prefix)
+      const replySubject = ticket.subject && !(ticket.subject as string).startsWith('Re:')
+        ? `Re: ${ticket.subject}`
+        : ticket.subject as string;
+
+      await sendEmailThroughResend(c.env, {
+        tenantId: 'test-tenant-dtf', // TODO: Get from ticket/mailbox
+        conversationId,
+        mailboxId: mailbox.id,
+        userId: user.id,
+        toEmail: ticket.customer_email as string,
+        fromEmail: mailbox.email_address,
+        fromName: staffName,
+        subject: replySubject,
+        bodyHtml: `<p>${content.replace(/\n/g, '<br>')}</p>`,
+        bodyText: content,
+      });
+
+      console.log(`[Tickets] ✅ Email sent to ${ticket.customer_email} via Resend`);
+    } catch (emailError) {
+      console.error(`[Tickets] Failed to send email:`, emailError);
+      // Don't fail the entire request if email fails - still save the message
     }
 
     await c.env.DB.prepare(`

@@ -41,6 +41,9 @@ export interface Env {
   CLERK_SECRET_KEY?: string;
   JWT_SECRET?: string;
   
+  // Email Services
+  RESEND_API_KEY?: string;
+  
   // Omnichannel Integration
   SENDGRID_API_KEY?: string;
   TWILIO_ACCOUNT_SID?: string;

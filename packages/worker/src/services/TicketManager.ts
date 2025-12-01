@@ -40,6 +40,7 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   category: TicketCategory;
+  sentiment?: 'positive' | 'neutral' | 'negative' | 'angry';
   channel: string;
   assigned_to?: string;
   created_at: string;
