@@ -180,7 +180,7 @@ export class BaseAgent {
     this.llmService = new LLMService(
       provider,
       apiKey!,  // We already checked apiKey exists above
-      this.agentConfig.llmModel
+      this.agentConfig.llmModel || 'gpt-4o-mini' // Provide default if undefined
     );
 
     console.log(`[BaseAgent] LLM Service initialized: ${provider} (${this.agentConfig.llmModel})`);
@@ -356,10 +356,52 @@ export class BaseAgent {
       
       if (shouldUseLLM && this.llmService) {
         console.log(`[BaseAgent] ⚠️ OVERRIDING WITH LLM FALLBACK`);
-        const originalResponse = response.content.substring(0, 100);
-        response = await this.generateLLMResponse(message, intent, context);
-        console.log(`[BaseAgent] Original response: ${originalResponse}`);
-        console.log(`[BaseAgent] LLM response: ${response.content.substring(0, 100)}`);
+        const originalResponse = response.content?.substring(0, 100) || '(empty)';
+        try {
+          response = await this.generateLLMResponse(message, intent, context);
+          // Ensure LLM response has content
+          if (!response.content || response.content.trim().length === 0) {
+            console.error('[BaseAgent] LLM returned empty content, using fallback');
+            response = {
+              content: "I'm McCarthy, your personal assistant for Australian families. I help with tasks, reminders, calendar events, shopping lists, and family coordination. How can I assist you today?",
+              metadata: {
+                ...response.metadata,
+                handlerName: 'LLMFallback',
+                error: 'LLM returned empty content'
+              }
+            };
+          }
+          console.log(`[BaseAgent] Original response: ${originalResponse}`);
+          console.log(`[BaseAgent] LLM response: ${response.content?.substring(0, 100) || '(empty)'}`);
+        } catch (llmError) {
+          console.error('[BaseAgent] LLM fallback failed:', llmError);
+          // If LLM fails, use a safe fallback that introduces McCarthy
+          response = {
+            content: "I'm McCarthy, your personal assistant for Australian families. I help with tasks, reminders, calendar events, shopping lists, and family coordination. How can I assist you today?",
+            metadata: {
+              handlerName: 'LLMFallback',
+              handlerVersion: '1.0.0',
+              processingTime: Date.now() - startTime,
+              cached: false,
+              confidence: 0.5,
+              error: llmError instanceof Error ? llmError.message : 'LLM fallback failed'
+            }
+          };
+        }
+      } else if (shouldUseLLM && !this.llmService) {
+        console.error('[BaseAgent] LLM fallback requested but LLM service not available');
+        // If LLM is requested but not available, provide a helpful response
+        response = {
+          content: "I'm McCarthy, your personal assistant for Australian families. I help with tasks, reminders, calendar events, shopping lists, and family coordination. How can I assist you today?",
+          metadata: {
+            handlerName: 'LLMFallback',
+            handlerVersion: '1.0.0',
+            processingTime: Date.now() - startTime,
+            cached: false,
+            confidence: 0.5,
+            error: 'LLM service not available'
+          }
+        };
       } else {
         console.log(`[BaseAgent] ✅ KEEPING HANDLER RESPONSE (no LLM override)`);
       }
@@ -447,9 +489,14 @@ export class BaseAgent {
 
       // STEP 12: Validate Response (Technical)
       // Skip validation for howto intents (step-by-step instructions are naturally longer)
-      let validation = { isValid: true, issues: [], suggestedFix: null };
+      let validation = { isValid: true, issues: [] as string[], suggestedFix: null as string | null };
       if (intent.type !== 'howto') {
-        validation = await this.responseValidator.validate(response, message);
+        const validationResult = await this.responseValidator.validate(response, message);
+        validation = {
+          isValid: validationResult.isValid,
+          issues: validationResult.issues,
+          suggestedFix: validationResult.suggestedFix || null
+        };
         if (!validation.isValid) {
           console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
           
@@ -510,6 +557,22 @@ export class BaseAgent {
       // STEP 18: Return Response
       const totalTime = Date.now() - startTime;
       console.log(`[BaseAgent] Message processed in ${totalTime}ms`);
+
+      // Final safety check - ensure response always has content
+      if (!response.content || response.content.trim().length === 0) {
+        console.error('[BaseAgent] Response has no content after all processing, using fallback');
+        response = {
+          content: "I'm McCarthy, your personal assistant for Australian families. I help with tasks, reminders, calendar events, shopping lists, and family coordination. How can I assist you today?",
+          metadata: {
+            handlerName: 'Fallback',
+            handlerVersion: '1.0.0',
+            processingTime: totalTime,
+            cached: false,
+            confidence: 0.3,
+            error: 'Response had no content'
+          }
+        };
+      }
 
       return {
         ...response,
@@ -724,7 +787,9 @@ export class BaseAgent {
       "please provide more specific",
       "don't have specific details",  // InformationHandler generic response
       "i don't have specific",
-      "no specific details"
+      "no specific details",
+      "i understand we're discussing", // FallbackHandler generic response
+      "could you clarify what you'd like to know"
     ];
 
     const lowerContent = response.content.toLowerCase();
@@ -750,13 +815,32 @@ export class BaseAgent {
     _context: HandlerContext
   ): Promise<Response> {
     if (!this.llmService) {
-      throw new Error('LLM Service not initialized');
+      console.error('[BaseAgent] LLM Service not initialized - API key may be missing');
+      // Return a helpful error message instead of throwing
+      return {
+        content: "I'm currently unable to process requests because the AI service is not configured. Please contact support to resolve this issue.",
+        metadata: {
+          handlerName: 'LLMFallback',
+          handlerVersion: '1.0.0',
+          processingTime: 0,
+          cached: false,
+          confidence: 0,
+          error: 'LLM Service not initialized - API key missing'
+        }
+      };
     }
 
     const startTime = Date.now();
 
     // Build system prompt with personality, context, and constraints
     const basePrompt = this.agentConfig.systemPrompt || 'You are a helpful AI assistant.';
+    
+    console.log('[BaseAgent] generateLLMResponse - Using system prompt:', {
+      hasSystemPrompt: !!this.agentConfig.systemPrompt,
+      systemPromptLength: basePrompt.length,
+      systemPromptPreview: basePrompt.substring(0, 200),
+      containsMcCarthy: basePrompt.includes('McCarthy'),
+    });
     
     // Get active constraints
     const constraints: string[] = [];
@@ -787,6 +871,17 @@ export class BaseAgent {
         temperature: this.agentConfig.temperature,
         maxTokens: this.agentConfig.maxTokens
       });
+      
+      // Validate LLM response has content
+      if (!llmResponse.content || (typeof llmResponse.content === 'string' && llmResponse.content.trim().length === 0)) {
+        console.error('[BaseAgent] LLM returned empty or missing content:', {
+          hasContent: !!llmResponse.content,
+          contentType: typeof llmResponse.content,
+          contentLength: llmResponse.content?.length,
+          model: llmResponse.model,
+        });
+        throw new Error('LLM service returned empty or missing content');
+      }
       
       console.log(`[BaseAgent] LLM fallback: Generated response:`, llmResponse.content.substring(0, 200));
 

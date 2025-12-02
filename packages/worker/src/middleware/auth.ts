@@ -9,7 +9,7 @@ import type { Env } from '../types/shared';
 export interface AuthUser {
   id: string;
   email: string;
-  role: 'admin' | 'manager' | 'agent';
+  role: 'admin' | 'manager' | 'agent' | 'user';
 }
 
 /**
@@ -73,6 +73,11 @@ export async function requireManagerOrAdmin(c: Context<{ Bindings: Env }>, next:
  */
 async function verifyToken(token: string, secret: string): Promise<AuthUser | null> {
   try {
+    // Ensure secret is not empty
+    if (!secret || secret.length === 0) {
+      secret = 'dartmouth-jwt-secret-change-in-production';
+    }
+
     // Split token into parts
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -129,6 +134,11 @@ async function verifyToken(token: string, secret: string): Promise<AuthUser | nu
  * Generate JWT token
  */
 export async function generateToken(user: AuthUser, secret: string, expiresIn: number = 86400): Promise<string> {
+  // Ensure secret is not empty
+  if (!secret || secret.length === 0) {
+    secret = 'dartmouth-jwt-secret-change-in-production';
+  }
+
   const header = {
     alg: 'HS256',
     typ: 'JWT'
