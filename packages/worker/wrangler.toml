@@ -7,17 +7,17 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "dartmouth-os-db"
-database_id = "7cf1c2ab-a284-49bb-8484-ade563391cb2"
+database_id = "394bcee5-559f-4e9f-b212-c8095adf34fa"
 
 # KV Namespaces
 [[kv_namespaces]]
 binding = "APP_CONFIG"
-id = "b70d8a2961bd4394a13f9c0f6002bef7"
+id = "ad1e9fefaa934cf0a3917abda62ee9c6"
 preview_id = "4e0fd620f6f443e687dacc43e483d553"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "4dde59b47cc34c9495aba50d7312df1d"
+id = "694d0ca8467c451d9a85b2b3bef3a519"
 preview_id = "ddbe6a75fde34a9daac1f58b217bfc61"
 
 # R2 Buckets (disabled for initial deployment - enable R2 in Cloudflare Dashboard first)

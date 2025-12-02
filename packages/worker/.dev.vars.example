@@ -1,0 +1,68 @@
+# Environment Variables for Local Development
+# Copy this file to .dev.vars and fill in your actual values
+# DO NOT commit .dev.vars to git (it's in .gitignore)
+
+# Environment
+ENVIRONMENT=development
+
+# LLM Provider Configuration
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+
+# OpenAI API Key (REQUIRED for AI features)
+# Get from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# JWT Secret (REQUIRED for authentication)
+# Generate a random string: openssl rand -hex 32
+JWT_SECRET=your_jwt_secret_here_change_in_production
+
+# Optional: Anthropic (fallback LLM)
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Optional: Google API Key
+# GOOGLE_API_KEY=your_google_api_key_here
+
+# Optional: Shopify Integration
+# SHOPIFY_DOMAIN=your-store.myshopify.com
+# SHOPIFY_ACCESS_TOKEN=your_shopify_access_token
+
+# Optional: PERP Integration
+# PERP_DB_HOST=your_perp_host
+# PERP_DB_PORT=5432
+# PERP_DB_NAME=your_perp_db
+# PERP_DB_USER=your_perp_user
+# PERP_DB_PASSWORD=your_perp_password
+
+# Optional: Gmail Integration (for Customer Service)
+# GMAIL_CLIENT_ID=your_gmail_client_id
+# GMAIL_CLIENT_SECRET=your_gmail_client_secret
+# GMAIL_REFRESH_TOKEN=your_gmail_refresh_token
+# GMAIL_REDIRECT_URI=http://localhost:8787/oauth/callback
+
+# Optional: Twilio (for SMS/WhatsApp)
+# TWILIO_ACCOUNT_SID=your_twilio_account_sid
+# TWILIO_AUTH_TOKEN=your_twilio_auth_token
+# TWILIO_PHONE_NUMBER=your_twilio_phone_number
+
+# Optional: SendGrid (for email)
+# SENDGRID_API_KEY=your_sendgrid_api_key
+
+# Optional: Resend (for email)
+# RESEND_API_KEY=your_resend_api_key
+
+# Optional: Meta (for Instagram/Facebook)
+# META_ACCESS_TOKEN=your_meta_access_token
+# INSTAGRAM_PAGE_ID=your_instagram_page_id
+# FACEBOOK_PAGE_ID=your_facebook_page_id
+
+# Optional: Stripe
+# STRIPE_SECRET_KEY=your_stripe_secret_key
+# STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+
+# Optional: Clerk (authentication)
+# CLERK_SECRET_KEY=your_clerk_secret_key
+
+# Optional: ElevenLabs (for TTS)
+# ELEVENLABS_API_KEY=your_elevenlabs_api_key
+

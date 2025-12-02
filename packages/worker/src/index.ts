@@ -123,6 +123,26 @@ export default {
     try {
       const url = new URL(request.url);
       
+      // Root route - welcome page
+      if (url.pathname === '/') {
+        return new Response(
+          JSON.stringify({
+            message: 'Dartmouth OS Worker API',
+            version: '2.0',
+            status: 'running',
+            endpoints: {
+              health: '/health',
+              api: '/api/v2',
+              docs: 'See README.md for API documentation'
+            }
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
       // Route Email System V2 test routes FIRST (before Dartmouth OS)
       if (url.pathname.startsWith('/api/v2/test/') || 
           url.pathname.startsWith('/api/v2/conversations')) {
