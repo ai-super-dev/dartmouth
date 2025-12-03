@@ -25,6 +25,7 @@ import {
   AgentHandoffProtocol,
   AnalyticsService,
   GmailIntegration,
+  KnowledgeService,
   type GmailCredentials,
 } from '../../worker/src/services';
 import { OrderStatusHandler } from './handlers/OrderStatusHandler';
@@ -61,9 +62,13 @@ export class CustomerServiceAgent extends BaseAgent {
   private handoffProtocol: AgentHandoffProtocol;
   private analytics: AnalyticsService;
   private gmail?: GmailIntegration;
+  private knowledgeService: KnowledgeService;
   
   // Customer Service specific config
   private aiResponseMode: 'auto' | 'draft';
+  
+  // Knowledge context (loaded dynamically)
+  private knowledgeContext: string | null = null;
 
   /**
    * Initialize Customer Service Agent
@@ -168,6 +173,7 @@ Professional, empathetic, solution-oriented, and reassuring. Always maintain a h
     this.ticketManager = new TicketManager(config.env.DB);
     this.handoffProtocol = new AgentHandoffProtocol(config.env.DB);
     this.analytics = new AnalyticsService(config.env.DB);
+    this.knowledgeService = new KnowledgeService(config.env.DB);
     
     if (config.gmailCredentials) {
       this.gmail = new GmailIntegration(config.env.DB, config.gmailCredentials);
@@ -215,19 +221,38 @@ Professional, empathetic, solution-oriented, and reassuring. Always maintain a h
 
   /**
    * Override processMessage to add Customer Service specific logic
+   * Now includes RAG knowledge, learning examples, and system message config
    */
-  async processMessage(message: string, sessionId?: string, context?: any): Promise<Response> {
+  async processMessage(message: string, sessionId?: string, _context?: any): Promise<Response> {
     console.log(`[CustomerServiceAgent] Processing message: ${message.substring(0, 50)}...`);
 
     try {
-      // Call parent processMessage (handles intent detection, routing, RAG, memory, etc.)
+      // STEP 1: Load knowledge context (RAG docs, learning examples, system message)
+      console.log('[CustomerServiceAgent] Loading knowledge context...');
+      const knowledge = await this.knowledgeService.getKnowledgeContext(message);
+      
+      // Store knowledge context for use in LLM generation
+      this.knowledgeContext = knowledge.systemMessage;
+      
+      console.log(`[CustomerServiceAgent] Knowledge loaded:`);
+      console.log(`  - System message: ${knowledge.systemMessage.length} chars`);
+      console.log(`  - Learning examples: ${knowledge.learningExamples.length}`);
+      console.log(`  - RAG documents: ${knowledge.ragDocuments.length}`);
+      if (knowledge.ragDocuments.length > 0) {
+        console.log(`  - RAG titles: ${knowledge.ragDocuments.map(d => d.title).join(', ')}`);
+      }
+
+      // STEP 2: Call parent processMessage (handles intent detection, routing, etc.)
       const response = await super.processMessage(message, sessionId);
       
-      // Customer Service specific post-processing
-      // (e.g., check if we should escalate, send email, create ticket, etc.)
-      
-      // For now, just return the response
-      // TODO: Add escalation logic, ticket creation, email sending, etc.
+      // STEP 3: Add metadata about knowledge used
+      if (response.metadata) {
+        response.metadata.knowledgeUsed = {
+          learningExamples: knowledge.learningExamples.length,
+          ragDocuments: knowledge.ragDocuments.map(d => d.title),
+          systemMessageConfigured: true
+        };
+      }
       
       return response;
 
@@ -246,6 +271,20 @@ Professional, empathetic, solution-oriented, and reassuring. Always maintain a h
         }
       };
     }
+  }
+
+  /**
+   * Get the current knowledge context (for LLM prompt building)
+   */
+  getKnowledgeContext(): string | null {
+    return this.knowledgeContext;
+  }
+
+  /**
+   * Get the knowledge service (for external access)
+   */
+  getKnowledgeService(): KnowledgeService {
+    return this.knowledgeService;
   }
 
   /**

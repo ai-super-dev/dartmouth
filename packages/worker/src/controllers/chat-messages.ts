@@ -1086,15 +1086,24 @@ async function getAIResponse(env: Env, message: string, conversation: Conversati
     }
   }
 
-  // Try to use the Customer Service Agent
+  // Try to use the Customer Service Agent with KnowledgeService
   try {
     // Import dynamically to avoid circular deps
-    const { CustomerServiceAgent } = await import('../agents/customer-service-agent');
+    const { CustomerServiceAgent } = await import('../../../customer-service-agent/src/CustomerServiceAgent');
     
     const agent = new CustomerServiceAgent({
       agentId: 'ai-agent-001',
       tenantId: 'test-tenant-dtf',
-      env
+      env,
+      agentConfig: {
+        agentId: 'ai-agent-001',
+        systemPrompt: '', // Will be loaded from KnowledgeService
+        temperature: 0.7,
+        maxTokens: 2000,
+        llmProvider: 'openai',
+        llmModel: 'gpt-4o',
+      },
+      aiResponseMode: 'auto'
     });
 
     // Build context
@@ -1102,44 +1111,54 @@ async function getAIResponse(env: Env, message: string, conversation: Conversati
       ? `New live chat from ${conversation.customer_name} (${conversation.customer_email})`
       : `Continuing chat with ${conversation.customer_name}`;
 
-    const result = await agent.processMessage(message, {
-      sessionId: conversation.id,
+    // Pass sessionId as string (conversation.id), not as an object
+    const result = await agent.processMessage(message, conversation.id, {
       context,
-      metadata: {
-        channel: 'chat',
-        customerName: conversation.customer_name,
-        customerEmail: conversation.customer_email
-      }
+      channel: 'chat',
+      customerName: conversation.customer_name,
+      customerEmail: conversation.customer_email
     });
 
-    if (result.response) {
-      return { response: result.response };
+    if (result.content) {
+      return { response: result.content };
     }
   } catch (error) {
     console.error('[Chat] Customer Service Agent error:', error);
   }
 
-  // Fallback: Use OpenAI directly
+  // Fallback: Use OpenAI directly with KnowledgeService
   try {
     const openaiKey = env.OPENAI_API_KEY;
     if (!openaiKey) {
       throw new Error('No OpenAI key');
     }
 
-    const systemPrompt = `You are McCarthy AI, a friendly and helpful customer service assistant for Direct To Film (DTF) printing company.
+    // Load knowledge context for enhanced responses
+    const { KnowledgeService } = await import('../services/KnowledgeService');
+    const knowledgeService = new KnowledgeService(env.DB);
+    const knowledge = await knowledgeService.getKnowledgeContext(message);
+    
+    console.log('[Chat] Knowledge loaded for fallback:', {
+      systemMessageLength: knowledge.systemMessage.length,
+      learningExamples: knowledge.learningExamples.length,
+      ragDocuments: knowledge.ragDocuments.length
+    });
 
+    const systemPrompt = `${knowledge.systemMessage}
+
+# Current Chat Context
 You're chatting live with a customer. Be conversational, helpful, and concise. Keep responses under 100 words unless more detail is needed.
 
 Customer: ${conversation.customer_name}
 Email: ${conversation.customer_email}
 
-Guidelines:
+# Additional Guidelines
 - Be warm and professional
-- Answer questions about DTF printing, orders, pricing
 - If you don't know something specific, offer to connect them with a human agent
 - Use emojis sparingly but appropriately
 - Don't make up order information or specific prices
-- If customer asks for a callback, ask for their phone number`;
+- If customer asks for a callback, ask for their phone number
+- PRIORITIZE information from the Knowledge Base Context section when answering`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

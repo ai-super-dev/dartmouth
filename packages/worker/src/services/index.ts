@@ -129,3 +129,6 @@ export type { Email, EmailAddress, Attachment, Draft, SendEmailOptions, GmailCre
 
 export { MentionManager } from './MentionManager';
 export type { Mention as StaffMention, CreateMentionData, ThreadReply, MentionPriority, MentionType } from './MentionManager';
+
+export { KnowledgeService } from './KnowledgeService';
+export type { SystemMessageConfig, LearningExample, RAGDocument, KnowledgeContext } from './KnowledgeService';

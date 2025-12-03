@@ -1,9 +1,9 @@
 # 📊 MCCARTHY AI DARTMOUTH OS - PROJECT STATUS
 
-**Date:** December 4, 2025 (Evening Update)  
-**Version:** 3.1  
-**Overall Completion:** 88%  
-**Status:** Active Development - Live Chat & AI Agent Configuration Complete
+**Date:** December 4, 2025 (Late Night Update)  
+**Version:** 3.2  
+**Overall Completion:** 90%  
+**Status:** Active Development - KnowledgeService Implemented, AI Now Uses All Knowledge
 
 ---
 
@@ -63,6 +63,14 @@
 - Performance by intent table
 - Learning examples section
 - Time range filter
+
+### ✅ KnowledgeService - AI Learning Pipeline (100%)
+- **System Message Config Loader** - Loads role, personality, do's/don'ts from DB
+- **Learning Examples Injector** - Top 5 high-quality (4+ stars) responses as few-shot examples
+- **RAG Document Search** - Keyword-based search across 9 uploaded documents
+- **Knowledge Context Builder** - Combines all sources (~11,000 chars) into LLM prompt
+- **Dynamic Prompt Enhancement** - AI uses actual business knowledge, not generic output
+- **Tested & Working** - Returns policy, shipping policy queries use RAG data
 
 ### ✅ Ticket Management (100%)
 - Ticket deletion (soft delete, admin only)
@@ -238,6 +246,8 @@ Tabbed interface:
 ### 🟢 Features to Build
 | Feature | Priority |
 |---------|----------|
+| Vector embeddings for RAG (semantic search) | High |
+| Pattern extraction from staff edits | Medium |
 | Chat post-review survey (thumbs up/down in widget) | Medium |
 | Staff performance analytics/reports | Medium |
 | Queue auto-assign logic | Medium |
@@ -342,6 +352,11 @@ CREATE TABLE ai_system_message_config (
 ### Backend (worker)
 - `src/controllers/ai-agent.ts` - RAG & system message endpoints
 - `src/routes/api.ts` - New AI Agent routes
+- `src/services/KnowledgeService.ts` - **NEW** AI knowledge injection service
+- `src/controllers/chat-messages.ts` - Fixed CustomerServiceAgent integration
+
+### Customer Service Agent
+- `packages/customer-service-agent/src/CustomerServiceAgent.ts` - KnowledgeService integration
 
 ### Migrations
 - `0027_ai_agent_config.sql` - RAG documents & system message tables

@@ -768,8 +768,10 @@ export class BaseAgent {
   /**
    * Generate response using LLM
    * 
-   * NOTE: This is FAM's generic fallback. It should NOT have agent-specific knowledge.
-   * Specialized agents should implement their own handlers to catch domain-specific questions.
+   * Now enhanced with:
+   * - Dynamic system message from configuration
+   * - RAG document context
+   * - Learning examples for few-shot prompting
    */
   private async generateLLMResponse(
     _message: string,
@@ -782,8 +784,20 @@ export class BaseAgent {
 
     const startTime = Date.now();
 
+    // Check if specialized agent has knowledge context
+    // @ts-ignore - CustomerServiceAgent extends BaseAgent and may have this method
+    const knowledgeContext = this.getKnowledgeContext?.() || null;
+    
     // Build system prompt with personality, context, and constraints
-    const basePrompt = this.agentConfig.systemPrompt || 'You are a helpful AI assistant.';
+    // Use knowledge context if available, otherwise fall back to config
+    let basePrompt: string;
+    if (knowledgeContext) {
+      console.log('[BaseAgent] Using dynamic knowledge context from KnowledgeService');
+      basePrompt = knowledgeContext;
+    } else {
+      console.log('[BaseAgent] Using default system prompt from config');
+      basePrompt = this.agentConfig.systemPrompt || 'You are a helpful AI assistant.';
+    }
     
     // Get active constraints
     const constraints: string[] = [];
@@ -795,6 +809,7 @@ export class BaseAgent {
     constraints.push('ALWAYS be honest if you don\'t know something');
     constraints.push('CRITICAL: If the user asks the same question multiple times, you MUST change your wording significantly each time. Use synonyms, rephrase sentences, change structure. Never repeat the exact same response twice in a row.');
     constraints.push('ALWAYS be concise - no more than 2-3 sentences unless asked for details');
+    constraints.push('When answering questions, PRIORITIZE information from the Knowledge Base Context section if provided.');
     
     const systemPrompt = LLMService.buildSystemPrompt(
       basePrompt,
