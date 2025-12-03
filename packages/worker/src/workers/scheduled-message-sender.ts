@@ -7,6 +7,24 @@
 import type { Env } from '../types/shared';
 import { sendEmailThroughResend } from '../services/ResendService';
 
+/**
+ * Convert plain text to HTML with proper paragraph spacing
+ */
+function textToHtml(text: string): string {
+  // Split by double newlines to get paragraphs
+  const paragraphs = text.split(/\n\n+/);
+  
+  // Convert each paragraph
+  return paragraphs
+    .map(para => {
+      // Within each paragraph, convert single newlines to <br>
+      const lines = para.trim().replace(/\n/g, '<br>');
+      return lines ? `<p>${lines}</p>` : '';
+    })
+    .filter(p => p) // Remove empty paragraphs
+    .join('\n');
+}
+
 export async function sendScheduledMessages(env: Env): Promise<void> {
   console.log('[Scheduled Messages] Starting job at:', new Date().toISOString());
   
@@ -91,7 +109,7 @@ export async function sendScheduledMessages(env: Env): Promise<void> {
             fromName: staffName,
             subject: replySubject,
             bodyText: message.content,
-            bodyHtml: `<p>${message.content.replace(/\n/g, '<br>')}</p>`,
+            bodyHtml: textToHtml(message.content),
           });
           console.log(`[Scheduled Messages] ✅ Email sent to ${message.customer_email} via Resend`);
         } catch (emailError) {

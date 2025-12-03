@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mail, MessageSquare, Phone, MessageCircle, Instagram, Facebook, ChevronDown } from 'lucide-react'
+import { Mail, MessageSquare, Phone, Instagram, Facebook, ChevronDown } from 'lucide-react'
 
 interface PlatformSelectProps {
   value: string

@@ -11,4 +11,5 @@ export { FrustrationHandlerImpl } from './FrustrationHandlerImpl';
 export { CalculationHandler } from './CalculationHandler';
 export { HowToHandler } from './HowToHandler';
 export { InformationHandler } from './InformationHandler';
+export { GratitudeHandler } from './GratitudeHandler';
 

@@ -71,11 +71,38 @@ export class IntentDetector {
       }
     }
 
+    // Gratitude patterns (thank you messages)
+    if (this.isGratitude(message)) {
+      return {
+        type: 'gratitude',
+        confidence: 0.95,
+        entities: {}
+      }
+    }
+
     // Farewell patterns
     if (this.isFarewell(message)) {
       return {
         type: 'farewell',
         confidence: 0.95,
+        entities: {}
+      }
+    }
+
+    // Complaint patterns (check before frustration)
+    if (this.isComplaint(message)) {
+      return {
+        type: 'complaint',
+        confidence: 0.85,
+        entities: this.extractComplaintEntities(message)
+      }
+    }
+
+    // Feedback patterns
+    if (this.isFeedback(message)) {
+      return {
+        type: 'feedback',
+        confidence: 0.80,
         entities: {}
       }
     }
@@ -555,6 +582,81 @@ export class IntentDetector {
     return Object.entries(topics)
       .filter(([_, count]) => count >= 2)
       .map(([topic]) => topic)
+  }
+
+  /**
+   * Check if message is expressing gratitude/thanks
+   */
+  private isGratitude(message: string): boolean {
+    const gratitudePatterns = [
+      /\b(thank you|thanks|thx|ty|appreciate|grateful)\b/i,
+      /\b(big thanks|many thanks|thanks so much|thank you so much)\b/i,
+      /\b(cheers|kudos|props)\b/i,
+      /\byou('re| are) (the best|amazing|awesome|great|wonderful)\b/i,
+      /\b(love|loved) (your|the) (help|service|support|work)\b/i,
+      /\b(excellent|outstanding|fantastic|brilliant) (service|support|help|job|work)\b/i
+    ]
+    return gratitudePatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Check if message is a complaint
+   */
+  private isComplaint(message: string): boolean {
+    const complaintPatterns = [
+      /\b(disappointed|unhappy|unsatisfied|dissatisfied)\b/i,
+      /\b(not (happy|satisfied|pleased|impressed))\b/i,
+      /\b(poor|bad|terrible|awful|horrible) (service|quality|experience|product)\b/i,
+      /\b(refund|money back|compensation)\b/i,
+      /\b(unacceptable|ridiculous|outrageous)\b/i,
+      /\bwhere (is|are) my (order|package|product)\b/i,
+      /\b(still (haven't|havent) received|not received|didn't receive)\b/i,
+      /\b(late|delayed|slow|taking (too )?long)\b/i,
+      /\b(wrong|incorrect|missing|damaged|broken)\b/i
+    ]
+    return complaintPatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Check if message is providing feedback
+   */
+  private isFeedback(message: string): boolean {
+    const feedbackPatterns = [
+      /\b(feedback|suggestion|recommend|improve)\b/i,
+      /\b(would be (better|nice|great) if)\b/i,
+      /\b(you (should|could|might want to))\b/i,
+      /\b(feature request|enhancement)\b/i,
+      /\b(just wanted to (let you know|mention|say))\b/i
+    ]
+    return feedbackPatterns.some(pattern => pattern.test(message))
+  }
+
+  /**
+   * Extract complaint entities
+   */
+  private extractComplaintEntities(message: string): Record<string, any> {
+    const entities: Record<string, any> = {}
+
+    // Check for order/product issues
+    if (/order|package|shipment|delivery/i.test(message)) {
+      entities.complaintType = 'order'
+    } else if (/product|item|quality/i.test(message)) {
+      entities.complaintType = 'product'
+    } else if (/service|support|staff/i.test(message)) {
+      entities.complaintType = 'service'
+    }
+
+    // Check for urgency
+    if (/urgent|asap|immediately|right now/i.test(message)) {
+      entities.urgent = true
+    }
+
+    // Check for refund request
+    if (/refund|money back|return|cancel/i.test(message)) {
+      entities.requestsRefund = true
+    }
+
+    return entities
   }
 }
 

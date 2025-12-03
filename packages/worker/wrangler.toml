@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # D1 Database
 [[d1_databases]]
 binding = "DB"
-database_name = "dartmouth-os-db"
+database_name = "agent-army-db"
 database_id = "7cf1c2ab-a284-49bb-8484-ade563391cb2"
 
 # KV Namespaces

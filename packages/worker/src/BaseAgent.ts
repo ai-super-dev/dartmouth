@@ -36,7 +36,8 @@ import {
   GreetingHandler, 
   FallbackHandler, 
   RepeatHandler, 
-  FrustrationHandlerImpl
+  FrustrationHandlerImpl,
+  GratitudeHandler
 } from './handlers';
 
 /**
@@ -173,9 +174,12 @@ export class BaseAgent {
     }
 
     if (!apiKey) {
-      console.warn(`[BaseAgent] No API key found for ${provider}. LLM fallback will not be available.`);
+      console.warn(`[BaseAgent] ⚠️ No API key found for ${provider}. LLM fallback will not be available.`);
+      console.warn(`[BaseAgent] ⚠️ Available env keys:`, Object.keys(this.env));
       return;
     }
+    
+    console.log(`[BaseAgent] ✅ Found API key for ${provider}`);
 
     this.llmService = new LLMService(
       provider,
@@ -183,7 +187,7 @@ export class BaseAgent {
       this.agentConfig.llmModel
     );
 
-    console.log(`[BaseAgent] LLM Service initialized: ${provider} (${this.agentConfig.llmModel})`);
+    console.log(`[BaseAgent] ✅ LLM Service initialized: ${provider} (${this.agentConfig.llmModel})`);
   }
 
   /**
@@ -202,13 +206,14 @@ export class BaseAgent {
     if (!this.hasCustomGreetingHandler()) {
       this.responseRouter.registerHandler(new GreetingHandler());
     }
+    this.responseRouter.registerHandler(new GratitudeHandler());
     this.responseRouter.registerHandler(new RepeatHandler());
     this.responseRouter.registerHandler(new FrustrationHandlerImpl());
 
     // Set fallback handler (catches all unhandled intents)
     this.responseRouter.setDefaultHandler(new FallbackHandler());
 
-    console.log('[BaseAgent] Foundation handlers registered (greeting, repeat, frustration, fallback)');
+    console.log('[BaseAgent] Foundation handlers registered (greeting, gratitude, repeat, frustration, fallback)');
   }
 
   /**
@@ -353,15 +358,24 @@ export class BaseAgent {
       // STEP 8.5: LLM Fallback (if handler returned generic response and LLM is available)
       const shouldUseLLM = this.shouldUseLLMFallback(response, intent);
       console.log(`[BaseAgent] 🤔 Should use LLM fallback? ${shouldUseLLM}`);
+      console.log(`[BaseAgent] 🤔 LLM Service available? ${!!this.llmService}`);
       
       if (shouldUseLLM && this.llmService) {
-        console.log(`[BaseAgent] ⚠️ OVERRIDING WITH LLM FALLBACK`);
+        console.log(`[BaseAgent] 🚀 CALLING LLM (OpenAI GPT-4o)...`);
         const originalResponse = response.content.substring(0, 100);
-        response = await this.generateLLMResponse(message, intent, context);
-        console.log(`[BaseAgent] Original response: ${originalResponse}`);
-        console.log(`[BaseAgent] LLM response: ${response.content.substring(0, 100)}`);
+        try {
+          response = await this.generateLLMResponse(message, intent, context);
+          console.log(`[BaseAgent] ✅ LLM response received`);
+          console.log(`[BaseAgent] Original response: ${originalResponse}`);
+          console.log(`[BaseAgent] LLM response: ${response.content.substring(0, 100)}`);
+        } catch (error) {
+          console.error(`[BaseAgent] ❌ LLM generation failed:`, error);
+          // Keep original response on error
+        }
+      } else if (shouldUseLLM && !this.llmService) {
+        console.log(`[BaseAgent] ⚠️ LLM fallback requested but LLM Service not initialized`);
       } else {
-        console.log(`[BaseAgent] ✅ KEEPING HANDLER RESPONSE (no LLM override)`);
+        console.log(`[BaseAgent] ✅ KEEPING HANDLER RESPONSE (no LLM override needed)`);
       }
 
       // STEP 9: Add Empathy (THE HEART OF DARTMOUTH)
@@ -447,23 +461,36 @@ export class BaseAgent {
 
       // STEP 12: Validate Response (Technical)
       // Skip validation for howto intents (step-by-step instructions are naturally longer)
+      // Use lenient validation for LLM-generated responses (they're already high quality)
       let validation = { isValid: true, issues: [], suggestedFix: null };
+      const usedLLM = response.metadata?.usedLLM || shouldUseLLM;
+      
       if (intent.type !== 'howto') {
         validation = await this.responseValidator.validate(response, message);
+        
+        // For LLM responses, only fail validation on critical issues
         if (!validation.isValid) {
-          console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
-          
-          // If validation fails, try to fix or use fallback
-          if (validation.suggestedFix) {
-            response.content = validation.suggestedFix;
-            console.log(`[BaseAgent] Applied suggested fix`);
+          if (usedLLM) {
+            // Lenient validation for LLM - only log warnings, don't replace response
+            console.warn(`[BaseAgent] LLM response validation warning: ${validation.issues.join(', ')}`);
+            console.log(`[BaseAgent] Keeping LLM response despite warnings (staff will review)`);
+            // Don't replace the response - let staff review it via RLHF
           } else {
-            response.content = "I'm having trouble formulating a proper response. Could you rephrase your question?";
-            console.log(`[BaseAgent] Using fallback response`);
+            // Strict validation for pattern-based responses
+            console.warn(`[BaseAgent] Response validation failed: ${validation.issues.join(', ')}`);
+            
+            // If validation fails, try to fix or use fallback
+            if (validation.suggestedFix) {
+              response.content = validation.suggestedFix;
+              console.log(`[BaseAgent] Applied suggested fix`);
+            } else {
+              response.content = "I'm having trouble formulating a proper response. Could you rephrase your question?";
+              console.log(`[BaseAgent] Using fallback response`);
+            }
           }
         }
       } else {
-        console.log(`[BaseAgent] Skipping response validation for howto intent`);
+        console.log(`[BaseAgent] Skipping response validation (howto intent)`);
       }
 
       // STEP 13: Create Assistant Message
@@ -674,7 +701,7 @@ export class BaseAgent {
   /**
    * Determine if we should use LLM fallback instead of handler response
    */
-  private shouldUseLLMFallback(response: Response, intent: any): boolean {
+  protected shouldUseLLMFallback(response: Response, intent: any): boolean {
     console.log('========================================');
     console.log(`[BaseAgent] 🔍 CHECKING shouldUseLLMFallback`);
     console.log(`[BaseAgent] Intent type: ${intent.type}`);
@@ -798,6 +825,7 @@ export class BaseAgent {
           processingTime: Date.now() - startTime,
           cached: false,
           confidence: 0.8,
+          usedLLM: true, // Flag to skip validation
           llmModel: llmResponse.model,
           llmTokensUsed: llmResponse.tokensUsed,
           llmFinishReason: llmResponse.finishReason

@@ -23,7 +23,7 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(true) // Hidden by default
   const location = useLocation()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
 
   // Fetch ticket counts for sidebar
   const { data: ticketsData } = useQuery({

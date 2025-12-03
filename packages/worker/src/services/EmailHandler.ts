@@ -31,6 +31,64 @@ interface ParsedAddress {
 // Removed duplicate detection functions - using TicketManager instead
 
 /**
+ * Convert HTML to plain text while preserving line breaks
+ */
+function htmlToText(html: string): string {
+  console.log(`[htmlToText] ═══════════════════════════════════════════`);
+  console.log(`[htmlToText] INPUT length=${html.length}`);
+  console.log(`[htmlToText] INPUT html:\n${html.substring(0, 500)}`);
+  console.log(`[htmlToText] ───────────────────────────────────────────`);
+  
+  let text = html
+    // Remove style and script blocks first
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    // Handle double <br> as paragraph break (common in emails like Proton Mail)
+    .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '\n\n')
+    // Handle block-level elements that should create paragraph breaks
+    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')  // </p><p> = paragraph break
+    .replace(/<p[^>]*>/gi, '')               // Opening <p> tags
+    .replace(/<\/p>/gi, '\n\n')              // Closing </p> tags
+    .replace(/<br\s*\/?>/gi, '\n')           // Single <br> tags = line break
+    .replace(/<\/div>\s*<div[^>]*>/gi, '\n\n') // </div><div> = paragraph break
+    .replace(/<div[^>]*>/gi, '')             // Opening <div> tags
+    .replace(/<\/div>/gi, '\n')              // Closing </div> tags
+    .replace(/<\/h[1-6]>/gi, '\n\n')         // Heading closings
+    .replace(/<h[1-6][^>]*>/gi, '')          // Heading openings
+    .replace(/<\/li>/gi, '\n')               // List items
+    .replace(/<li[^>]*>/gi, '• ')            // List item bullets
+    .replace(/<\/tr>/gi, '\n')               // Table rows
+    .replace(/<\/td>/gi, ' ')                // Table cells = space
+    .replace(/<\/th>/gi, ' ')                // Table headers = space
+    // Remove all other HTML tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10))) // Numeric entities
+    // Normalize line endings
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    // Clean up excessive whitespace but preserve paragraph structure
+    .replace(/[ \t]+/g, ' ')                 // Multiple spaces/tabs to single space
+    .replace(/\n /g, '\n')                   // Remove space after newline
+    .replace(/ \n/g, '\n')                   // Remove space before newline
+    .replace(/\n{3,}/g, '\n\n')              // Max 2 consecutive newlines
+    .trim();
+  
+  console.log(`[htmlToText] OUTPUT length=${text.length} newlines=${(text.match(/\n/g) || []).length}`);
+  console.log(`[htmlToText] OUTPUT text:\n${text.substring(0, 500)}`);
+  console.log(`[htmlToText] ═══════════════════════════════════════════`);
+  
+  return text;
+}
+
+/**
  * Parse raw MIME email into headers and body.
  * This is a minimal parser - for production, consider using a proper MIME library.
  */
@@ -102,8 +160,18 @@ async function parseRawMime(raw: ReadableStream<Uint8Array>): Promise<ParsedEmai
         // Store text or HTML part
         if (partContentType.includes('text/plain') && !bodyText) {
           bodyText = decodedContent;
+          console.log('[EmailHandler] Plain text body extracted:', {
+            length: bodyText.length,
+            hasNewlines: bodyText.includes('\n'),
+            hasCarriageReturns: bodyText.includes('\r'),
+            preview: bodyText.substring(0, 100)
+          });
         } else if (partContentType.includes('text/html') && !bodyHtml) {
           bodyHtml = decodedContent;
+          console.log('[EmailHandler] HTML body extracted:', {
+            length: bodyHtml.length,
+            preview: bodyHtml.substring(0, 100)
+          });
         }
       }
     }
@@ -121,13 +189,47 @@ async function parseRawMime(raw: ReadableStream<Uint8Array>): Promise<ParsedEmai
     }
     
     const hasHtmlTags = /<html[\s>]|<body[\s>]|<\/p>|<\/div>/.test(decodedBody);
-    bodyText = hasHtmlTags ? decodedBody.replace(/<[^>]+>/g, '').trim() : decodedBody;
+    bodyText = hasHtmlTags ? htmlToText(decodedBody) : decodedBody;
     bodyHtml = hasHtmlTags ? decodedBody : null;
   }
 
   // If we have HTML but no text, extract text from HTML
   if (bodyHtml && !bodyText) {
-    bodyText = bodyHtml.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    bodyText = htmlToText(bodyHtml);
+  }
+
+  // If we have both HTML and plain text, check if HTML has better structure
+  // (Some email clients send plain text with newlines only at the end, not between paragraphs)
+  if (bodyHtml && bodyText) {
+    const plainTextNewlines = (bodyText.match(/\n/g) || []).length;
+    const htmlBreaks = (bodyHtml.match(/<br\s*\/?>/gi) || []).length;
+    const htmlParagraphs = (bodyHtml.match(/<\/p>/gi) || []).length;
+    const htmlDivs = (bodyHtml.match(/<\/div>/gi) || []).length;
+    const htmlStructure = htmlBreaks + htmlParagraphs + htmlDivs;
+    
+    console.log(`[EmailHandler] ═══════════════════════════════════════════`);
+    console.log(`[EmailHandler] COMPARING: plainTextNewlines=${plainTextNewlines} vs htmlStructure=${htmlStructure} (br=${htmlBreaks} p=${htmlParagraphs} div=${htmlDivs})`);
+    console.log(`[EmailHandler] DECISION: ${htmlStructure > plainTextNewlines ? 'USE HTML' : 'USE PLAIN TEXT'}`);
+    console.log(`[EmailHandler] ═══════════════════════════════════════════`);
+    
+    // If HTML has more structural elements than plain text has newlines, use HTML
+    if (htmlStructure > plainTextNewlines) {
+      bodyText = htmlToText(bodyHtml);
+    }
+  }
+
+  // Normalize line endings and ensure proper paragraph breaks
+  if (bodyText) {
+    bodyText = bodyText
+      .replace(/\r\n/g, '\n')  // Convert Windows line endings to Unix
+      .replace(/\r/g, '\n')     // Convert old Mac line endings to Unix
+      .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive newlines
+      .trim();
+    
+    console.log(`[EmailHandler] ═══════════════════════════════════════════`);
+    console.log(`[EmailHandler] FINAL BODY length=${bodyText.length} newlines=${(bodyText.match(/\n/g) || []).length}`);
+    console.log(`[EmailHandler] FINAL BODY text:\n${bodyText.substring(0, 500)}`);
+    console.log(`[EmailHandler] ═══════════════════════════════════════════`);
   }
 
   return {
@@ -400,8 +502,56 @@ async function createOrUpdateTicket(
         .bind(now, existingTicket.ticket_id)
         .run();
     } else {
-      // New ticket - create it using TicketManager
-      console.log(`[EmailHandler] Creating new ticket for conversation ${opts.conversationId}`);
+      // New ticket - but first check for duplicates
+      console.log(`[EmailHandler] Checking for duplicate tickets before creating new one...`);
+      
+      // Check for duplicate ticket (same customer, same subject/content within 24 hours)
+      const duplicateResult = await ticketManager.checkForDuplicate(
+        opts.customerEmail,
+        opts.subject,
+        opts.messageContent
+      );
+      
+      if (duplicateResult) {
+        const { ticket: duplicateTicket, isExactDuplicate } = duplicateResult;
+        
+        if (isExactDuplicate) {
+          // Exact duplicate - auto-archive, don't create new ticket
+          console.log(`[EmailHandler] EXACT duplicate detected: ${duplicateTicket.ticket_number} - auto-archiving`);
+          
+          // Add system note to existing ticket
+          await ticketManager.addMessage(duplicateTicket.ticket_id, {
+            sender_type: 'system',
+            sender_id: 'system',
+            sender_name: 'System',
+            content: `[Auto-Archived] Exact duplicate email received from ${opts.customerName || opts.customerEmail} and automatically archived.`
+          });
+          
+          console.log(`[EmailHandler] ✅ Duplicate archived - linked to existing ticket ${duplicateTicket.ticket_number}`);
+          return; // Don't create new ticket
+        } else {
+          // Similar but not exact - add as follow-up to existing ticket
+          console.log(`[EmailHandler] Similar ticket detected: ${duplicateTicket.ticket_number} - adding as follow-up`);
+          
+          await ticketManager.addMessage(duplicateTicket.ticket_id, {
+            sender_type: 'customer',
+            sender_id: opts.customerEmail,
+            sender_name: opts.customerName || opts.customerEmail,
+            content: `[Follow-up] ${opts.messageContent}`
+          });
+          
+          // Reopen ticket if it was closed/resolved
+          await env.DB.prepare(`
+            UPDATE tickets SET updated_at = ?, status = CASE WHEN status IN ('closed', 'resolved') THEN 'open' ELSE status END WHERE ticket_id = ?
+          `).bind(new Date().toISOString(), duplicateTicket.ticket_id).run();
+          
+          console.log(`[EmailHandler] ✅ Follow-up added to existing ticket ${duplicateTicket.ticket_number}`);
+          return; // Don't create new ticket
+        }
+      }
+      
+      // No duplicate found - create new ticket
+      console.log(`[EmailHandler] No duplicate found - creating new ticket for conversation ${opts.conversationId}`);
       
       // Create customer if doesn't exist
       const customerId = crypto.randomUUID();
@@ -448,6 +598,85 @@ async function createOrUpdateTicket(
         .run();
 
       console.log(`[EmailHandler] ✅ Created ticket ${ticket.ticket_number} with priority: ${ticket.priority}, sentiment: ${ticket.sentiment}`);
+
+      // Process ticket with AI Agent to generate draft response
+      try {
+        console.log(`[EmailHandler] Processing ticket ${ticket.ticket_number} with AI Agent...`);
+        console.log(`[EmailHandler] AI Agent environment check:`, {
+          hasDB: !!env.DB,
+          hasWorkersAI: !!(env as any).WORKERS_AI,
+          hasOpenAIKey: !!(env as any).OPENAI_API_KEY,
+        });
+        
+        const { AIAgentProcessor } = await import('./AIAgentProcessor');
+        console.log(`[EmailHandler] AIAgentProcessor imported successfully`);
+        
+        const aiProcessor = new AIAgentProcessor(env as any, {
+          enabled: true,
+          mode: 'draft', // Always generate drafts for approval
+        });
+        console.log(`[EmailHandler] AIAgentProcessor instantiated`);
+
+        const aiResult = await aiProcessor.processTicket(
+          ticket.ticket_id,
+          ticket.ticket_number,
+          opts.customerEmail,
+          opts.customerName,
+          opts.subject,
+          opts.messageContent,
+          ticket.priority,
+          ticket.sentiment,
+          ticket.category || 'general',
+          []
+        );
+
+        console.log(`[EmailHandler] AI processing result:`, {
+          success: aiResult.success,
+          hasDraftContent: !!aiResult.draftContent,
+          confidenceScore: aiResult.confidenceScore,
+          shouldEscalate: aiResult.shouldEscalate,
+          error: aiResult.error,
+          handler: aiResult.handler
+        });
+
+        if (aiResult.success && aiResult.draftContent) {
+          // Store AI draft response
+          const draftId = crypto.randomUUID();
+          await env.DB.prepare(`
+            INSERT INTO ai_draft_responses (
+              id, ticket_id, draft_content, confidence_score, intent, handler_used,
+              reasoning, suggested_actions, status, should_escalate, escalation_reason,
+              shopify_data, perp_data, processing_time_ms, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          `).bind(
+            draftId,
+            ticket.ticket_id,
+            aiResult.draftContent,
+            aiResult.confidenceScore || 0.5,
+            aiResult.intent || 'unknown',
+            aiResult.handler || 'unknown',
+            aiResult.reasoning || '',
+            JSON.stringify(aiResult.suggestedActions || []),
+            aiResult.shouldEscalate ? 1 : 0,
+            aiResult.escalationReason || null,
+            aiResult.metadata?.shopifyData ? JSON.stringify(aiResult.metadata.shopifyData) : null,
+            aiResult.metadata?.perpData ? JSON.stringify(aiResult.metadata.perpData) : null,
+            aiResult.metadata?.processingTimeMs || 0
+          ).run();
+
+          console.log(`[EmailHandler] ✅ Generated AI draft for ticket ${ticket.ticket_number} (confidence: ${Math.round((aiResult.confidenceScore || 0) * 100)}%)`);
+
+          // If should escalate, mark ticket for escalation
+          if (aiResult.shouldEscalate) {
+            console.log(`[EmailHandler] ⚠️ Ticket ${ticket.ticket_number} flagged for escalation: ${aiResult.escalationReason}`);
+          }
+        } else if (aiResult.error) {
+          console.error(`[EmailHandler] AI processing failed for ticket ${ticket.ticket_number}:`, aiResult.error);
+        }
+      } catch (aiError) {
+        console.error(`[EmailHandler] Error processing ticket with AI:`, aiError);
+        // Don't throw - ticket was created successfully, AI is optional
+      }
     }
   } catch (error) {
     console.error('[EmailHandler] Error creating/updating ticket:', error);

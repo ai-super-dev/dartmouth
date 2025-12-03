@@ -75,6 +75,20 @@ export const ticketsApi = {
     api.put(`/api/scheduled-messages/${messageId}`, { content, scheduledFor }),
   deleteScheduledMessage: (messageId: string) =>
     api.delete(`/api/scheduled-messages/${messageId}`),
+  getAIDraft: (id: string) =>
+    api.get(`/api/tickets/${id}/ai-draft`),
+  approveAIDraft: (id: string) =>
+    api.post(`/api/tickets/${id}/ai-draft/approve`),
+  editAIDraft: (id: string, editedContent: string) =>
+    api.post(`/api/tickets/${id}/ai-draft/edit`, { editedContent }),
+  rejectAIDraft: (id: string, reason: string) =>
+    api.post(`/api/tickets/${id}/ai-draft/reject`, { reason }),
+  submitAIDraftFeedback: (id: string, feedback: { qualityScore: number; wasHelpful: boolean; improvementNotes: string; action?: string }) =>
+    api.post(`/api/tickets/${id}/ai-draft/feedback`, feedback),
+  delete: (id: string) =>
+    api.delete(`/api/tickets/${id}`),
+  merge: (primaryTicketId: string, secondaryTicketIds: string[]) =>
+    api.post(`/api/tickets/${primaryTicketId}/merge`, { secondaryTicketIds }),
 }
 
 // Mentions API

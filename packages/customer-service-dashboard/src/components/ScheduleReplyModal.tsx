@@ -11,10 +11,17 @@ export default function ScheduleReplyModal({ isOpen, onClose, onConfirm }: Sched
   const [scheduledHour, setScheduledHour] = useState<string>('09')
   const [scheduledMinute, setScheduledMinute] = useState<string>('00')
 
-  // Reset form when opening
+  // Get tomorrow's date in YYYY-MM-DD format
+  const getTomorrowDate = () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().split('T')[0]
+  }
+
+  // Set default to tomorrow at 9 AM when opening
   useEffect(() => {
     if (isOpen) {
-      setScheduledDate('')
+      setScheduledDate(getTomorrowDate())
       setScheduledHour('09')
       setScheduledMinute('00')
     }
@@ -30,18 +37,10 @@ export default function ScheduleReplyModal({ isOpen, onClose, onConfirm }: Sched
 
     const scheduledTime = `${scheduledHour}:${scheduledMinute}`
     onConfirm(scheduledDate, scheduledTime)
-    
-    // Reset form
-    setScheduledDate('')
-    setScheduledHour('09')
-    setScheduledMinute('00')
     onClose()
   }
 
   const handleCancel = () => {
-    setScheduledDate('')
-    setScheduledHour('09')
-    setScheduledMinute('00')
     onClose()
   }
 

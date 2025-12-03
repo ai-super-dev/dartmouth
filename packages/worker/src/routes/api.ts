@@ -58,9 +58,18 @@ export function createAPIRouter() {
   app.post('/api/tickets/:id/escalate', authenticate, ticketsController.escalateTicket);
   app.post('/api/tickets/:id/resolve-escalation', authenticate, ticketsController.resolveEscalation);
   app.post('/api/tickets/:id/schedule-reply', authenticate, ticketsController.scheduleReply);
+  app.delete('/api/tickets/:id', authenticate, requireAdmin, ticketsController.deleteTicket);
+  app.post('/api/tickets/:id/merge', authenticate, ticketsController.mergeTickets);
   app.get('/api/tickets/:id/scheduled-messages', authenticate, ticketsController.getScheduledMessages);
   app.put('/api/scheduled-messages/:messageId', authenticate, ticketsController.updateScheduledMessage);
   app.delete('/api/scheduled-messages/:messageId', authenticate, ticketsController.deleteScheduledMessage);
+
+  // AI Draft Response Routes
+  app.get('/api/tickets/:id/ai-draft', authenticate, ticketsController.getAIDraftResponse);
+  app.post('/api/tickets/:id/ai-draft/approve', authenticate, ticketsController.approveAIDraftResponse);
+  app.post('/api/tickets/:id/ai-draft/edit', authenticate, ticketsController.editAIDraftResponse);
+  app.post('/api/tickets/:id/ai-draft/reject', authenticate, ticketsController.rejectAIDraftResponse);
+  app.post('/api/tickets/:id/ai-draft/feedback', authenticate, ticketsController.submitAIDraftFeedback);
 
   // ========================================================================
   // MENTIONS ROUTES

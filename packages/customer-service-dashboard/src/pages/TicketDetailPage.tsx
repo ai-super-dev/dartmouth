@@ -11,6 +11,8 @@ import EscalateModal from '../components/EscalateModal'
 import SnoozeModal from '../components/SnoozeModal'
 import ScheduleReplyModal from '../components/ScheduleReplyModal'
 import EditScheduledMessageModal from '../components/EditScheduledMessageModal'
+import { AIDraftResponsePanel } from '../components/AIDraftResponsePanel'
+import { AIDraftFeedbackModal } from '../components/AIDraftFeedbackModal'
 
 const statusColors = {
   open: 'bg-green-100 text-green-800 border-green-200',
@@ -68,6 +70,9 @@ export default function TicketDetailPage() {
   const [messageToEdit, setMessageToEdit] = useState<any>(null)
   const [showInternalNotes, setShowInternalNotes] = useState(false) // Hidden by default
   const [showResponseArea, setShowResponseArea] = useState(false) // Hidden by default
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackAction, setFeedbackAction] = useState<'approve' | 'edit'>('approve')
   const [internalNote, setInternalNote] = useState('')
   const [responseAreaHeight, setResponseAreaHeight] = useState(250)
   const [staffNotesHeight, setStaffNotesHeight] = useState(250)
@@ -100,6 +105,23 @@ export default function TicketDetailPage() {
       return response.data
     },
     enabled: !!id,
+  })
+
+  const { data: aiDraftData, isLoading: aiDraftLoading, refetch: refetchAIDraft } = useQuery({
+    queryKey: ['aiDraft', id],
+    queryFn: async () => {
+      try {
+        const response = await ticketsApi.getAIDraft(id!)
+        return response.data
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          return null // No draft available
+        }
+        throw error
+      }
+    },
+    enabled: !!id,
+    retry: false,
   })
 
   const ticket = ticketData?.ticket
@@ -163,6 +185,21 @@ export default function TicketDetailPage() {
     }
   }
 
+  const handleDeleteTicket = async () => {
+    if (!ticket) return
+    
+    try {
+      await ticketsApi.delete(ticket.ticket_id)
+      console.log('Ticket deleted successfully')
+      setShowDeleteConfirm(false)
+      // Navigate back to tickets list
+      navigate('/tickets')
+    } catch (error: any) {
+      console.error('Failed to delete ticket:', error)
+      alert(`Failed to delete ticket: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
   const handleAddNote = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || !internalNote.trim() || !ticket) return
     e.preventDefault()
@@ -184,7 +221,7 @@ export default function TicketDetailPage() {
     refetch()
   }
 
-  const handleReassign = async (staffId: string, staffName: string) => {
+  const handleReassign = async (staffId: string) => {
     if (!ticket) return
     try {
       await ticketsApi.assign(ticket.ticket_id, staffId)
@@ -337,6 +374,66 @@ export default function TicketDetailPage() {
     } catch (error: any) {
       console.error('[handleRemoveScheduledMessage] Error:', error)
       alert(`Failed to remove scheduled message: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
+  const handleApproveAIDraft = async () => {
+    if (!id) return
+    try {
+      await ticketsApi.approveAIDraft(id)
+      refetch()
+      refetchAIDraft()
+      // Show feedback modal after successful approval
+      setFeedbackAction('approve')
+      setShowFeedbackModal(true)
+    } catch (error: any) {
+      console.error('Failed to approve AI draft:', error)
+      alert(`Failed to approve AI draft: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
+  const handleEditAIDraft = async (editedContent: string) => {
+    if (!id) return
+    try {
+      await ticketsApi.editAIDraft(id, editedContent)
+      refetch()
+      refetchAIDraft()
+      // Show feedback modal after successful edit
+      setFeedbackAction('edit')
+      setShowFeedbackModal(true)
+    } catch (error: any) {
+      console.error('Failed to edit AI draft:', error)
+      alert(`Failed to edit AI draft: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
+  const handleRejectAIDraft = async (reason: string) => {
+    if (!id) return
+    try {
+      await ticketsApi.rejectAIDraft(id, reason)
+      refetchAIDraft()
+      // Note: No feedback modal for reject - the reason is already captured
+    } catch (error: any) {
+      console.error('Failed to reject AI draft:', error)
+      alert(`Failed to reject AI draft: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
+  const handleSubmitFeedback = async (feedback: {
+    qualityScore: number
+    wasHelpful: boolean
+    improvementNotes: string
+  }) => {
+    if (!id) return
+    try {
+      await ticketsApi.submitAIDraftFeedback(id, {
+        ...feedback,
+        action: feedbackAction
+      })
+      console.log('Feedback submitted successfully')
+    } catch (error: any) {
+      console.error('Failed to submit feedback:', error)
+      // Don't show error to user - feedback is optional
     }
   }
 
@@ -601,6 +698,17 @@ export default function TicketDetailPage() {
                 </svg>
                 <span>Snooze</span>
               </button>
+              {user?.role === 'admin' && (
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-xs px-2 py-1 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -633,6 +741,17 @@ export default function TicketDetailPage() {
               <ShoppingBag className="w-3 h-3" />
               <span>Shopify</span>
             </button>
+            {/* Merge Banner - shows if ticket has merged tickets */}
+            {ticket.merged_from && (
+              <div className="h-7 text-xs px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-1.5 text-indigo-900">
+                <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span>
+                  <strong>Merged:</strong> {ticket.ticket_number} and {ticket.merged_from}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center space-x-2">
             {/* Scheduled Messages Indicator */}
@@ -728,7 +847,7 @@ export default function TicketDetailPage() {
                     : 'bg-indigo-100 border border-indigo-200'
                 }`}>
                   {/* Scheduled message indicator - top right */}
-                  {msg.was_scheduled === true && msg.sender_type === 'agent' && (
+                  {(msg.was_scheduled === true || msg.was_scheduled === 1) && msg.sender_type === 'agent' && (
                     <div className="absolute top-1 right-1" title="This message was scheduled">
                       <svg className="w-3.5 h-3.5 text-blue-400 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -739,7 +858,7 @@ export default function TicketDetailPage() {
                     <span className="text-xs font-medium">
                       {msg.sender_type === 'customer' 
                         ? (msg.sender_name || 'Customer')
-                        : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'John')  // First name for staff
+                        : (msg.sender_id === 'ai-agent-001' ? msg.sender_name : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'John'))  // Full name for AI, first name for staff
                       }
                     </span>
                     <span className="text-xs opacity-60">
@@ -795,6 +914,20 @@ export default function TicketDetailPage() {
                 </div>
               </div>
             ))}
+
+            {/* AI Draft Response Panel - Show AFTER all messages */}
+            {aiDraftData?.draft ? (
+              <div className="mt-4">
+                <AIDraftResponsePanel
+                  ticketId={id!}
+                  draft={aiDraftData.draft}
+                  loading={aiDraftLoading}
+                  onApprove={handleApproveAIDraft}
+                  onEdit={handleEditAIDraft}
+                  onReject={handleRejectAIDraft}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1006,7 +1139,26 @@ export default function TicketDetailPage() {
                               )}
                             </div>
                           </div>
-                          <p className="text-sm text-gray-700">{note.content}</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {note.content?.includes('MERGE_TIMESTAMP:') 
+                              ? note.content.replace(/MERGE_TIMESTAMP:([^\n]+)\n?/g, (_: string, timestamp: string) => {
+                                  try {
+                                    const date = new Date(timestamp.trim());
+                                    return date.toLocaleString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric', 
+                                      year: 'numeric', 
+                                      hour: 'numeric', 
+                                      minute: '2-digit', 
+                                      hour12: true 
+                                    }) + '\n';
+                                  } catch {
+                                    return '';
+                                  }
+                                })
+                              : note.content
+                            }
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -1177,6 +1329,40 @@ export default function TicketDetailPage() {
         onConfirm={handleEditScheduledMessageConfirm}
         onRemove={handleRemoveScheduledMessage}
         message={messageToEdit}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Ticket</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete ticket <span className="font-medium">{ticket.ticket_number}</span>? 
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTicket}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Delete Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Draft Feedback Modal */}
+      <AIDraftFeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmit={handleSubmitFeedback}
       />
     </div>
   )

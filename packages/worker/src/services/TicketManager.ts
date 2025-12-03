@@ -115,6 +115,9 @@ export class TicketManager {
     // Detect category (use provided or auto-detect)
     const category = options?.category || this.detectCategory(message.content);
 
+    // Detect sentiment (use provided or auto-detect from email content)
+    const sentiment = message.metadata?.sentiment || this.detectSentimentFromEmail(options?.subject || '', message.content);
+
     // Calculate SLA - with error handling
     let slaDueAt: string;
     try {
@@ -152,19 +155,15 @@ export class TicketManager {
         priority,
         category,
         message.channelType,
-        message.metadata?.sentiment || 'neutral',
+        sentiment,
         slaDueAt,
         now,
         now
       ).run();
 
-      // Insert first message
-      await this.addMessage(ticketId, {
-        sender_type: 'customer',
-        sender_id: message.customerId,
-        sender_name: message.customerName || message.customerId,
-        content: message.content
-      });
+      // Note: The initial message is stored in tickets.description
+      // Additional messages (replies, follow-ups) go into ticket_messages table
+      // This prevents duplicate display of the first message
 
       console.log(`[TicketManager] ✅ Ticket created: ${ticketNumber}`);
 
@@ -536,19 +535,40 @@ export class TicketManager {
     }
 
     // 2. Check for duplicate content from same customer (within last 24 hours)
-    const duplicateTicket = await this.findDuplicateTicket(email.from.email, email.subject, email.bodyText);
-    if (duplicateTicket) {
-      console.log(`[TicketManager] Duplicate ticket detected: ${duplicateTicket.ticket_number} (same content from same customer)`);
-      // Link email to existing ticket and add as follow-up message
-      await this.linkEmailToTicket(email.id, duplicateTicket.ticket_id);
-      await this.addMessage(duplicateTicket.ticket_id, {
-        sender_type: 'customer',
-        sender_id: email.from.email,
-        sender_name: email.from.name || email.from.email,
-        content: `[Follow-up] ${email.bodyText}`
-      });
-      console.log(`[TicketManager] Added as follow-up message to existing ticket`);
-      return { ...duplicateTicket, isNew: false };
+    const duplicateResult = await this.findDuplicateTicket(email.from.email, email.subject, email.bodyText);
+    if (duplicateResult) {
+      const { ticket: duplicateTicket, isExactDuplicate } = duplicateResult;
+      
+      if (isExactDuplicate) {
+        // Exact duplicate - auto-archive the new email without creating a ticket
+        console.log(`[TicketManager] EXACT duplicate detected: ${duplicateTicket.ticket_number} - auto-archiving new email`);
+        
+        // Link email to existing ticket but mark as archived
+        await this.linkEmailToTicket(email.id, duplicateTicket.ticket_id);
+        
+        // Add a system note to the existing ticket
+        await this.addMessage(duplicateTicket.ticket_id, {
+          sender_type: 'system',
+          sender_id: 'system',
+          sender_name: 'System',
+          content: `[Auto-Archived] Exact duplicate email received from ${email.from.name || email.from.email} and automatically archived.`
+        });
+        
+        console.log(`[TicketManager] Exact duplicate auto-archived - no new ticket created`);
+        return { ...duplicateTicket, isNew: false, wasArchived: true };
+      } else {
+        // Similar but not exact - add as follow-up message
+        console.log(`[TicketManager] Duplicate ticket detected: ${duplicateTicket.ticket_number} (same content from same customer)`);
+        await this.linkEmailToTicket(email.id, duplicateTicket.ticket_id);
+        await this.addMessage(duplicateTicket.ticket_id, {
+          sender_type: 'customer',
+          sender_id: email.from.email,
+          sender_name: email.from.name || email.from.email,
+          content: `[Follow-up] ${email.bodyText}`
+        });
+        console.log(`[TicketManager] Added as follow-up message to existing ticket`);
+        return { ...duplicateTicket, isNew: false };
+      }
     }
 
     // 2. Auto-detect priority
@@ -598,10 +618,20 @@ export class TicketManager {
   }
 
   /**
+   * Check for duplicate ticket by content similarity (public method)
+   * Checks for tickets from same customer with same/similar subject within last 24 hours
+   * Returns ticket and whether it's an exact duplicate
+   */
+  async checkForDuplicate(customerEmail: string, subject: string, bodyText: string): Promise<{ ticket: Ticket; isExactDuplicate: boolean } | null> {
+    return this.findDuplicateTicket(customerEmail, subject, bodyText);
+  }
+
+  /**
    * Find duplicate ticket by content similarity
    * Checks for tickets from same customer with same/similar subject within last 24 hours
+   * Returns ticket and whether it's an exact duplicate
    */
-  private async findDuplicateTicket(customerEmail: string, subject: string, bodyText: string): Promise<Ticket | null> {
+  private async findDuplicateTicket(customerEmail: string, subject: string, bodyText: string): Promise<{ ticket: Ticket; isExactDuplicate: boolean } | null> {
     try {
       // Get recent open tickets from this customer (last 24 hours)
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -630,16 +660,22 @@ export class TicketManager {
         const ticketSubject = (ticket.subject || '').toLowerCase().trim();
         const ticketDescription = (ticket.description || '').toLowerCase().trim().substring(0, 200);
 
-        // Exact subject match
+        // Exact duplicate: both subject AND body match exactly
+        if (ticketSubject === normalizedSubject && ticketDescription === normalizedBody) {
+          console.log(`[TicketManager] Found EXACT duplicate: subject and body match`);
+          return { ticket, isExactDuplicate: true };
+        }
+
+        // Exact subject match only
         if (ticketSubject === normalizedSubject) {
           console.log(`[TicketManager] Found duplicate: exact subject match`);
-          return ticket;
+          return { ticket, isExactDuplicate: false };
         }
 
         // Very similar content (first 200 chars match)
         if (normalizedBody.length > 50 && ticketDescription === normalizedBody) {
           console.log(`[TicketManager] Found duplicate: content match`);
-          return ticket;
+          return { ticket, isExactDuplicate: false };
         }
       }
 
