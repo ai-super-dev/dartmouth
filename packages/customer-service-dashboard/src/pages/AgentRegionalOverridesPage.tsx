@@ -1,13 +1,7 @@
-/**
- * Agent Regional Overrides Page
- * 
- * Allows individual AI agents to override tenant-level regional settings.
- * NULL = inherit from tenant, SET = use agent-specific value
- */
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Globe, Save, RefreshCw, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Settings, Globe, Save, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
 interface AgentOverrides {
@@ -32,18 +26,18 @@ interface TenantSettings {
 }
 
 interface SettingsOptions {
-  languages: { code: string; name: string }[];
-  currencies: { code: string; symbol: string; name: string }[];
-  timezones: string[];
+  timezones: { value: string; label: string }[];
+  languages: { value: string; label: string; spelling: string }[];
   measurementSystems: { value: string; label: string }[];
-  dateFormats: { value: string; label: string }[];
+  currencies: { value: string; symbol: string; label: string }[];
+  dateFormats: { value: string; label: string; example: string }[];
   timeFormats: { value: string; label: string }[];
 }
 
 export default function AgentRegionalOverridesPage() {
   const queryClient = useQueryClient();
-  const [overrides, setOverrides] = useState<AgentOverrides>({
-    agent_id: 'ai-agent-001',
+  const [formData, setFormData] = useState<AgentOverrides>({
+    agent_id: 'customer-service-agent',
     timezone: null,
     language: null,
     measurement_system: null,
@@ -52,7 +46,6 @@ export default function AgentRegionalOverridesPage() {
     date_format: null,
     time_format: null
   });
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
   // Fetch tenant settings (defaults)
   const { data: tenantSettings } = useQuery({
@@ -63,7 +56,16 @@ export default function AgentRegionalOverridesPage() {
     }
   });
 
-  // Fetch available options
+  // Fetch agent overrides
+  const { data: overrides, isLoading } = useQuery({
+    queryKey: ['agent-overrides'],
+    queryFn: async () => {
+      const response = await api.get('/api/ai-agent/regional-overrides');
+      return response.data as AgentOverrides;
+    }
+  });
+
+  // Fetch dropdown options
   const { data: options } = useQuery({
     queryKey: ['tenant-settings-options'],
     queryFn: async () => {
@@ -72,20 +74,12 @@ export default function AgentRegionalOverridesPage() {
     }
   });
 
-  // Fetch current agent overrides
-  const { data: agentData, isLoading } = useQuery({
-    queryKey: ['agent-overrides', 'ai-agent-001'],
-    queryFn: async () => {
-      const response = await api.get('/api/ai-agent/regional-overrides');
-      return response.data as AgentOverrides;
-    }
-  });
-
+  // Update form when overrides load
   useEffect(() => {
-    if (agentData) {
-      setOverrides(agentData);
+    if (overrides) {
+      setFormData(overrides);
     }
-  }, [agentData]);
+  }, [overrides]);
 
   // Save mutation
   const saveMutation = useMutation({
@@ -94,23 +88,21 @@ export default function AgentRegionalOverridesPage() {
       return response.data;
     },
     onSuccess: () => {
-      setSaveStatus('success');
       queryClient.invalidateQueries({ queryKey: ['agent-overrides'] });
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      alert('Overrides saved successfully!');
     },
-    onError: () => {
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 5000);
+    onError: (error: any) => {
+      alert(`Failed to save overrides: ${error.message}`);
     }
   });
 
   const handleSave = () => {
-    saveMutation.mutate(overrides);
+    saveMutation.mutate(formData);
   };
 
-  const handleReset = () => {
-    setOverrides({
-      agent_id: 'ai-agent-001',
+  const handleClear = () => {
+    setFormData({
+      agent_id: 'customer-service-agent',
       timezone: null,
       language: null,
       measurement_system: null,
@@ -121,236 +113,228 @@ export default function AgentRegionalOverridesPage() {
     });
   };
 
-  const getEffectiveValue = (field: keyof AgentOverrides, tenantValue: string | undefined) => {
-    const overrideValue = overrides[field];
-    if (overrideValue !== null && overrideValue !== undefined) {
-      return overrideValue;
-    }
-    return tenantValue || 'Not set';
+  // Helper to get effective value (override or tenant default)
+  const getEffective = (field: keyof AgentOverrides): string => {
+    const override = formData[field];
+    if (override !== null && override !== '') return override as string;
+    return (tenantSettings as any)?.[field] || '';
   };
 
-  // Override select component
-  const OverrideSelect = ({ 
-    label, 
-    field, 
-    options: selectOptions, 
-    tenantValue,
-    description
-  }: { 
-    label: string; 
-    field: keyof AgentOverrides; 
-    options: { value: string; label: string }[];
-    tenantValue?: string;
-    description?: string;
-  }) => {
-    const isOverridden = overrides[field] !== null;
-    
-    return (
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-gray-900">{label}</label>
-          {isOverridden && (
-            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
-              Overridden
-            </span>
-          )}
-        </div>
-        
-        {description && (
-          <p className="text-xs text-gray-500 mb-2">{description}</p>
-        )}
-        
-        <select
-          value={overrides[field] || ''}
-          onChange={(e) => {
-            const value = e.target.value === '' ? null : e.target.value;
-            setOverrides(prev => ({ ...prev, [field]: value }));
-            
-            // Auto-update currency symbol when currency changes
-            if (field === 'currency' && value && options) {
-              const currency = options.currencies.find(c => c.code === value);
-              if (currency) {
-                setOverrides(prev => ({ ...prev, currency_symbol: currency.symbol }));
-              }
-            }
-          }}
-          className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-            isOverridden ? 'border-indigo-300 bg-indigo-50' : 'border-gray-300'
-          }`}
-        >
-          <option value="">Inherit from tenant ({tenantValue || 'default'})</option>
-          {selectOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        
-        <div className="mt-2 text-xs text-gray-500">
-          Effective value: <span className="font-medium text-gray-700">{getEffectiveValue(field, tenantValue)}</span>
-        </div>
-      </div>
-    );
+  // Helper to check if field is overridden
+  const isOverridden = (field: keyof AgentOverrides): boolean => {
+    return formData[field] !== null && formData[field] !== '';
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="text-gray-500">Loading overrides...</div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Globe className="w-6 h-6 text-indigo-600" />
-          Agent Regional Overrides
-        </h1>
-        <p className="text-gray-600 mt-1">
-          Override tenant-level regional settings for this specific AI agent. Leave empty to inherit from tenant defaults.
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <Link to="/ai-agent/system-message" className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mb-4">
+          <ArrowLeft className="w-4 h-4" />
+          Back to AI Agent Settings
+        </Link>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <Globe className="w-6 h-6 text-purple-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Agent Regional Overrides</h1>
+        </div>
+        <p className="text-gray-600">
+          Override tenant-level regional settings for this specific agent. Leave fields empty to inherit from Dartmouth OS Settings.
         </p>
       </div>
 
       {/* Info Box */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          How Overrides Work
-        </h3>
         <p className="text-sm text-blue-800">
-          By default, this agent uses the settings from <strong>Settings → Dartmouth OS</strong> (tenant-level). 
-          If you need this agent to behave differently (e.g., serve a different region), you can override specific settings here.
-          Set a value to override, or leave empty to inherit from tenant.
+          <strong>How it works:</strong> Settings left as "Inherit from tenant" will use the values from 
+          <Link to="/settings/dartmouth-os" className="text-blue-600 hover:underline mx-1">Dartmouth OS Settings</Link>.
+          Only set overrides if this agent needs different regional settings (e.g., for a US market).
         </p>
       </div>
 
-      {/* Status Messages */}
-      {saveStatus === 'success' && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-green-600" />
-          <span className="text-green-800 font-medium">Overrides saved successfully!</span>
+      {/* Override Settings */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings className="w-5 h-5 text-gray-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Regional Overrides</h2>
         </div>
-      )}
-
-      {saveStatus === 'error' && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <span className="text-red-800 font-medium">Failed to save overrides. Please try again.</span>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Timezone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Timezone
+              {isOverridden('timezone') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.timezone || ''}
+              onChange={(e) => setFormData({ ...formData, timezone: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({tenantSettings?.timezone})</option>
+              {options?.timezones.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Language */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Language / Spelling
+              {isOverridden('language') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.language || ''}
+              onChange={(e) => setFormData({ ...formData, language: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({options?.languages.find(l => l.value === tenantSettings?.language)?.label})</option>
+              {options?.languages.map(lang => (
+                <option key={lang.value} value={lang.value}>{lang.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Measurement System */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Measurement System
+              {isOverridden('measurement_system') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.measurement_system || ''}
+              onChange={(e) => setFormData({ ...formData, measurement_system: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({tenantSettings?.measurement_system})</option>
+              {options?.measurementSystems.map(ms => (
+                <option key={ms.value} value={ms.value}>{ms.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Currency */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Currency
+              {isOverridden('currency') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.currency || ''}
+              onChange={(e) => {
+                const curr = options?.currencies.find(c => c.value === e.target.value);
+                setFormData({ 
+                  ...formData, 
+                  currency: e.target.value || null,
+                  currency_symbol: curr?.symbol || null
+                });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({tenantSettings?.currency})</option>
+              {options?.currencies.map(curr => (
+                <option key={curr.value} value={curr.value}>{curr.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Date Format */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date Format
+              {isOverridden('date_format') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.date_format || ''}
+              onChange={(e) => setFormData({ ...formData, date_format: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({tenantSettings?.date_format})</option>
+              {options?.dateFormats.map(df => (
+                <option key={df.value} value={df.value}>{df.label}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Time Format */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Time Format
+              {isOverridden('time_format') && <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">Overridden</span>}
+            </label>
+            <select
+              value={formData.time_format || ''}
+              onChange={(e) => setFormData({ ...formData, time_format: e.target.value || null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Inherit from tenant ({tenantSettings?.time_format === '12h' ? '12-hour' : '24-hour'})</option>
+              {options?.timeFormats.map(tf => (
+                <option key={tf.value} value={tf.value}>{tf.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
-      )}
-
-      {/* Override Fields */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <OverrideSelect
-          label="Timezone"
-          field="timezone"
-          options={options?.timezones.map(tz => ({ value: tz, label: tz })) || []}
-          tenantValue={tenantSettings?.timezone}
-          description="Override the timezone for this agent's date/time formatting"
-        />
-
-        <OverrideSelect
-          label="Language"
-          field="language"
-          options={options?.languages.map(l => ({ value: l.code, label: l.name })) || []}
-          tenantValue={tenantSettings?.language}
-          description="Override spelling, terminology, and greetings"
-        />
-
-        <OverrideSelect
-          label="Measurement System"
-          field="measurement_system"
-          options={options?.measurementSystems || []}
-          tenantValue={tenantSettings?.measurement_system}
-          description="Override metric/imperial units"
-        />
-
-        <OverrideSelect
-          label="Currency"
-          field="currency"
-          options={options?.currencies.map(c => ({ value: c.code, label: `${c.code} (${c.symbol}) - ${c.name}` })) || []}
-          tenantValue={tenantSettings?.currency}
-          description="Override currency code and symbol"
-        />
-
-        <OverrideSelect
-          label="Date Format"
-          field="date_format"
-          options={options?.dateFormats || []}
-          tenantValue={tenantSettings?.date_format}
-          description="Override how dates are displayed"
-        />
-
-        <OverrideSelect
-          label="Time Format"
-          field="time_format"
-          options={options?.timeFormats || []}
-          tenantValue={tenantSettings?.time_format}
-          description="Override 12h/24h time format"
-        />
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-4">
+      {/* Effective Settings Preview */}
+      <div className="bg-purple-50 rounded-xl border border-purple-200 p-6 mb-6">
+        <h3 className="text-sm font-semibold text-purple-900 mb-3">Effective Settings for This Agent</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="text-purple-600 font-medium">Timezone:</span>
+            <p className="text-purple-900">{getEffective('timezone')}</p>
+          </div>
+          <div>
+            <span className="text-purple-600 font-medium">Language:</span>
+            <p className="text-purple-900">{options?.languages.find(l => l.value === getEffective('language'))?.label || getEffective('language')}</p>
+          </div>
+          <div>
+            <span className="text-purple-600 font-medium">Measurement:</span>
+            <p className="text-purple-900">{getEffective('measurement_system')}</p>
+          </div>
+          <div>
+            <span className="text-purple-600 font-medium">Currency:</span>
+            <p className="text-purple-900">{getEffective('currency')}</p>
+          </div>
+          <div>
+            <span className="text-purple-600 font-medium">Date Format:</span>
+            <p className="text-purple-900">{getEffective('date_format')}</p>
+          </div>
+          <div>
+            <span className="text-purple-600 font-medium">Time Format:</span>
+            <p className="text-purple-900">{getEffective('time_format') === '12h' ? '12-hour' : '24-hour'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-3">
         <button
-          onClick={handleReset}
-          className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+          onClick={handleClear}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RotateCcw className="w-4 h-4" />
           Clear All Overrides
         </button>
         <button
           onClick={handleSave}
           disabled={saveMutation.isPending}
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="flex items-center gap-2 px-6 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
         >
-          {saveMutation.isPending ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Save Overrides
-            </>
-          )}
+          <Save className="w-4 h-4" />
+          {saveMutation.isPending ? 'Saving...' : 'Save Overrides'}
         </button>
       </div>
-
-      {/* Effective Settings Summary */}
-      {tenantSettings && (
-        <div className="mt-8 bg-gray-50 rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Effective Settings for This Agent</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">Timezone:</span>
-              <p className="font-medium">{getEffectiveValue('timezone', tenantSettings.timezone)}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Language:</span>
-              <p className="font-medium">{getEffectiveValue('language', tenantSettings.language)}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Measurement:</span>
-              <p className="font-medium">{getEffectiveValue('measurement_system', tenantSettings.measurement_system)}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Currency:</span>
-              <p className="font-medium">{getEffectiveValue('currency', tenantSettings.currency)} ({getEffectiveValue('currency_symbol', tenantSettings.currency_symbol)})</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Date Format:</span>
-              <p className="font-medium">{getEffectiveValue('date_format', tenantSettings.date_format)}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Time Format:</span>
-              <p className="font-medium">{getEffectiveValue('time_format', tenantSettings.time_format)}</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-

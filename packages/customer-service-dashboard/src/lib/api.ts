@@ -213,3 +213,24 @@ export const analyticsApi = {
     api.get('/api/analytics/ai-agent/learning-examples', { params: { limit } }),
 }
 
+// Auto-Assignment API
+export const autoAssignmentApi = {
+  getConfig: () => api.get('/api/auto-assignment/config'),
+  updateConfig: (config: {
+    enabled?: boolean;
+    maxAssignedTickets?: number;
+    refillThreshold?: number;
+    priorityOrder?: 'priority_first' | 'oldest_first' | 'newest_first';
+    channels?: string[];
+    businessHoursOnly?: boolean;
+  }) => api.put('/api/auto-assignment/config', config),
+  runNow: () => api.post('/api/auto-assignment/run'),
+  getHistory: (limit?: number) => api.get('/api/auto-assignment/history', { params: { limit } }),
+  getStaffSettings: (staffId: string) => api.get(`/api/auto-assignment/staff/${staffId}`),
+  updateStaffSettings: (staffId: string, settings: {
+    autoAssignEnabled?: boolean;
+    autoAssignMax?: number | null;
+    autoAssignChannels?: string[] | null;
+  }) => api.put(`/api/auto-assignment/staff/${staffId}`, settings),
+}
+

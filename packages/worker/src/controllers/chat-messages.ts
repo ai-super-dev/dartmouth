@@ -81,7 +81,7 @@ export async function startConversation(c: Context<{ Bindings: Env }>) {
       INSERT INTO chat_conversations (
         id, ticket_id, customer_id, customer_name, customer_email,
         status, assigned_to, started_at, last_message_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'open', 'ai-agent-001', ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, 'ai_handling', 'ai-agent-001', ?, ?, ?, ?)
     `).bind(
       convId,
       ticketId,
@@ -229,22 +229,27 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
       UPDATE chat_conversations SET last_message_at = ?, updated_at = ? WHERE id = ?
     `).bind(now, now, conversation.id).run();
 
-    // Re-fetch conversation to get current assigned_to (might have been taken over)
+    // Re-fetch conversation to get current status
     const currentConversation = await c.env.DB.prepare(`
       SELECT assigned_to, status FROM chat_conversations WHERE id = ?
     `).bind(conversation.id).first<{ assigned_to: string | null; status: string }>();
 
-    // Only get AI response if still assigned to AI agent
-    const isAIHandling = currentConversation?.assigned_to === 'ai-agent-001';
+    // AI should respond if:
+    // 1. status is 'ai_handling' (AI is primary handler)
+    // 2. status is 'queued' (customer can still chat with AI while waiting)
+    // AI should NOT respond if:
+    // - status is 'assigned' or 'staff_handling' (staff has taken over)
+    const shouldAIRespond = currentConversation?.status === 'ai_handling' || currentConversation?.status === 'queued';
     
     console.log('[Chat] Conversation handler:', { 
       conversationId: conversation.id, 
+      status: currentConversation?.status,
       assignedTo: currentConversation?.assigned_to,
-      isAIHandling 
+      shouldAIRespond 
     });
 
     // If staff has taken over, don't generate AI response - staff will reply manually
-    if (!isAIHandling) {
+    if (!shouldAIRespond) {
       console.log('[Chat] Staff has taken over - not generating AI response');
       return c.json({
         success: true,
@@ -404,31 +409,32 @@ export async function listConversations(c: Context<{ Bindings: Env }>) {
     const countOnly = c.req.query('count_only') === 'true';
     const status = c.req.query('status'); // Legacy support
 
-    // Build WHERE clause based on tab
+    // Build WHERE clause based on tab (using new status model)
+    // Statuses: ai_handling, queued, assigned, staff_handling, closed
     let whereClause = '';
     switch (tab) {
       case 'ai':
-        // Active chats being handled by AI
-        whereClause = `c.assigned_to = 'ai-agent-001' AND c.status IN ('open', 'in-progress') AND (c.resolution_type IS NULL OR c.resolution_type = '')`;
+        // Active chats being handled by AI (includes queued chats that can still talk to AI)
+        whereClause = `c.status IN ('ai_handling', 'queued')`;
         break;
       case 'staff':
-        // Active chats escalated to staff (in progress)
-        whereClause = `c.assigned_to != 'ai-agent-001' AND c.assigned_to IS NOT NULL AND c.status = 'in-progress' AND (c.resolution_type IS NULL OR c.resolution_type = '')`;
+        // Active chats with staff (assigned or actively handling)
+        whereClause = `c.status IN ('assigned', 'staff_handling')`;
         break;
       case 'queued':
-        // Awaiting staff pickup
-        whereClause = `c.status = 'queued' OR (c.status = 'escalated' AND c.assigned_to IS NULL)`;
+        // Awaiting staff pickup (in waiting room)
+        whereClause = `c.status = 'queued'`;
         break;
       case 'closed':
         // Resolved & inactive chats
-        whereClause = `c.status = 'closed' OR c.resolution_type IS NOT NULL`;
+        whereClause = `c.status = 'closed'`;
         break;
       default:
-        // Legacy: filter by status
+        // Legacy: filter by status or show all active
         if (status) {
           whereClause = `c.status = '${status}'`;
         } else {
-          whereClause = `c.status IN ('open', 'in-progress')`;
+          whereClause = `c.status IN ('ai_handling', 'queued', 'assigned', 'staff_handling')`;
         }
     }
 
@@ -478,13 +484,28 @@ export async function takeoverConversation(c: Context<{ Bindings: Env }>) {
     const staffFirstName = staff?.first_name || 'Support Agent';
     const staffFullName = staff ? `${staff.first_name} ${staff.last_name || ''}`.trim() : 'Support Agent';
 
-    // Update conversation
+    // Update conversation - staff takes over, set to staff_handling
     const now = new Date().toISOString();
+    
+    // Get the ticket_id for this conversation
+    const conv = await c.env.DB.prepare(`
+      SELECT ticket_id FROM chat_conversations WHERE id = ?
+    `).bind(conversationId).first<{ ticket_id: string }>();
+    
     await c.env.DB.prepare(`
       UPDATE chat_conversations 
-      SET assigned_to = ?, status = 'in-progress', updated_at = ?
+      SET assigned_to = ?, status = 'staff_handling', queue_assigned_at = ?, updated_at = ?
       WHERE id = ?
-    `).bind(user.id, now, conversationId).run();
+    `).bind(user.id, now, now, conversationId).run();
+
+    // Also update the ticket's assigned_to so it shows in staff's ticket queue
+    if (conv?.ticket_id) {
+      await c.env.DB.prepare(`
+        UPDATE tickets 
+        SET assigned_to = ?, status = 'in-progress', updated_at = ?
+        WHERE ticket_id = ?
+      `).bind(user.id, now, conv.ticket_id).run();
+    }
 
     // Add system message - use first name only for customer-facing message
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -594,13 +615,28 @@ export async function pickupFromQueue(c: Context<{ Bindings: Env }>) {
 
     const staffFirstName = staff?.first_name || 'Support Agent';
 
-    // Update conversation - assign to staff and set in-progress
+    // Update conversation - assign to staff and set staff_handling
     const now = new Date().toISOString();
+    
+    // Get the ticket_id for this conversation
+    const conv = await c.env.DB.prepare(`
+      SELECT ticket_id FROM chat_conversations WHERE id = ?
+    `).bind(conversationId).first<{ ticket_id: string }>();
+    
     await c.env.DB.prepare(`
       UPDATE chat_conversations 
-      SET assigned_to = ?, status = 'in-progress', queue_assigned_at = ?, updated_at = ?
+      SET assigned_to = ?, status = 'staff_handling', queue_assigned_at = ?, updated_at = ?
       WHERE id = ?
     `).bind(user.id, now, now, conversationId).run();
+
+    // Also update the ticket's assigned_to so it shows in staff's ticket queue
+    if (conv?.ticket_id) {
+      await c.env.DB.prepare(`
+        UPDATE tickets 
+        SET assigned_to = ?, status = 'in-progress', updated_at = ?
+        WHERE ticket_id = ?
+      `).bind(user.id, now, conv.ticket_id).run();
+    }
 
     // Add system message
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -658,10 +694,10 @@ export async function closeConversation(c: Context<{ Bindings: Env }>) {
       // No body, use defaults
     }
 
-    // Get current conversation to check who's assigned
+    // Get current conversation to check who's assigned and get ticket_id
     const conv = await c.env.DB.prepare(`
-      SELECT assigned_to FROM chat_conversations WHERE id = ?
-    `).bind(conversationId).first<{ assigned_to: string | null }>();
+      SELECT assigned_to, ticket_id FROM chat_conversations WHERE id = ?
+    `).bind(conversationId).first<{ assigned_to: string | null; ticket_id: string }>();
 
     if (!resolvedBy && conv?.assigned_to) {
       resolvedBy = conv.assigned_to;
@@ -676,6 +712,16 @@ export async function closeConversation(c: Context<{ Bindings: Env }>) {
           resolution_type = ?, resolved_by = ?, resolved_at = ?
       WHERE id = ?
     `).bind(now, now, resolutionType, resolvedBy, now, conversationId).run();
+
+    // Also update the ticket status to match
+    if (conv?.ticket_id) {
+      const ticketStatus = resolutionType === 'inactive_closed' ? 'closed' : 'resolved';
+      await c.env.DB.prepare(`
+        UPDATE tickets 
+        SET status = ?, updated_at = ?
+        WHERE ticket_id = ?
+      `).bind(ticketStatus, now, conv.ticket_id).run();
+    }
 
     // Add system message
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -695,6 +741,120 @@ export async function closeConversation(c: Context<{ Bindings: Env }>) {
   } catch (error: any) {
     console.error('[Chat] Close conversation error:', error);
     return c.json({ error: 'Failed to close conversation' }, 500);
+  }
+}
+
+/**
+ * Reassign a conversation to another staff member or back to AI
+ * POST /api/chat/conversation/:id/reassign
+ */
+export async function reassignConversation(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as { id: string; email: string; role: string };
+    const conversationId = c.req.param('id');
+    const { assignTo, reason } = await c.req.json();
+
+    if (!assignTo) {
+      return c.json({ error: 'assignTo is required' }, 400);
+    }
+
+    const now = new Date().toISOString();
+
+    // Get current staff info
+    const currentStaff = await c.env.DB.prepare(`
+      SELECT first_name FROM staff_users WHERE id = ?
+    `).bind(user.id).first<{ first_name: string }>();
+    const currentStaffName = currentStaff?.first_name || 'Staff';
+
+    // Determine new status and get new assignee info
+    let newStatus: string;
+    let newAssigneeName: string;
+
+    if (assignTo === 'ai-agent-001') {
+      // Hand back to AI
+      newStatus = 'ai_handling';
+      newAssigneeName = 'McCarthy AI';
+    } else {
+      // Assign to another staff member
+      const newStaff = await c.env.DB.prepare(`
+        SELECT first_name FROM staff_users WHERE id = ?
+      `).bind(assignTo).first<{ first_name: string }>();
+      
+      if (!newStaff) {
+        return c.json({ error: 'Staff member not found' }, 404);
+      }
+      
+      newStatus = 'assigned';
+      newAssigneeName = newStaff.first_name;
+    }
+
+    // Get ticket_id for the conversation first
+    const conv = await c.env.DB.prepare(`
+      SELECT ticket_id FROM chat_conversations WHERE id = ?
+    `).bind(conversationId).first<{ ticket_id: string }>();
+
+    // Update conversation
+    await c.env.DB.prepare(`
+      UPDATE chat_conversations 
+      SET assigned_to = ?, status = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(assignTo, newStatus, now, conversationId).run();
+
+    // Also update the ticket's assigned_to so it shows in the correct staff's ticket queue
+    if (conv?.ticket_id) {
+      const ticketStatus = assignTo === 'ai-agent-001' ? 'open' : 'in-progress';
+      await c.env.DB.prepare(`
+        UPDATE tickets 
+        SET assigned_to = ?, status = ?, updated_at = ?
+        WHERE ticket_id = ?
+      `).bind(assignTo === 'ai-agent-001' ? null : assignTo, ticketStatus, now, conv.ticket_id).run();
+    }
+
+    // Add system message about reassignment
+    const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const systemMessage = assignTo === 'ai-agent-001'
+      ? `${currentStaffName} has handed the conversation back to McCarthy AI`
+      : `${currentStaffName} has transferred the conversation to ${newAssigneeName}`;
+    
+    await c.env.DB.prepare(`
+      INSERT INTO chat_messages (id, conversation_id, sender_type, sender_id, sender_name, content, created_at)
+      VALUES (?, ?, 'system', ?, ?, ?, ?)
+    `).bind(
+      msgId,
+      conversationId,
+      user.id,
+      currentStaffName,
+      systemMessage,
+      now
+    ).run();
+
+    // Add staff note if reason provided
+    if (reason && conv?.ticket_id) {
+      const noteId = `note_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      await c.env.DB.prepare(`
+        INSERT INTO ticket_notes (id, ticket_id, user_id, content, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        noteId,
+        conv.ticket_id,
+        user.id,
+        `🔄 Chat Reassigned: ${reason}`,
+        now
+      ).run();
+    }
+
+    console.log(`[Chat] ${currentStaffName} reassigned conversation ${conversationId} to ${newAssigneeName}`);
+
+    return c.json({ 
+      success: true, 
+      message: `Conversation reassigned to ${newAssigneeName}`,
+      newAssignee: newAssigneeName,
+      newStatus
+    });
+
+  } catch (error: any) {
+    console.error('[Chat] Reassign conversation error:', error);
+    return c.json({ error: 'Failed to reassign conversation' }, 500);
   }
 }
 
@@ -845,14 +1005,23 @@ async function getNextTicketNumber(db: D1Database): Promise<string> {
 function isRequestingHuman(message: string): boolean {
   const humanKeywords = [
     'human', 'real person', 'actual person', 'speak to someone',
-    'talk to someone', 'agent', 'representative', 'staff', 'support',
+    'talk to someone', 'agent', 'representative', 'staff',
     'person', 'help me', 'not helping', 'useless', 'real human',
     'speak with a human', 'talk to a human', 'connect me',
-    'transfer', 'escalate', 'manager', 'supervisor'
+    'transfer', 'escalate', 'manager', 'supervisor',
+    'anyone free', 'is anyone free', 'anyone available', 'someone available',
+    'speak to a person', 'talk to a person', 'need a human', 'want a human',
+    'live agent', 'live person', 'live chat', 'real support', 'actual support'
   ];
   
   const lowerMessage = message.toLowerCase();
-  return humanKeywords.some(keyword => lowerMessage.includes(keyword));
+  const matched = humanKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  if (matched) {
+    console.log('[Chat] HUMAN KEYWORD DETECTED in message:', message);
+  }
+  
+  return matched;
 }
 
 // Check if message is requesting a callback
@@ -932,8 +1101,21 @@ ${chatHistory}`;
   
   // Close the chat conversation
   await db.prepare(`
-    UPDATE chat_conversations SET status = 'closed', ended_at = ?, updated_at = ? WHERE id = ?
-  `).bind(now, now, conversation.id).run();
+    UPDATE chat_conversations 
+    SET status = 'closed', ended_at = ?, updated_at = ?, resolution_type = 'ai_resolved', resolved_by = 'ai-agent-001', resolved_at = ?
+    WHERE id = ?
+  `).bind(now, now, now, conversation.id).run();
+  
+  // Also close the original chat ticket
+  const convWithTicket = await db.prepare(`
+    SELECT ticket_id FROM chat_conversations WHERE id = ?
+  `).bind(conversation.id).first<{ ticket_id: string }>();
+  
+  if (convWithTicket?.ticket_id) {
+    await db.prepare(`
+      UPDATE tickets SET status = 'resolved', updated_at = ? WHERE ticket_id = ?
+    `).bind(now, convWithTicket.ticket_id).run();
+  }
   
   console.log(`[Chat] Created callback ticket ${ticketNumber} and closed conversation ${conversation.id}`);
   
@@ -959,23 +1141,66 @@ async function getAvailableStaff(db: D1Database): Promise<{ id: string; first_na
   return result || null;
 }
 
-// Escalate conversation to staff
-async function escalateToStaff(
+// Add conversation to queue (waiting for staff pickup)
+async function addToQueue(
   db: D1Database, 
-  conversationId: string, 
-  staffId: string, 
-  staffName: string
+  conversationId: string
 ): Promise<void> {
   const now = new Date().toISOString();
   
-  // Update conversation
+  // Update conversation to queued status
   await db.prepare(`
     UPDATE chat_conversations 
-    SET assigned_to = ?, status = 'escalated', updated_at = ?
+    SET status = 'queued', queue_entered_at = ?, updated_at = ?
     WHERE id = ?
-  `).bind(staffId, now, conversationId).run();
+  `).bind(now, now, conversationId).run();
   
   // Add system message
+  const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  await db.prepare(`
+    INSERT INTO chat_messages (id, conversation_id, sender_type, sender_id, sender_name, content, created_at)
+    VALUES (?, ?, 'system', NULL, NULL, ?, ?)
+  `).bind(
+    msgId,
+    conversationId,
+    'You have been added to the queue. A customer support team member will be with you shortly. You can continue chatting with me in the meantime!',
+    now
+  ).run();
+  
+  console.log(`[Chat] Added conversation ${conversationId} to queue`);
+}
+
+// Directly assign conversation to staff (bypass queue)
+async function assignToStaff(
+  db: D1Database, 
+  conversationId: string, 
+  staffId: string, 
+  staffFirstName: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  
+  // Get the ticket_id for this conversation
+  const conv = await db.prepare(`
+    SELECT ticket_id FROM chat_conversations WHERE id = ?
+  `).bind(conversationId).first<{ ticket_id: string }>();
+  
+  // Update conversation - assign directly with 'staff_handling' status
+  await db.prepare(`
+    UPDATE chat_conversations 
+    SET assigned_to = ?, status = 'staff_handling', queue_assigned_at = ?, updated_at = ?
+    WHERE id = ?
+  `).bind(staffId, now, now, conversationId).run();
+  
+  // Also update the ticket's assigned_to so it shows in staff's ticket queue
+  if (conv?.ticket_id) {
+    await db.prepare(`
+      UPDATE tickets 
+      SET assigned_to = ?, status = 'in-progress', updated_at = ?
+      WHERE ticket_id = ?
+    `).bind(staffId, now, conv.ticket_id).run();
+  }
+  
+  // Add system message - staff will pick up
   const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   await db.prepare(`
     INSERT INTO chat_messages (id, conversation_id, sender_type, sender_id, sender_name, content, created_at)
@@ -984,16 +1209,38 @@ async function escalateToStaff(
     msgId,
     conversationId,
     staffId,
-    staffName,
-    `${staffName} will be with you shortly`,
+    staffFirstName,
+    `${staffFirstName} has joined the chat`,
     now
   ).run();
   
-  console.log(`[Chat] Escalated conversation ${conversationId} to ${staffName}`);
+  console.log(`[Chat] Assigned conversation ${conversationId} to ${staffFirstName}`);
+}
+
+// Get staff with lowest active ticket count (less than 3 active)
+async function getAvailableStaffWithCapacity(db: D1Database): Promise<{ id: string; first_name: string; active_count: number } | null> {
+  // Get online staff with their active chat counts (using new status model)
+  const { results } = await db.prepare(`
+    SELECT 
+      s.id, 
+      s.first_name,
+      COUNT(CASE WHEN c.status IN ('assigned', 'staff_handling') THEN 1 END) as active_count
+    FROM staff_users s
+    LEFT JOIN chat_conversations c ON c.assigned_to = s.id AND c.status IN ('assigned', 'staff_handling')
+    WHERE s.availability_status = 'online'
+      AND s.id != 'ai-agent-001'
+    GROUP BY s.id, s.first_name
+    HAVING active_count < 3
+    ORDER BY active_count ASC
+    LIMIT 1
+  `).all<{ id: string; first_name: string; active_count: number }>();
+  
+  return results.length > 0 ? results[0] : null;
 }
 
 async function getAIResponse(env: Env, message: string, conversation: Conversation, isNew: boolean): Promise<{ response: string; closeChat?: boolean }> {
   console.log('[Chat] Getting AI response for:', message.substring(0, 50));
+  console.log('[Chat] Conversation ID:', conversation.id);
 
   // Check if message contains a phone number (customer providing callback number)
   const phoneNumber = extractPhoneNumber(message);
@@ -1049,38 +1296,90 @@ async function getAIResponse(env: Env, message: string, conversation: Conversati
 
   // Check if customer is requesting human assistance
   if (isRequestingHuman(message)) {
-    console.log('[Chat] Customer requesting human assistance');
+    console.log('[Chat] Customer requesting human assistance - DETECTED');
     
-    // Check for available staff
-    const availableStaff = await getAvailableStaff(env.DB);
-    
-    if (availableStaff) {
-      // Escalate to available staff
-      await escalateToStaff(
-        env.DB, 
-        conversation.id, 
-        availableStaff.id, 
-        availableStaff.first_name
-      );
+    try {
+      // Check if conversation is already queued or escalated
+      const convStatus = await env.DB.prepare(`
+        SELECT status, assigned_to FROM chat_conversations WHERE id = ?
+      `).bind(conversation.id).first<{ status: string; assigned_to: string | null }>();
       
-      return {
-        response: `I understand you'd like to speak with a team member. I've connected you with ${availableStaff.first_name} who will be with you shortly! 🙋`
-      };
-    } else {
-      // No staff available - check business hours
-      const businessHours = await env.DB.prepare(`
-        SELECT * FROM business_hours WHERE day_of_week = ?
-      `).bind(new Date().getDay()).first<{ is_open: number; open_time: string; close_time: string }>();
+      console.log('[Chat] Current conversation status:', convStatus);
       
-      const isWithinHours = businessHours?.is_open === 1;
-      
-      if (isWithinHours) {
+      if (convStatus?.status === 'queued') {
+        // Already in queue - reassure them
         return {
-          response: "I'd be happy to connect you with a team member, but all our agents are currently busy. Please hold on - someone will be with you as soon as possible! In the meantime, is there anything I can help you with? 🙏"
+          response: "You're already in the queue! A team member will be with you shortly. While you wait, feel free to continue chatting with me if you have any other questions."
+        };
+      }
+      
+      if (convStatus?.status === 'assigned' || convStatus?.status === 'staff_handling') {
+        return {
+          response: "A team member has already been assigned to help you. They'll respond shortly!"
+        };
+      }
+      
+      // Check for staff with capacity (less than 3 active chats)
+      console.log('[Chat] Checking for available staff with capacity...');
+      const staffWithCapacity = await getAvailableStaffWithCapacity(env.DB);
+      console.log('[Chat] Staff with capacity:', staffWithCapacity);
+      
+      if (staffWithCapacity && staffWithCapacity.active_count === 0) {
+        // Staff has NO active chats - assign directly (bypass queue)
+        console.log('[Chat] Assigning directly to staff:', staffWithCapacity.first_name);
+        await assignToStaff(
+          env.DB, 
+          conversation.id, 
+          staffWithCapacity.id, 
+          staffWithCapacity.first_name
+        );
+        
+        return {
+          response: "Great news! A team member is available and will be with you right now. They're joining the chat!"
+        };
+      } else if (staffWithCapacity) {
+        // Staff has some active chats but capacity - add to queue
+        console.log('[Chat] Adding to queue (staff has some capacity)');
+        await addToQueue(env.DB, conversation.id);
+        
+        return {
+          response: "I understand you'd like to speak with a team member. You've been added to the queue and someone will be with you shortly! Feel free to continue chatting with me while you wait."
         };
       } else {
+        // No staff available or all at capacity - add to queue
+        console.log('[Chat] Adding to queue (no staff available)');
+        await addToQueue(env.DB, conversation.id);
+        
+        // Check business hours
+        const businessHours = await env.DB.prepare(`
+          SELECT * FROM business_hours WHERE day_of_week = ?
+        `).bind(new Date().getDay()).first<{ is_open: number; open_time: string; close_time: string }>();
+        
+        const isWithinHours = businessHours?.is_open === 1;
+        console.log('[Chat] Business hours check:', { businessHours, isWithinHours });
+        
+        if (isWithinHours) {
+          return {
+            response: "I understand you'd like to speak with a team member. You've been added to the queue - all our agents are currently helping other customers, but someone will be with you as soon as possible! Feel free to continue chatting with me while you wait."
+          };
+        } else {
+          return {
+            response: "I'd love to connect you with a team member, but we're currently outside business hours. You've been added to the queue and will be helped when we reopen. Would you prefer a callback instead? Just say 'callback' and provide your phone number! 📞"
+          };
+        }
+      }
+    } catch (escalationError: any) {
+      console.error('[Chat] ESCALATION ERROR:', escalationError.message, escalationError.stack);
+      // Still try to add to queue as fallback
+      try {
+        await addToQueue(env.DB, conversation.id);
         return {
-          response: "I'd love to connect you with a team member, but we're currently outside business hours. Our team will be available during our next business day. Would you like a callback instead? Just say 'callback' and provide your phone number! 📞"
+          response: "I understand you'd like to speak with a team member. You've been added to the queue and someone will be with you shortly!"
+        };
+      } catch (queueError: any) {
+        console.error('[Chat] QUEUE ERROR:', queueError.message);
+        return {
+          response: "I understand you'd like to speak with a team member. Please hold on - I'm connecting you to our support team."
         };
       }
     }

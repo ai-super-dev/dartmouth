@@ -1,37 +1,27 @@
 -- Migration: Multi-Tenant Regional Settings
--- Purpose: Enable SaaS deployment for any country with configurable regional settings
--- Created: December 4, 2025
+-- Created: December 5, 2025
+-- Purpose: Enable tenant-level configuration for SaaS deployment
 
--- Tenant Settings Table (one row per tenant)
--- Stores default regional settings that all agents inherit
+-- Tenant Settings (one row per tenant)
 CREATE TABLE IF NOT EXISTS tenant_settings (
-  tenant_id TEXT PRIMARY KEY,
-  
-  -- Business Information
-  business_name TEXT NOT NULL,
+  tenant_id TEXT PRIMARY KEY DEFAULT 'default',
+  business_name TEXT NOT NULL DEFAULT 'My Business',
   business_email TEXT,
   business_phone TEXT,
   business_address TEXT,
   business_website TEXT,
-  
-  -- Regional Settings (with Australian defaults)
-  timezone TEXT DEFAULT 'Australia/Brisbane',
-  language TEXT DEFAULT 'en-AU', -- en-AU, en-GB, en-US, en-CA
-  measurement_system TEXT DEFAULT 'metric', -- metric, imperial
-  currency TEXT DEFAULT 'AUD',
-  currency_symbol TEXT DEFAULT '$',
-  date_format TEXT DEFAULT 'DD/MM/YYYY', -- DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD
-  time_format TEXT DEFAULT '12h', -- 12h, 24h
-  
-  -- Timestamps
+  timezone TEXT NOT NULL DEFAULT 'Australia/Brisbane',
+  language TEXT NOT NULL DEFAULT 'en-AU',
+  measurement_system TEXT NOT NULL DEFAULT 'metric' CHECK(measurement_system IN ('metric', 'imperial')),
+  currency TEXT NOT NULL DEFAULT 'AUD',
+  currency_symbol TEXT NOT NULL DEFAULT '$',
+  date_format TEXT NOT NULL DEFAULT 'DD/MM/YYYY',
+  time_format TEXT NOT NULL DEFAULT '12h' CHECK(time_format IN ('12h', '24h')),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_tenant_settings_tenant_id ON tenant_settings(tenant_id);
-
--- Insert default tenant settings for existing tenant
+-- Insert default tenant settings
 INSERT OR IGNORE INTO tenant_settings (
   tenant_id,
   business_name,
@@ -44,9 +34,9 @@ INSERT OR IGNORE INTO tenant_settings (
   date_format,
   time_format
 ) VALUES (
-  'test-tenant-dtf',
-  'Direct To Film Australia',
-  'support@directtofilm.com.au',
+  'default',
+  'Amazing Transfers',
+  'support@amazingtransfers.com.au',
   'Australia/Brisbane',
   'en-AU',
   'metric',
@@ -56,11 +46,32 @@ INSERT OR IGNORE INTO tenant_settings (
   '12h'
 );
 
--- Trigger to update updated_at timestamp
-CREATE TRIGGER IF NOT EXISTS update_tenant_settings_updated_at
+-- Agent Regional Overrides (NULL = inherit from tenant)
+CREATE TABLE IF NOT EXISTS agent_regional_overrides (
+  agent_id TEXT PRIMARY KEY,
+  timezone TEXT,
+  language TEXT,
+  measurement_system TEXT,
+  currency TEXT,
+  currency_symbol TEXT,
+  date_format TEXT,
+  time_format TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Trigger to update tenant_settings.updated_at
+CREATE TRIGGER IF NOT EXISTS update_tenant_settings_timestamp
 AFTER UPDATE ON tenant_settings
 FOR EACH ROW
 BEGIN
-  UPDATE tenant_settings SET updated_at = datetime('now') WHERE tenant_id = NEW.tenant_id;
+  UPDATE tenant_settings SET updated_at = datetime('now') WHERE tenant_id = OLD.tenant_id;
 END;
 
+-- Trigger to update agent_regional_overrides.updated_at
+CREATE TRIGGER IF NOT EXISTS update_agent_overrides_timestamp
+AFTER UPDATE ON agent_regional_overrides
+FOR EACH ROW
+BEGIN
+  UPDATE agent_regional_overrides SET updated_at = datetime('now') WHERE agent_id = OLD.agent_id;
+END;

@@ -23,6 +23,7 @@ import * as chatController from '../controllers/chat';
 import * as chatMessagesController from '../controllers/chat-messages';
 import * as aiAgentController from '../controllers/ai-agent';
 import * as tenantSettingsController from '../controllers/tenant-settings';
+import * as autoAssignmentController from '../controllers/auto-assignment';
 
 /**
  * Create API router
@@ -137,6 +138,7 @@ export function createAPIRouter() {
   app.post('/api/chat/conversation/:id/reply', authenticate, chatMessagesController.staffReply);
   app.post('/api/chat/conversation/:id/pickup', authenticate, chatMessagesController.pickupFromQueue);
   app.post('/api/chat/conversation/:id/close', authenticate, chatMessagesController.closeConversation);
+  app.post('/api/chat/conversation/:id/reassign', authenticate, chatMessagesController.reassignConversation);
 
   // ========================================================================
   // ANALYTICS ROUTES
@@ -194,6 +196,17 @@ export function createAPIRouter() {
   app.post('/api/v2/test/full-flow', emailTestController.testFullEmailFlow);
   app.get('/api/v2/test/conversations', emailTestController.listTestConversations);
   app.post('/api/v2/test/cleanup', emailTestController.cleanupTestData);
+
+  // ========================================================================
+  // AUTO-ASSIGNMENT ROUTES
+  // ========================================================================
+
+  app.get('/api/auto-assignment/config', authenticate, requireAdmin, autoAssignmentController.getConfig);
+  app.put('/api/auto-assignment/config', authenticate, requireAdmin, autoAssignmentController.updateConfig);
+  app.post('/api/auto-assignment/run', authenticate, requireAdmin, autoAssignmentController.runNow);
+  app.get('/api/auto-assignment/history', authenticate, requireAdmin, autoAssignmentController.getHistory);
+  app.get('/api/auto-assignment/staff/:staffId', authenticate, autoAssignmentController.getStaffSettings);
+  app.put('/api/auto-assignment/staff/:staffId', authenticate, autoAssignmentController.updateStaffSettings);
 
   return app;
 }

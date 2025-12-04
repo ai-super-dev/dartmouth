@@ -32,22 +32,22 @@ export interface TenantSettings {
 const LANGUAGE_SETTINGS: Record<string, { spellings: string[]; greetings: string[]; terminology: Record<string, string> }> = {
   'en-AU': {
     spellings: ['colour', 'metre', 'organisation', 'favour', 'centre', 'analyse', 'catalogue', 'programme'],
-    greetings: ["G'day", 'Cheers', 'No worries', 'Mate', 'Thanks heaps'],
+    greetings: ["G'day", 'Hi there', 'Hello'],
     terminology: { shipping: 'postage', inquiry: 'enquiry', while: 'whilst' }
   },
   'en-GB': {
     spellings: ['colour', 'metre', 'organisation', 'favour', 'centre', 'analyse', 'catalogue', 'programme'],
-    greetings: ['Hello', 'Cheers', 'Kind regards', 'Best wishes'],
+    greetings: ['Hello', 'Hi there', 'Good day'],
     terminology: { shipping: 'postage', inquiry: 'enquiry' }
   },
   'en-US': {
     spellings: ['color', 'meter', 'organization', 'favor', 'center', 'analyze', 'catalog', 'program'],
-    greetings: ['Hi', 'Hello', 'Thanks', 'Best regards'],
+    greetings: ['Hi', 'Hello', 'Hey there'],
     terminology: {}
   },
   'en-CA': {
     spellings: ['colour', 'metre', 'organization', 'favour', 'centre', 'analyze', 'catalogue', 'program'],
-    greetings: ['Hello', 'Thanks', 'Cheers', 'Best regards'],
+    greetings: ['Hello', 'Hi there', 'Hey'],
     terminology: {}
   }
 };
@@ -111,7 +111,9 @@ const DEFAULT_SYSTEM_MESSAGE: SystemMessageConfig = {
 - Don't promise things you can't guarantee
 - Never argue with customers
 - Don't share internal business information
-- Don't use American spelling (use colour not color)`,
+- Don't use American spelling (use colour not color)
+- NEVER add sign-offs like "Cheers", "Best regards", "Thanks" at the end of chat messages - this is a live chat, not email
+- Don't end every message with a closing - just answer the question naturally`,
   tone: `Professional yet friendly. Think of a knowledgeable colleague who genuinely wants to help. Not robotic, but not overly casual either. Match the customer's energy level.`,
   custom_instructions: ``,
 };

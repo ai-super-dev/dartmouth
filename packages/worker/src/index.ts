@@ -11,6 +11,7 @@ import { createAPIRouter } from './routes/api';
 import { handleEmailPolling } from './workers/email-poller';
 import { sendScheduledMessages } from './workers/scheduled-message-sender';
 import { checkSnoozeExpiry } from './workers/snooze-expiry-checker';
+import { runAutoAssignment } from './workers/auto-assignment-job';
 import { handleInboundEmail, type EmailMessage } from './services/EmailHandler';
 import type { Env } from './types/shared';
 import type { Env as DartmouthEnv } from '../../dartmouth-core/src/types';
@@ -244,6 +245,9 @@ export default {
       
       // Check for expired snoozes in background
       ctx.waitUntil(checkSnoozeExpiry(env));
+      
+      // Run auto-assignment job in background
+      ctx.waitUntil(runAutoAssignment(env));
     } catch (error) {
       console.error('[Scheduled] Error in scheduled jobs:', error);
     }

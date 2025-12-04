@@ -600,17 +600,133 @@ Settings (sidebar)
 
 ---
 
+### 23. EMAIL AUTO-ASSIGNMENT SYSTEM (Hybrid with Smart Caps)
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Admin Configuration | Enable/disable, max tickets, refill threshold |
+| Round-Robin Assignment | Staff with lowest count gets next ticket |
+| Smart Caps | Prevents overloading any single staff member |
+| Priority Ordering | High priority first, oldest first, newest first |
+| Business Hours Awareness | Only assign during business hours (optional) |
+| Per-Staff Opt-Out | Individual staff can opt out |
+| Manual Trigger | Admin can run assignment on demand |
+| Audit Log | Full history of all auto-assignments |
+| Cron Integration | Runs automatically with scheduled tasks |
+
+**Files Created:**
+- `packages/worker/src/services/AutoAssignmentService.ts`
+- `packages/worker/src/controllers/auto-assignment.ts`
+- `packages/worker/src/workers/auto-assignment-job.ts`
+- `packages/customer-service-dashboard/src/pages/AutoAssignmentSettingsPage.tsx`
+
+**Database Tables:**
+- `auto_assignment_config`
+- `auto_assignment_log`
+- `staff_users.auto_assignment_opt_out` (column)
+
+---
+
+### 24. NAVIGATION & UI OVERHAUL
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Collapsed Icon Behavior | Click icon opens nav AND navigates |
+| Settings Hub Page | Central page with all settings options |
+| New Top-Level Items | Tickets, AI Chat, Group Chat, Staff, Customers, Analytics, Settings |
+| Nested Settings Submenus | Business, Templates, AI Agent sections |
+| "All Tickets" Highlight Fix | Only highlights when no query params |
+
+**Files Created:**
+- `packages/customer-service-dashboard/src/pages/SettingsHubPage.tsx`
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/components/layout/Sidebar.tsx` (major refactor)
+- `packages/customer-service-dashboard/src/App.tsx`
+
+---
+
+### 25. CHAT REASSIGNMENT FEATURE
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Reassign Button | In chat header when conversation selected |
+| Staff Selection | Choose from available staff |
+| Back to AI Option | Reassign conversation back to AI |
+| Reason Field | Optional reason for reassignment |
+| System Message | Chat shows reassignment notification |
+| Ticket Sync | Main ticket also updated with new assignment |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/ChatDashboardPage.tsx`
+- `packages/worker/src/controllers/chat-messages.ts`
+
+---
+
+### 26. CHAT STATUS MODEL OVERHAUL
+
+**Added:** December 5, 2025
+
+**New Status Model:**
+| Status | Description |
+|--------|-------------|
+| `ai_handling` | AI is actively responding |
+| `queued` | Waiting for staff pickup |
+| `assigned` | Assigned to staff, not yet picked up |
+| `staff_handling` | Staff actively responding |
+| `closed` | Conversation ended |
+
+**Resolution Types:**
+- `ai_resolved` - AI successfully resolved
+- `staff_resolved` - Staff successfully resolved
+- `inactive_closed` - Closed due to inactivity
+- `abandoned` - Customer left without resolution
+
+**Files Modified:**
+- `packages/worker/src/controllers/chat-messages.ts`
+- `packages/worker/migrations/0029_add_queued_status.sql`
+- `packages/worker/migrations/0030_chat_status_model.sql`
+
+---
+
+### 27. TICKET-CHAT STATUS SYNCHRONIZATION
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Bidirectional Sync | Chat status changes update ticket status |
+| Assignment Sync | Chat assignment updates ticket assignment |
+| Close Sync | Closing chat closes ticket |
+| Resolve Sync | Resolving chat resolves ticket |
+
+**Files Modified:**
+- `packages/worker/src/controllers/chat-messages.ts`
+
+---
+
 ## 📊 SUMMARY STATISTICS
 
 | Category | Count |
 |----------|-------|
-| **Major New Features** | 22 |
-| **New Database Tables** | 9 (including tenant_settings) |
-| **New Database Columns** | 20+ |
-| **New Frontend Pages** | 13+ |
-| **New Backend Controllers** | 5+ |
-| **New Services** | 3+ |
+| **Major New Features** | 27 |
+| **New Database Tables** | 11 (including auto_assignment tables) |
+| **New Database Columns** | 25+ |
+| **New Frontend Pages** | 15+ |
+| **New Backend Controllers** | 6+ |
+| **New Services** | 4+ |
 | **New Packages** | 1 (chat-widget) |
+| **Database Migrations** | 31 |
 
 ---
 
@@ -623,7 +739,7 @@ These are documented for future implementation:
 | **Multi-Tenant Regional Settings** | 🔴 Critical | To Build | Tenant + Agent level settings for SaaS |
 | Vector Embeddings | High | Pending | Semantic search for RAG |
 | Pattern Extraction | Medium | Pending | Learn from staff edits |
-| Queue Auto-Assign | Medium | Pending | Round-robin for chat |
+| Queue Auto-Assign (Chat) | Medium | Pending | 5min timeout, round-robin |
 | AI Resolution Detection | Low | Pending | Auto-close on "thank you" |
 | Post-Chat Survey | Medium | Pending | Thumbs up/down in widget |
 | Chat Analytics | Medium | Pending | Add chat metrics to Analytics Dashboard |
@@ -631,25 +747,31 @@ These are documented for future implementation:
 | WhatsApp Integration | Medium | Pending | Multi-channel support |
 | Instagram DM Integration | Medium | Pending | Multi-channel support |
 | Facebook Messenger Integration | Medium | Pending | Multi-channel support |
+| Responsive Design | Medium | Pending | Mobile-friendly UI |
+| Typing Indicator | Low | Pending | 3 dancing balls in chat |
+| Staff Performance Analytics | Medium | Pending | Detailed staff reports |
 
 ---
 
 ## 📁 FILE INVENTORY
 
-### New Files Created (Dec 2-4, 2025)
+### New Files Created (Dec 2-5, 2025)
 
 **Backend (packages/worker/src/):**
 ```
 controllers/
   - ai-agent.ts
   - analytics.ts
+  - auto-assignment.ts (NEW Dec 5)
   - chat.ts
   - chat-messages.ts
 
 services/
+  - AutoAssignmentService.ts (NEW Dec 5)
   - KnowledgeService.ts
 
 workers/
+  - auto-assignment-job.ts (NEW Dec 5)
   - scheduled-message-sender.ts
   - snooze-expiry-checker.ts
 
@@ -666,6 +788,9 @@ migrations/
   - 0025_chat_attachments.sql
   - 0026_chat_resolution_tracking.sql
   - 0027_ai_agent_config.sql
+  - 0029_add_queued_status.sql (NEW Dec 5)
+  - 0030_chat_status_model.sql (NEW Dec 5)
+  - 0031_auto_assignment_settings.sql (NEW Dec 5)
 ```
 
 **Frontend (packages/customer-service-dashboard/src/):**
@@ -675,10 +800,12 @@ pages/
   - AIAgentKnowledgePage.tsx
   - AIAgentSystemMessagePage.tsx
   - AIAgentWidgetPage.tsx
+  - AutoAssignmentSettingsPage.tsx (NEW Dec 5)
   - BusinessHoursPage.tsx
   - ChatDashboardPage.tsx
   - ChatEmbedCodePage.tsx
   - ChatWidgetSettingsPage.tsx
+  - SettingsHubPage.tsx (NEW Dec 5)
   - StaffPage.tsx
   - StaffPerformancePage.tsx
 
@@ -702,8 +829,8 @@ components/
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 4, 2025  
+**Document Version:** 2.0  
+**Last Updated:** December 5, 2025 (Afternoon)  
 **Author:** AI Assistant  
 
 ---

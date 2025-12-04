@@ -9,7 +9,8 @@ interface ChatConversation {
   ticket_id: string;
   customer_name: string;
   customer_email: string;
-  status: 'open' | 'in-progress' | 'closed' | 'escalated' | 'queued';
+  // New status model: ai_handling, queued, assigned, staff_handling, closed
+  status: 'ai_handling' | 'queued' | 'assigned' | 'staff_handling' | 'closed';
   assigned_to: string | null;
   assigned_staff_first_name: string | null;
   assigned_staff_last_name: string | null;
@@ -19,7 +20,7 @@ interface ChatConversation {
   last_message: string;
   priority?: string;
   sentiment?: string;
-  resolution_type?: 'ai_resolved' | 'staff_resolved' | 'inactive_closed';
+  resolution_type?: 'ai_resolved' | 'staff_resolved' | 'inactive_closed' | 'abandoned';
   queue_entered_at?: string;
 }
 
@@ -60,6 +61,14 @@ const chatApi = {
     const response = await api.post(`/api/chat/conversation/${id}/pickup`);
     return response.data;
   },
+  reassignConversation: async (id: string, assignTo: string, reason?: string) => {
+    const response = await api.post(`/api/chat/conversation/${id}/reassign`, { assignTo, reason });
+    return response.data;
+  },
+  getStaffList: async () => {
+    const response = await api.get('/api/staff');
+    return response.data;
+  },
 };
 
 // Tab configuration
@@ -70,6 +79,13 @@ const tabs: { key: TabType; label: string; icon: React.ReactNode; description: s
   { key: 'closed', label: 'Closed', icon: <Archive className="w-4 h-4" />, description: 'Resolved & inactive' },
 ];
 
+interface StaffMember {
+  id: string;
+  first_name: string;
+  last_name: string;
+  availability_status: string;
+}
+
 export default function ChatDashboardPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -77,6 +93,9 @@ export default function ChatDashboardPage() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignTo, setReassignTo] = useState<string>('');
+  const [reassignReason, setReassignReason] = useState('');
 
   // Check for conversation or ticket param in URL (from ticket list click)
   useEffect(() => {
@@ -98,12 +117,14 @@ export default function ChatDashboardPage() {
             const conv = res.data.conversation;
             if (conv.status === 'closed' || conv.resolution_type) {
               setActiveTab('closed');
-            } else if (conv.status === 'queued' || conv.status === 'escalated') {
+            } else if (conv.status === 'queued') {
               setActiveTab('queued');
-            } else if (conv.assigned_to === 'ai-agent-001') {
+            } else if (conv.status === 'ai_handling') {
               setActiveTab('ai');
-            } else {
+            } else if (conv.status === 'assigned' || conv.status === 'staff_handling') {
               setActiveTab('staff');
+            } else {
+              setActiveTab('ai'); // Default to AI tab
             }
           }
         })
@@ -191,6 +212,28 @@ export default function ChatDashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['chat-tab-counts'] });
     },
   });
+
+  // Reassign mutation
+  const reassignMutation = useMutation({
+    mutationFn: ({ id, assignTo, reason }: { id: string; assignTo: string; reason?: string }) => 
+      chatApi.reassignConversation(id, assignTo, reason),
+    onSuccess: () => {
+      setShowReassignModal(false);
+      setReassignTo('');
+      setReassignReason('');
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['chat-conversation'] });
+      queryClient.invalidateQueries({ queryKey: ['chat-tab-counts'] });
+    },
+  });
+
+  // Fetch staff list for reassignment
+  const { data: staffData } = useQuery({
+    queryKey: ['staff-list'],
+    queryFn: () => chatApi.getStaffList(),
+    enabled: showReassignModal,
+  });
+  const staffList: StaffMember[] = staffData?.staff || [];
 
   const conversations: ChatConversation[] = conversationsData?.conversations || [];
   const messages: ChatMessage[] = conversationData?.messages || [];
@@ -436,6 +479,17 @@ export default function ChatDashboardPage() {
                   </button>
                 )}
                 
+                {/* Staff tab - Reassign button */}
+                {activeTab === 'staff' && currentConversation?.status !== 'closed' && (
+                  <button
+                    onClick={() => setShowReassignModal(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Reassign
+                  </button>
+                )}
+                
                 {/* Close button (for AI and Staff tabs) */}
                 {(activeTab === 'ai' || activeTab === 'staff') && currentConversation?.status !== 'closed' && (
                   <button
@@ -449,10 +503,10 @@ export default function ChatDashboardPage() {
               </div>
             </div>
 
-            {/* Messages - Threaded style like email */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col-reverse">
+            {/* Messages - Threaded style, newest at top */}
+            <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-4">
-                {messages.map((msg) => {
+                {[...messages].reverse().map((msg) => {
                   const isCustomer = msg.sender_type === 'customer';
                   const isSystem = msg.sender_type === 'system';
                   const isAI = msg.sender_type === 'ai';
@@ -577,6 +631,80 @@ export default function ChatDashboardPage() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Chat Modal */}
+      {showReassignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-96">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Reassign Chat</h3>
+            <p className="text-sm text-gray-600 mb-4">Transfer this conversation to another team member or back to AI.</p>
+            
+            <div className="space-y-4">
+              {/* Assign to dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign to</label>
+                <select
+                  value={reassignTo}
+                  onChange={(e) => setReassignTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select...</option>
+                  <option value="ai-agent-001">🤖 McCarthy AI</option>
+                  {staffList
+                    .filter(s => s.id !== 'ai-agent-001')
+                    .map(staff => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.first_name} {staff.last_name}
+                        {staff.availability_status === 'online' ? ' 🟢' : staff.availability_status === 'away' ? ' 🟡' : ' 🔴'}
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              {/* Reason (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+                <textarea
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                  placeholder="e.g., Sales inquiry, needs technical support..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowReassignModal(false);
+                  setReassignTo('');
+                  setReassignReason('');
+                }}
+                className="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (reassignTo && selectedConversation) {
+                    reassignMutation.mutate({
+                      id: selectedConversation,
+                      assignTo: reassignTo,
+                      reason: reassignReason || undefined
+                    });
+                  }
+                }}
+                disabled={!reassignTo || reassignMutation.isPending}
+                className="flex-1 px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {reassignMutation.isPending ? 'Reassigning...' : 'Reassign'}
+              </button>
+            </div>
           </div>
         </div>
       )}

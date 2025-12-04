@@ -1,8 +1,8 @@
 # 🌐 MCCARTHY AI DARTMOUTH OS - MASTER API ARCHITECTURE
 
-**Version:** 2.0  
-**Date:** December 2, 2025  
-**Status:** Active Development  
+**Version:** 2.1  
+**Date:** December 5, 2025  
+**Status:** Active Development - 94% Complete  
 **Document Type:** Unified API Specification
 
 ---
@@ -1802,16 +1802,39 @@ X-API-Replacement: /api/v3/tickets
 | **Auth** | ✅ Complete | 100% |
 | **Core Platform** | ✅ Complete | 100% |
 | **McCarthy Artwork Agent** | ✅ Complete | 100% |
-| **Customer Service Agent** | ✅ Built, Not Integrated | 100% (code) |
+| **Customer Service Agent** | ✅ Complete & Integrated | 100% |
 | **Sales Agent** | ❌ Not Built | 0% |
 | **PA Agent** | 🚧 In Development | 20% |
 | **PerfectPrint AI** | 🚧 In Development | 5% |
-| **Customer Service APIs** | ✅ Complete | 98% |
-| **AI Draft Responses** | ❌ Not Built | 0% |
+| **Customer Service APIs** | ✅ Complete | 100% |
+| **AI Draft Responses** | ✅ Complete | 100% |
+| **Live Chat APIs** | ✅ Complete | 100% |
+| **Auto-Assignment APIs** | ✅ Complete | 100% |
+| **RAG Knowledge APIs** | ✅ Complete | 100% |
+| **System Message APIs** | ✅ Complete | 100% |
 | **Shopify Integration** | ❌ Not Built | 0% |
 | **PERP Integration** | ❌ Not Built | 0% |
-| **Admin APIs** | 🟡 Partial | 50% |
+| **Admin APIs** | 🟡 Partial | 70% |
 | **WebSocket** | ❌ Not Built | 0% |
+
+### New APIs Added (Dec 4-5, 2025)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat/conversations` | GET | List chat conversations by tab |
+| `/api/chat/conversations/:id/takeover` | POST | Staff takes over from AI |
+| `/api/chat/conversations/:id/pickup` | POST | Staff picks up from queue |
+| `/api/chat/conversations/:id/close` | POST | Close conversation |
+| `/api/chat/conversations/:id/reassign` | POST | Reassign to staff/AI |
+| `/api/chat/messages` | GET/POST | Get/send chat messages |
+| `/api/auto-assignment/config` | GET/PUT | Auto-assignment settings |
+| `/api/auto-assignment/run` | POST | Manually trigger assignment |
+| `/api/auto-assignment/history` | GET | Assignment audit log |
+| `/api/auto-assignment/staff/:id` | GET/PUT | Per-staff settings |
+| `/api/ai-agent/knowledge` | GET/POST/DELETE | RAG documents |
+| `/api/ai-agent/system-message` | GET/PUT | System message config |
+| `/api/ai-agent/widget-settings` | GET/PUT | Chat widget config |
+| `/api/ai-agent/embed-code` | GET | Get embed script |
 
 ---
 
@@ -1852,8 +1875,9 @@ After reviewing the PA Agent API, **no critical design flaws were found**. The A
 
 ---
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Created:** December 2, 2025  
+**Last Updated:** December 5, 2025  
 **Author:** AI Assistant  
 **Status:** Living Document
 

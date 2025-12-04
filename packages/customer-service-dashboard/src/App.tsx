@@ -5,7 +5,7 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import TicketsPage from './pages/TicketsPage'
 import TicketDetailPage from './pages/TicketDetailPage'
 import MentionsPage from './pages/MentionsPage'
-import SettingsPage from './pages/SettingsPage'
+// import SettingsPage from './pages/SettingsPage' // Replaced by SettingsHubPage
 import AIAgentAnalyticsPage from './pages/AIAgentAnalyticsPage'
 import BusinessHoursPage from './pages/BusinessHoursPage'
 import ChatWidgetSettingsPage from './pages/ChatWidgetSettingsPage'
@@ -18,6 +18,8 @@ import AIAgentKnowledgePage from './pages/AIAgentKnowledgePage'
 import AIAgentSystemMessagePage from './pages/AIAgentSystemMessagePage'
 import DartmouthOSSettingsPage from './pages/DartmouthOSSettingsPage'
 import AgentRegionalOverridesPage from './pages/AgentRegionalOverridesPage'
+import AutoAssignmentSettingsPage from './pages/AutoAssignmentSettingsPage'
+import SettingsHubPage from './pages/SettingsHubPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -42,7 +44,7 @@ function App() {
           <Route path="tickets/:id" element={<TicketDetailPage />} />
           <Route path="mentions" element={<MentionsPage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<SettingsHubPage />} />
           <Route path="settings/business-hours" element={<BusinessHoursPage />} />
           <Route path="settings/chat-widget" element={<ChatWidgetSettingsPage />} />
           <Route path="settings/chat-embed" element={<ChatEmbedCodePage />} />
@@ -53,6 +55,7 @@ function App() {
           <Route path="ai-agent/regional-overrides" element={<AgentRegionalOverridesPage />} />
           {/* Dartmouth OS Settings */}
           <Route path="settings/dartmouth-os" element={<DartmouthOSSettingsPage />} />
+          <Route path="settings/auto-assignment" element={<AutoAssignmentSettingsPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="staff/performance" element={<StaffPerformancePage />} />
           <Route path="chat" element={<ChatDashboardPage />} />
