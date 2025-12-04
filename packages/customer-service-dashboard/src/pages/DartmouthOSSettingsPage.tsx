@@ -36,24 +36,28 @@ interface SettingsOptions {
   timeFormats: { value: string; label: string }[];
 }
 
+// Factory defaults - Australian settings
+const FACTORY_DEFAULTS: TenantSettings = {
+  tenant_id: '',
+  business_name: '',
+  business_email: '',
+  business_phone: '',
+  business_address: '',
+  business_website: '',
+  timezone: 'Australia/Brisbane',
+  language: 'en-AU',
+  measurement_system: 'metric',
+  currency: 'AUD',
+  currency_symbol: '$',
+  date_format: 'DD/MM/YYYY',
+  time_format: '12h'
+};
+
 export default function DartmouthOSSettingsPage() {
   const queryClient = useQueryClient();
-  const [formData, setFormData] = useState<TenantSettings>({
-    tenant_id: '',
-    business_name: '',
-    business_email: '',
-    business_phone: '',
-    business_address: '',
-    business_website: '',
-    timezone: 'Australia/Brisbane',
-    language: 'en-AU',
-    measurement_system: 'metric',
-    currency: 'AUD',
-    currency_symbol: '$',
-    date_format: 'DD/MM/YYYY',
-    time_format: '12h'
-  });
+  const [formData, setFormData] = useState<TenantSettings>(FACTORY_DEFAULTS);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Fetch current settings
   const { data: settings, isLoading: settingsLoading } = useQuery({
@@ -402,14 +406,54 @@ export default function DartmouthOSSettingsPage() {
           </div>
         </div>
 
+        {/* Reset Confirmation Modal */}
+        {showResetConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Reset to Factory Defaults?</h3>
+              <p className="text-gray-600 mb-4">
+                This will reset all settings to the original Australian defaults:
+              </p>
+              <ul className="text-sm text-gray-500 mb-4 space-y-1">
+                <li>• Timezone: Australia/Brisbane</li>
+                <li>• Language: Australian English</li>
+                <li>• Measurement: Metric</li>
+                <li>• Currency: AUD ($)</li>
+                <li>• Date: DD/MM/YYYY</li>
+                <li>• Time: 12-hour</li>
+              </ul>
+              <p className="text-amber-600 text-sm mb-4">
+                ⚠️ Business information will be cleared. You'll need to save after resetting.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setFormData(FACTORY_DEFAULTS);
+                    setShowResetConfirm(false);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Reset to Defaults
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Submit Button */}
         <div className="flex justify-end gap-4">
           <button
             type="button"
-            onClick={() => settings && setFormData(settings)}
-            className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            onClick={() => setShowResetConfirm(true)}
+            className="px-6 py-2 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
           >
-            Reset
+            Reset to Defaults
           </button>
           <button
             type="submit"

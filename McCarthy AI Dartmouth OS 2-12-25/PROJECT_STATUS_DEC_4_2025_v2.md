@@ -1,9 +1,9 @@
 # 📊 MCCARTHY AI DARTMOUTH OS - PROJECT STATUS
 
-**Date:** December 4, 2025 (Late Night Update)  
-**Version:** 3.2  
-**Overall Completion:** 90%  
-**Status:** Active Development - KnowledgeService Implemented, AI Now Uses All Knowledge
+**Date:** December 5, 2025 (Early Morning Update)  
+**Version:** 3.3  
+**Overall Completion:** 92%  
+**Status:** Active Development - UI/UX Improvements Complete, Testing in Progress
 
 ---
 
@@ -76,13 +76,17 @@
 
 ### ✅ Ticket Management (100%)
 - Ticket deletion (soft delete, admin only)
+- **Bulk ticket deletion** (admin only, multi-select)
 - Ticket merging (multi-select, chronological messages)
+- **Merge button on ticket detail page** (same customer only)
 - Merge restricted to same email address
 - Ticket search (by number, customer, email, description)
 - Comma-separated ticket number search
 - 30-minute snooze option
 - Auto-unsnooze when snooze expires (cron job)
 - Bulk ticket reassignment
+- **Threaded email message view** (matches chat dashboard style)
+- **Fixed ticket filters** (assignment dropdown, time filter)
 
 ### ✅ Staff Management (100%)
 - Staff list page with cards
@@ -157,6 +161,7 @@
 - ✅ Chat icon for chat-type tickets
 - ✅ Clicking chat ticket opens Chat Dashboard
 - ✅ Conversation auto-selected in correct tab
+- ✅ **Back navigation arrow** (returns to tickets list)
 
 ### 🔜 Pending Components
 
@@ -230,20 +235,22 @@ Tabbed interface:
 ### 🔴 Issues to Fix
 | Issue | Priority | Status |
 |-------|----------|--------|
-| My Tickets filter not working | High | In Progress |
+| ~~My Tickets filter not working~~ | High | ✅ FIXED |
+| ~~Snoozed tickets pinned to bottom~~ | Medium | ✅ FIXED |
+| ~~Email messages as speech bubbles~~ | Medium | ✅ FIXED |
 
 ### 🟡 Testing Required
 | Feature | Status |
 |---------|--------|
-| Escalation keywords (human request detection) | Pending |
-| Callback feature (phone number capture, ticket creation) | Pending |
-| System Message configuration (save/load/reset) | Pending |
-| RAG Knowledge (upload, display, delete) | Pending |
-| Ticket filtering (all filters in top bar) | Pending |
-| Email threaded view (full width, chronological) | Pending |
-| Merge tickets - same email only restriction | Pending |
-| Merge option on ticket detail page | Pending |
-| Chat Dashboard tabs (AI, Staff Live, Queued, Closed) | Pending |
+| Escalation keywords (human request detection) | 🧪 User Testing |
+| Callback feature (phone number capture, ticket creation) | 🧪 User Testing |
+| System Message configuration (save/load/reset) | 🧪 User Testing |
+| RAG Knowledge (upload, display, delete) | 🧪 User Testing |
+| Chat Dashboard tabs (AI, Staff Live, Queued, Closed) | 🧪 User Testing |
+| ~~Ticket filtering (all filters in top bar)~~ | ✅ FIXED |
+| ~~Email threaded view (full width, chronological)~~ | ✅ DONE |
+| ~~Merge tickets - same email only restriction~~ | ✅ DONE |
+| ~~Merge option on ticket detail page~~ | ✅ DONE |
 
 ### 🟢 Features to Build
 | Feature | Priority |
@@ -428,7 +435,7 @@ CREATE TABLE ai_system_message_config (
 
 ---
 
-## 📁 KEY FILES MODIFIED (Dec 4 Evening)
+## 📁 KEY FILES MODIFIED (Dec 4-5)
 
 ### Frontend (customer-service-dashboard)
 - `src/pages/AIAgentWidgetPage.tsx` - Combined widget settings + embed code
@@ -437,6 +444,9 @@ CREATE TABLE ai_system_message_config (
 - `src/components/layout/Sidebar.tsx` - AI Agent submenu under Settings
 - `src/lib/api.ts` - RAG and system message API endpoints
 - `src/App.tsx` - New routes for AI Agent pages
+- `src/pages/TicketsPage.tsx` - **Fixed filters, bulk delete, merge validation**
+- `src/pages/TicketDetailPage.tsx` - **Merge button, threaded messages**
+- `src/pages/ChatDashboardPage.tsx` - **Back navigation arrow**
 
 ### Backend (worker)
 - `src/controllers/ai-agent.ts` - RAG & system message endpoints
@@ -452,8 +462,8 @@ CREATE TABLE ai_system_message_config (
 
 ---
 
-**Document Version:** 3.1  
-**Last Updated:** December 4, 2025 (Evening)  
+**Document Version:** 3.3  
+**Last Updated:** December 5, 2025 (Early Morning)  
 **Author:** AI Assistant  
 **Status:** Living Document
 

@@ -71,6 +71,9 @@ export default function TicketDetailPage() {
   const [showInternalNotes, setShowInternalNotes] = useState(false) // Hidden by default
   const [showResponseArea, setShowResponseArea] = useState(false) // Hidden by default
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [mergingTicketId, setMergingTicketId] = useState<string | null>(null)
+  const [isMerging, setIsMerging] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [feedbackAction, setFeedbackAction] = useState<'approve' | 'edit'>('approve')
   const [internalNote, setInternalNote] = useState('')
@@ -307,6 +310,32 @@ export default function TicketDetailPage() {
     } catch (error: any) {
       console.error('Failed to remove snooze:', error)
       alert(`Failed to remove snooze: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    }
+  }
+
+  // Get tickets from the same customer email for merge functionality
+  const sameCustomerTickets = (allTicketsData?.tickets || []).filter((t: any) => 
+    t.customer_email === ticket?.customer_email && 
+    t.ticket_id !== ticket?.ticket_id &&
+    (t.status === 'open' || t.status === 'in-progress' || t.status === 'snoozed')
+  )
+
+  const handleMergeTicket = async () => {
+    if (!ticket || !mergingTicketId) return
+    
+    setIsMerging(true)
+    try {
+      // Current ticket is primary, selected ticket gets merged into it
+      await ticketsApi.merge(ticket.ticket_id, [mergingTicketId])
+      console.log('Tickets merged successfully')
+      setShowMergeModal(false)
+      setMergingTicketId(null)
+      refetch()
+    } catch (error: any) {
+      console.error('Failed to merge tickets:', error)
+      alert(`Failed to merge tickets: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+    } finally {
+      setIsMerging(false)
     }
   }
 
@@ -702,6 +731,19 @@ export default function TicketDetailPage() {
                 </svg>
                 <span>Snooze</span>
               </button>
+              <button 
+                onClick={() => setShowMergeModal(true)}
+                className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                title={sameCustomerTickets.length === 0 ? 'No other tickets from this customer' : `${sameCustomerTickets.length} other ticket(s) from this customer`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Merge</span>
+                {sameCustomerTickets.length > 0 && (
+                  <span className="bg-indigo-100 text-indigo-700 px-1 rounded text-xs">{sameCustomerTickets.length}</span>
+                )}
+              </button>
               {user?.role === 'admin' && (
                 <button 
                   onClick={() => setShowDeleteConfirm(true)}
@@ -825,97 +867,107 @@ export default function TicketDetailPage() {
             </div>
           )}
 
-          {/* Messages */}
-          <div className="p-4 space-y-3 bg-gray-50">
+          {/* Messages - Threaded style like Chat Dashboard */}
+          <div className="p-4 space-y-4 bg-gray-50">
             {/* Initial Message */}
-            <div className="flex justify-start">
-              <div className="max-w-sm rounded-lg p-3 bg-white border border-gray-200">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-xs font-medium">{ticket.customer_name}</span>
-                  <span className="text-xs opacity-60">
-                    {ticket.created_at && typeof ticket.created_at === 'string' 
-                      ? formatDistanceToNow(new Date(ticket.created_at.includes('Z') ? ticket.created_at : ticket.created_at + 'Z'), { addSuffix: true }) 
-                      : ''}
-                  </span>
+            <div className="p-4 rounded-lg bg-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-300">
+                  <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{ticket.description}</p>
+                <span className="font-medium text-sm text-gray-900">{ticket.customer_name}</span>
+                <span className="text-xs text-gray-400">
+                  {ticket.created_at && typeof ticket.created_at === 'string' 
+                    ? formatDistanceToNow(new Date(ticket.created_at.includes('Z') ? ticket.created_at : ticket.created_at + 'Z'), { addSuffix: true }) 
+                    : ''}
+                </span>
               </div>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{ticket.description}</div>
             </div>
 
             {/* Additional Messages */}
-            {messages.map((msg: any) => (
-              <div key={msg.id} className={`flex ${msg.sender_type === 'customer' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-sm rounded-lg p-3 relative ${
-                  msg.sender_type === 'customer' 
-                    ? 'bg-white border border-gray-200' 
-                    : 'bg-indigo-100 border border-indigo-200'
+            {messages.map((msg: any) => {
+              const isCustomer = msg.sender_type === 'customer';
+              const isAI = msg.sender_id === 'ai-agent-001';
+              const wasScheduled = msg.was_scheduled === true || msg.was_scheduled === 1;
+              
+              return (
+                <div key={msg.id} className={`p-4 rounded-lg ${
+                  isCustomer ? 'bg-gray-100' : isAI ? 'bg-purple-50' : 'bg-blue-50'
                 }`}>
-                  {/* Scheduled message indicator - top right */}
-                  {(msg.was_scheduled === true || msg.was_scheduled === 1) && msg.sender_type === 'agent' && (
-                    <div className="absolute top-1 right-1" title="This message was scheduled">
-                      <svg className="w-3.5 h-3.5 text-blue-400 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                      isCustomer ? 'bg-gray-300' : isAI ? 'bg-purple-200' : 'bg-blue-200'
+                    }`}>
+                      {isCustomer ? (
+                        <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      ) : isAI ? (
+                        <svg className="w-3 h-3 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21L12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z"/>
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      )}
                     </div>
-                  )}
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className="text-xs font-medium">
-                      {msg.sender_type === 'customer' 
+                    <span className="font-medium text-sm text-gray-900">
+                      {isCustomer 
                         ? (msg.sender_name || 'Customer')
-                        : (msg.sender_id === 'ai-agent-001' ? msg.sender_name : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'John'))  // Full name for AI, first name for staff
+                        : isAI ? 'McCarthy AI' : (msg.sender_name ? msg.sender_name.split(' ')[0] : 'Staff')
                       }
                     </span>
-                    <span className="text-xs opacity-60">
+                    <span className="text-xs text-gray-400">
                       {msg.created_at && typeof msg.created_at === 'string'
                         ? formatDistanceToNow(new Date(msg.created_at.includes('Z') ? msg.created_at : msg.created_at + 'Z'), { addSuffix: true })
                         : ''}
                     </span>
+                    {wasScheduled && !isCustomer && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-600 text-xs rounded" title="This message was scheduled">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Scheduled
+                      </span>
+                    )}
                   </div>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{msg.content}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Scheduled Messages - Show AFTER all sent messages */}
             {scheduledMessages.map((msg: any) => (
-              <div key={msg.id} className="flex justify-end">
-                <div className="max-w-md rounded-lg p-4 bg-yellow-50 border border-yellow-200">
-                  {/* Header with clickable Scheduled badge */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <button
-                      onClick={() => handleEditScheduledMessage(msg)}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-yellow-100 border border-yellow-300 text-yellow-900 text-xs font-medium rounded hover:bg-yellow-200 transition-colors"
-                      title="Click to edit message and scheduled time"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Scheduled
-                    </button>
+              <div key={msg.id} className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-yellow-200">
+                    <svg className="w-3 h-3 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
-                  
-                  {/* Message Content */}
-                  <p className="text-sm text-gray-900 mb-3 whitespace-pre-wrap">{msg.content}</p>
-                  
-                  {/* Footer with scheduled time */}
-                  <div className="text-xs text-yellow-700">
-                    <div className="font-medium">
-                      Scheduled for: {new Date(msg.scheduled_for).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                    </div>
-                    <div className="text-yellow-700">
-                      By: {msg.first_name} {msg.last_name}
-                    </div>
-                  </div>
+                  <span className="font-medium text-sm text-gray-900">{msg.first_name}</span>
+                  <button
+                    onClick={() => handleEditScheduledMessage(msg)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs font-medium rounded hover:bg-yellow-200 transition-colors"
+                    title="Click to edit message and scheduled time"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Scheduled: {new Date(msg.scheduled_for).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}
+                  </button>
                 </div>
+                <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{msg.content}</div>
               </div>
             ))}
 
@@ -1426,6 +1478,101 @@ export default function TicketDetailPage() {
         onClose={() => setShowFeedbackModal(false)}
         onSubmit={handleSubmitFeedback}
       />
+
+      {/* Merge Tickets Modal */}
+      {showMergeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Merge Tickets</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Select a ticket to merge into <span className="font-medium">{ticket.ticket_number}</span> (primary).
+              <br />
+              <span className="text-xs text-gray-500">Only showing tickets from: {ticket.customer_email}</span>
+            </p>
+            
+            {sameCustomerTickets.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm">No other open tickets from this customer</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                {sameCustomerTickets.map((t: any) => (
+                  <label
+                    key={t.ticket_id}
+                    className={`flex items-start p-3 rounded-lg border cursor-pointer transition-colors ${
+                      mergingTicketId === t.ticket_id 
+                        ? 'border-purple-500 bg-purple-50' 
+                        : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="mergeTicket"
+                      value={t.ticket_id}
+                      checked={mergingTicketId === t.ticket_id}
+                      onChange={() => setMergingTicketId(t.ticket_id)}
+                      className="mt-1 mr-3 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm text-gray-900">{t.ticket_number}</span>
+                        <span className={`px-1.5 py-0.5 text-xs rounded ${
+                          t.status === 'snoozed' ? 'bg-purple-100 text-purple-700' :
+                          t.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {t.status}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 truncate">{t.subject}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <button
+                onClick={() => {
+                  setShowMergeModal(false)
+                  setMergingTicketId(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMergeTicket}
+                disabled={!mergingTicketId || isMerging}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isMerging ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Merging...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Merge into {ticket.ticket_number}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

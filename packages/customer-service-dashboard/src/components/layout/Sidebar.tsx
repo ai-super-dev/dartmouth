@@ -37,6 +37,7 @@ export default function Sidebar({
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false)
   const [isAssignedExpanded, setIsAssignedExpanded] = useState(false)
   const [isAIAgentExpanded, setIsAIAgentExpanded] = useState(false)
+  const [isBusinessExpanded, setIsBusinessExpanded] = useState(false)
 
   const isActive = (path: string) => location.pathname === path
 
@@ -332,21 +333,6 @@ export default function Sidebar({
             Tags
           </Link>
 
-          {/* Business Hours - Direct Link */}
-          <Link
-            to="/settings/business-hours"
-            className={`flex items-center px-3 py-2 mb-2 text-sm rounded-lg transition-colors ${
-              isActive('/settings/business-hours')
-                ? 'bg-indigo-50 text-indigo-700 font-medium'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Business Hours
-          </Link>
-
           {/* Settings Section */}
           <CollapsibleSection
             title="Settings"
@@ -355,6 +341,29 @@ export default function Sidebar({
             onToggle={() => setIsSettingsExpanded(!isSettingsExpanded)}
           >
             <SubNavLink to="/settings/dartmouth-os">Dartmouth OS</SubNavLink>
+            {/* Business nested submenu */}
+            <div className="mb-1">
+              <button
+                onClick={() => setIsBusinessExpanded(!isBusinessExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                  location.pathname.startsWith('/settings/business')
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>Business</span>
+                {isBusinessExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              {isBusinessExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  <SubNavLink to="/settings/business-hours">Operational Hours</SubNavLink>
+                </div>
+              )}
+            </div>
             <SubNavLink to="/settings/auth">Auth & Security</SubNavLink>
             <SubNavLink to="/settings/shopify">Shopify</SubNavLink>
             <SubNavLink to="/settings/perp">PERP Integration</SubNavLink>

@@ -3,8 +3,9 @@ import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ticketsApi } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, X, GitMerge } from 'lucide-react'
+import { Search, X, GitMerge, Trash2 } from 'lucide-react'
 import ReassignModal from '../components/ReassignModal'
+import { useAuthStore } from '../store/authStore'
 // import PlatformSelect from '../components/PlatformSelect'
 
 const statusColors = {
@@ -97,6 +98,7 @@ const staffNames: Record<string, string> = {
 export default function TicketsPage() {
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const { user } = useAuthStore()
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [sortColumn, setSortColumn] = useState<string>('created_at')
@@ -112,6 +114,8 @@ export default function TicketsPage() {
   const [showMergeConfirm, setShowMergeConfirm] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Handle URL params for filtering
   useEffect(() => {
@@ -285,6 +289,47 @@ export default function TicketsPage() {
   if (channelFilter !== 'all') {
     tickets = tickets.filter((t: any) => t.channel === channelFilter)
   }
+  
+  // Apply assignment filter from dropdown (only when NOT using sidebar URL filters)
+  const hasUrlFilter = isOpenFilter || isResolvedFilter || isSnoozedFilter || isVipFilter || 
+                       isMyTicketsFilter || isUnassignedFilter || isAllEscalatedFilter || 
+                       isAllAssignedFilter || isSamFilter || isTedFilter
+  
+  if (!hasUrlFilter && assignmentFilter !== 'all') {
+    if (assignmentFilter === 'vip') {
+      tickets = tickets.filter((t: any) => t.vip === 1)
+    } else if (assignmentFilter === 'unassigned') {
+      tickets = tickets.filter((t: any) => !t.assigned_to || t.assigned_to === null)
+    } else if (assignmentFilter === 'all-assigned') {
+      tickets = tickets.filter((t: any) => t.assigned_to && t.assigned_to !== null)
+    } else if (assignmentFilter === 'all-escalated') {
+      tickets = tickets.filter((t: any) => t.has_escalation === 1)
+    } else {
+      // Filter by specific staff ID
+      tickets = tickets.filter((t: any) => t.assigned_to === assignmentFilter)
+    }
+  }
+  
+  // Apply time filter
+  if (timeFilter !== 'all') {
+    const now = new Date()
+    let cutoffDate: Date
+    
+    if (timeFilter === 'today') {
+      cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    } else if (timeFilter === 'week') {
+      cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    } else if (timeFilter === 'month') {
+      cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    } else {
+      cutoffDate = new Date(0) // All time
+    }
+    
+    tickets = tickets.filter((t: any) => {
+      const ticketDate = new Date(t.created_at)
+      return ticketDate >= cutoffDate
+    })
+  }
 
   // STEP 4: Apply search filter (always applies on top of other filters)
   if (searchQuery.trim()) {
@@ -336,15 +381,7 @@ export default function TicketsPage() {
 
   // Sort tickets based on selected column and direction
   tickets = tickets.sort((a: any, b: any) => {
-    // First priority: Escalated tickets first (unless sorting by a specific column)
-    if (a.has_escalation === 1 && b.has_escalation !== 1) return -1
-    if (a.has_escalation !== 1 && b.has_escalation === 1) return 1
-    
-    // Second priority: Snoozed tickets last
-    if (a.status === 'snoozed' && b.status !== 'snoozed') return 1
-    if (a.status !== 'snoozed' && b.status === 'snoozed') return -1
-    
-    // Third priority: Sort by selected column
+    // Sort by selected column (no special treatment for snoozed - use filters instead)
     let aValue = a[sortColumn]
     let bValue = b[sortColumn]
     
@@ -528,20 +565,32 @@ export default function TicketsPage() {
         )}
 
         {/* Action Bar - Merge/Reassign buttons and selection info */}
-        {(selectedTickets.length > 0) && (
+        {(selectedTickets.length > 0) && (() => {
+          // Check if all selected tickets have the same customer email
+          const selectedTicketData = selectedTickets.map(id => tickets.find((t: any) => t.ticket_id === id)).filter(Boolean)
+          const uniqueEmails = new Set(selectedTicketData.map((t: any) => t?.customer_email))
+          const canMerge = selectedTickets.length >= 2 && uniqueEmails.size === 1
+          
+          return (
           <div className="mt-3 flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2">
             <span className="text-sm font-medium text-indigo-700 mr-2">
               {selectedTickets.length} ticket{selectedTickets.length > 1 ? 's' : ''} selected
             </span>
             
-            {/* Merge Button - shows when 2+ tickets selected */}
+            {/* Merge Button - shows when 2+ tickets selected with SAME email */}
             {selectedTickets.length >= 2 && (
               <button
-                onClick={() => setShowMergeConfirm(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+                onClick={() => canMerge ? setShowMergeConfirm(true) : alert('Can only merge tickets from the same customer email address')}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg ${
+                  canMerge 
+                    ? 'text-white bg-indigo-600 hover:bg-indigo-700' 
+                    : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                }`}
+                title={canMerge ? 'Merge selected tickets' : 'Can only merge tickets from the same customer email'}
               >
                 <GitMerge className="w-4 h-4" />
                 <span>Merge</span>
+                {!canMerge && <span className="text-xs">(different emails)</span>}
               </button>
             )}
 
@@ -556,6 +605,17 @@ export default function TicketsPage() {
               <span>Reassign</span>
             </button>
 
+            {/* Delete Button - Admin only */}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
+              </button>
+            )}
+
             {/* Clear Selection */}
             <button
               onClick={() => setSelectedTickets([])}
@@ -564,7 +624,8 @@ export default function TicketsPage() {
               Clear
             </button>
           </div>
-        )}
+          )
+        })()}
         </div>
       </div>
 
@@ -890,6 +951,79 @@ export default function TicketsPage() {
           }
         })}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Tickets</h3>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <span className="font-semibold">{selectedTickets.length} ticket{selectedTickets.length > 1 ? 's' : ''}</span>?
+            </p>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+              <p className="text-xs text-gray-500 mb-2">Tickets to delete:</p>
+              <ul className="space-y-1">
+                {selectedTickets.map((ticketId) => {
+                  const ticket = tickets.find((t: any) => t.ticket_id === ticketId)
+                  return (
+                    <li key={ticketId} className="flex items-center gap-2 text-sm">
+                      <span className="font-medium text-red-600">{ticket?.ticket_number}</span>
+                      <span className="text-gray-500 truncate">- {ticket?.subject}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-xs text-red-800">
+                <strong>⚠️ Warning:</strong> This action cannot be undone. All selected tickets and their messages will be permanently deleted.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setIsDeleting(true)
+                  try {
+                    // Delete each ticket
+                    for (const ticketId of selectedTickets) {
+                      await ticketsApi.delete(ticketId)
+                    }
+                    setShowBulkDeleteConfirm(false)
+                    setSelectedTickets([])
+                    // Refresh the ticket list
+                    window.location.reload()
+                  } catch (error: any) {
+                    console.error('Failed to delete tickets:', error)
+                    alert(`Failed to delete tickets: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+                  } finally {
+                    setIsDeleting(false)
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : `Delete ${selectedTickets.length} Ticket${selectedTickets.length > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

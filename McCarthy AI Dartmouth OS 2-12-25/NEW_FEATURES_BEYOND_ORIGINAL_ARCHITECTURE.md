@@ -1,7 +1,7 @@
 # 🚀 NEW FEATURES BEYOND ORIGINAL ARCHITECTURE
 
 **Document Created:** December 4, 2025  
-**Last Updated:** December 4, 2025 (Late Night)  
+**Last Updated:** December 5, 2025 (Early Morning)  
 **Purpose:** Document all significant features added during development that were NOT in the original blueprint or build plan
 
 ---
@@ -511,11 +511,100 @@ Settings (sidebar)
 
 ---
 
+### 18. MERGE BUTTON ON TICKET DETAIL PAGE
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Merge Button | Between Snooze and Delete buttons |
+| Same Email Only | Only shows tickets from same customer email |
+| Badge Count | Shows number of mergeable tickets |
+| Radio Selection | Select one ticket to merge |
+| Primary Ticket | Current ticket becomes primary |
+| Modal UI | Shows ticket list with status and subject |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/TicketDetailPage.tsx`
+
+---
+
+### 19. BULK DELETE OPTION
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Delete Button | Red button in action bar |
+| Admin Only | Permission restricted |
+| Confirmation Modal | Shows tickets to be deleted |
+| Warning Message | Cannot be undone |
+| Progress Indicator | Shows "Deleting..." |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
+
+---
+
+### 20. CHAT DASHBOARD BACK NAVIGATION
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Back Arrow | Left of speech bubble icon |
+| Navigate to Tickets | Returns to main ticket list |
+| Hover Effect | Visual feedback |
+| Tooltip | "Back to Tickets" |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/ChatDashboardPage.tsx`
+
+---
+
+### 21. THREADED EMAIL MESSAGE VIEW
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Full Width Blocks | No more speech bubbles |
+| Color Coded | Gray (customer), Purple (AI), Blue (staff) |
+| Avatar Icons | User icons and AI sparkles |
+| Consistent Style | Matches Chat Dashboard |
+| Scheduled Badge | Shows if message was scheduled |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/TicketDetailPage.tsx`
+
+---
+
+### 22. IMPROVED TICKET FILTERING
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Assignment Dropdown | Now works correctly |
+| Time Filter | Today, This Week, This Month |
+| Snoozed Sorting | No longer pinned to bottom |
+| Same Email Merge Validation | Disabled if different emails |
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
+
+---
+
 ## 📊 SUMMARY STATISTICS
 
 | Category | Count |
 |----------|-------|
-| **Major New Features** | 18 |
+| **Major New Features** | 22 |
 | **New Database Tables** | 9 (including tenant_settings) |
 | **New Database Columns** | 20+ |
 | **New Frontend Pages** | 13+ |

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, User, Send, UserPlus, X, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive } from 'lucide-react';
+import { MessageSquare, User, Send, UserPlus, X, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive, ChevronLeft } from 'lucide-react';
 import { api } from '../lib/api';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 interface ChatConversation {
   id: string;
@@ -271,6 +271,13 @@ export default function ChatDashboardPage() {
         {/* Header with Tabs */}
         <div className="px-4 py-3 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
+            <Link 
+              to="/tickets" 
+              className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Back to Tickets"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-500" />
+            </Link>
             <MessageSquare className="w-5 h-5 text-indigo-600" />
             Live Chats
           </h2>

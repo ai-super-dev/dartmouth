@@ -163,7 +163,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.role}
               onChange={(e) => setConfig({ ...config, role: e.target.value })}
-              rows={3}
+              rows={5}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="You are McCarthy AI, a customer service assistant..."
             />
@@ -178,7 +178,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.personality}
               onChange={(e) => setConfig({ ...config, personality: e.target.value })}
-              rows={4}
+              rows={6}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="- Friendly and professional&#10;- Patient and understanding..."
             />
@@ -193,7 +193,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.responsibilities}
               onChange={(e) => setConfig({ ...config, responsibilities: e.target.value })}
-              rows={5}
+              rows={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="- Answer product questions&#10;- Help with orders..."
             />
@@ -208,7 +208,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.dos}
               onChange={(e) => setConfig({ ...config, dos: e.target.value })}
-              rows={5}
+              rows={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="- Always be polite&#10;- Provide accurate information..."
             />
@@ -223,7 +223,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.donts}
               onChange={(e) => setConfig({ ...config, donts: e.target.value })}
-              rows={5}
+              rows={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="- Never make up information&#10;- Don't promise things..."
             />
@@ -238,7 +238,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.tone}
               onChange={(e) => setConfig({ ...config, tone: e.target.value })}
-              rows={3}
+              rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="Professional yet friendly..."
             />
@@ -253,7 +253,7 @@ ${config.custom_instructions}` : ''}
             <textarea
               value={config.custom_instructions}
               onChange={(e) => setConfig({ ...config, custom_instructions: e.target.value })}
-              rows={4}
+              rows={6}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="Add any specific instructions, business rules, or special handling..."
             />
