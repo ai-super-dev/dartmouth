@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useSearchParams, useLocation } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { ticketsApi } from '../lib/api'
+import { ticketsApi, api } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { Search, X, GitMerge, Trash2 } from 'lucide-react'
 import ReassignModal from '../components/ReassignModal'
@@ -21,9 +21,9 @@ const statusColors = {
 const PlatformIcon = ({ platform, className = "w-4 h-4" }: { platform?: string; className?: string }) => {
   switch (platform) {
     case 'chat':
-      // Chat bubble icon
+      // Chat bubble icon with lines - consistent indigo color
       return (
-        <svg className={`${className} text-blue-500`} fill="currentColor" viewBox="0 0 24 24">
+        <svg className={`${className} text-indigo-500`} fill="currentColor" viewBox="0 0 24 24">
           <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
           <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
         </svg>
@@ -93,11 +93,12 @@ const staffNames: Record<string, string> = {
   '00000000-0000-0000-0000-000000000001': 'John Hutchison',
   '00000000-0000-0000-0000-000000000002': 'Ted Smith',
   '00000000-0000-0000-0000-000000000003': 'Sam Johnson',
+  '00000000-0000-0000-0000-000000000004': 'Gaille Hutchison',
+  'ai-agent-001': 'McCarthy AI',
 }
 
 export default function TicketsPage() {
   const [searchParams] = useSearchParams()
-  const location = useLocation()
   const { user } = useAuthStore()
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -117,47 +118,64 @@ export default function TicketsPage() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Handle URL params for filtering
+  // Handle URL params for filtering - sidebar clicks RESET all filters and set only that one
   useEffect(() => {
     const filter = searchParams.get('filter')
     const assigned = searchParams.get('assigned')
     const status = searchParams.get('status')
     
-    // Handle "My Tickets" from sidebar
-    if (filter === 'my') {
-      setAssignmentFilter('00000000-0000-0000-0000-000000000001') // John's ID
-      setVipFilter(false)
-    } else if (filter === 'vip') {
-      setAssignmentFilter('vip')
-      setVipFilter(true)
-    } else if (filter === 'unassigned') {
-      setAssignmentFilter('unassigned')
-      setVipFilter(false)
-    } else if (filter === 'all-escalated') {
-      setAssignmentFilter('all-escalated')
-      setVipFilter(false)
-    } else if (filter === 'all-assigned') {
-      setAssignmentFilter('all-assigned')
-      setVipFilter(false)
-    } else if (assigned === 'ted') {
-      setAssignmentFilter('00000000-0000-0000-0000-000000000002')
-      setVipFilter(false)
-    } else if (assigned === 'sam') {
-      setAssignmentFilter('00000000-0000-0000-0000-000000000003')
-      setVipFilter(false)
-    } else if (assigned) {
-      setAssignmentFilter(assigned)
-      setVipFilter(false)
-    } else if (!filter) {
-      // Reset to 'all' if no filter
+    // Reset ALL filters first when any sidebar item is clicked
+    const resetAllFilters = () => {
+      setStatusFilter('all')
       setAssignmentFilter('all')
+      setPriorityFilter('all')
+      setSentimentFilter('all')
+      setChannelFilter('all')
+      setTimeFilter('all')
       setVipFilter(false)
     }
     
-    if (status) {
-      setStatusFilter(status)
+    // Handle status from sidebar (Open, Snoozed, Resolved)
+    if (status === 'open') {
+      resetAllFilters()
+      setStatusFilter('open-in-progress')
+    } else if (status === 'resolved') {
+      resetAllFilters()
+      setStatusFilter('resolved')
+    } else if (status === 'snoozed') {
+      resetAllFilters()
+      setStatusFilter('snoozed')
     }
-  }, [searchParams])
+    // Handle assignment filters from sidebar
+    else if (filter === 'my') {
+      resetAllFilters()
+      setAssignmentFilter(user?.id || '00000000-0000-0000-0000-000000000001')
+    } else if (filter === 'vip') {
+      resetAllFilters()
+      setVipFilter(true)
+    } else if (filter === 'unassigned') {
+      resetAllFilters()
+      setAssignmentFilter('unassigned')
+    } else if (filter === 'all-escalated') {
+      resetAllFilters()
+      setAssignmentFilter('all-escalated')
+    } else if (filter === 'all-assigned') {
+      resetAllFilters()
+      setAssignmentFilter('all-assigned')
+    } else if (assigned === 'ted') {
+      resetAllFilters()
+      setAssignmentFilter('00000000-0000-0000-0000-000000000002')
+    } else if (assigned === 'sam') {
+      resetAllFilters()
+      setAssignmentFilter('00000000-0000-0000-0000-000000000003')
+    } else if (assigned) {
+      resetAllFilters()
+      setAssignmentFilter(assigned)
+    } else if (!filter && !status && !assigned) {
+      // "All Tickets" clicked - reset everything
+      resetAllFilters()
+    }
+  }, [searchParams, user?.id])
 
   const { data, isLoading } = useQuery({
     queryKey: ['tickets-all'], // Fetch all tickets once, filter client-side
@@ -169,6 +187,17 @@ export default function TicketsPage() {
     refetchInterval: 30000,
   })
 
+  // Fetch staff list for dropdown
+  const { data: staffData } = useQuery({
+    queryKey: ['staff-list'],
+    queryFn: async () => {
+      const response = await api.get('/api/staff')
+      return response.data
+    },
+    staleTime: 60000, // Cache for 1 minute
+  })
+  const staffList: { id: string; first_name: string; last_name: string }[] = staffData?.staff || []
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -179,135 +208,59 @@ export default function TicketsPage() {
 
   let tickets = data || []
   
-  // STEP 1: Apply backend status filter (from API)
-  // This is already filtered by the API if statusFilter is not 'all'
+  // SIMPLE FILTERING: All filters work together, sidebar just sets dropdown values
   
-  // STEP 2: Apply sidebar navigation filters (these override everything else)
-  // Check if we're on a specific sidebar link
-  const isOpenFilter = location.search.includes('status=open')
-  const isResolvedFilter = location.search.includes('status=resolved')
-  const isSnoozedFilter = location.search.includes('status=snoozed')
-  const isVipFilter = location.search.includes('filter=vip')
-  const isMyTicketsFilter = location.search.includes('filter=my')
-  const isUnassignedFilter = location.search.includes('filter=unassigned')
-  const isAllEscalatedFilter = location.search.includes('filter=all-escalated')
-  const isAllAssignedFilter = location.search.includes('filter=all-assigned')
-  const isSamFilter = location.search.includes('assigned=sam') || location.search.includes('assigned=00000000-0000-0000-0000-000000000003')
-  const isTedFilter = location.search.includes('assigned=ted') || location.search.includes('assigned=00000000-0000-0000-0000-000000000002')
-  
-  if (isOpenFilter) {
-    // Open: Assigned, in-progress tickets only
+  // 1. Status filter
+  if (statusFilter === 'open-in-progress') {
     tickets = tickets.filter((t: any) => 
-      (t.status === 'open' || t.status === 'in-progress') && 
-      t.assigned_to && 
-      t.assigned_to !== null
+      t.status === 'open' || t.status === 'in-progress' || t.status === 'pending'
     )
-  } else if (isResolvedFilter) {
-    // Resolved: Only resolved/closed tickets
-    tickets = tickets.filter((t: any) => 
-      t.status === 'resolved' || t.status === 'closed'
-    )
-  } else if (isSnoozedFilter) {
-    // Snoozed: Only snoozed tickets
+  } else if (statusFilter === 'snoozed') {
     tickets = tickets.filter((t: any) => t.status === 'snoozed')
-  } else if (isVipFilter) {
-    // VIP: VIP tickets, exclude resolved
-    tickets = tickets.filter((t: any) => 
-      t.vip === 1 &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-  } else if (isMyTicketsFilter) {
-    // My Tickets: Assigned to current user OR escalated to me, exclude resolved/closed (INCLUDE snoozed)
-    const currentUserId = '00000000-0000-0000-0000-000000000001' // John's ID
-    tickets = tickets.filter((t: any) => 
-      (t.assigned_to === currentUserId || t.is_escalated_to_me === 1) &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-  } else if (isUnassignedFilter) {
-    // Unassigned: No assignment, exclude resolved
-    tickets = tickets.filter((t: any) => 
-      (!t.assigned_to || t.assigned_to === null) &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-  } else if (isAllEscalatedFilter) {
-    // All Escalated: Show all tickets with active escalations (admin/manager only)
-    tickets = tickets.filter((t: any) => t.has_escalation === 1)
-  } else if (isAllAssignedFilter) {
-    // All Assigned: All tickets assigned to any staff (open, in-progress, snoozed - excludes resolved/closed)
-    // Sort with snoozed at the bottom
-    tickets = tickets.filter((t: any) => 
-      t.assigned_to && 
-      t.assigned_to !== null &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-    // Sort: non-snoozed first, then snoozed
-    tickets = tickets.sort((a: any, b: any) => {
-      if (a.status === 'snoozed' && b.status !== 'snoozed') return 1
-      if (a.status !== 'snoozed' && b.status === 'snoozed') return -1
-      return 0
-    })
-  } else if (isSamFilter) {
-    // Sam's tickets: Include open, in-progress, AND snoozed (exclude resolved, closed)
-    console.log('Sam filter - all tickets:', tickets.map((t: any) => ({ id: t.ticket_number, assigned: t.assigned_to, status: t.status })))
-    tickets = tickets.filter((t: any) => 
-      t.assigned_to === '00000000-0000-0000-0000-000000000003' &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-    console.log('Sam filter - filtered tickets:', tickets.length)
-  } else if (isTedFilter) {
-    // Ted's tickets: Include open, in-progress, AND snoozed (exclude resolved, closed)
-    console.log('Ted filter - all tickets:', tickets.map((t: any) => ({ id: t.ticket_number, assigned: t.assigned_to, status: t.status })))
-    tickets = tickets.filter((t: any) => 
-      t.assigned_to === '00000000-0000-0000-0000-000000000002' &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    )
-    console.log('Ted filter - filtered tickets:', tickets.length)
+  } else if (statusFilter === 'resolved') {
+    tickets = tickets.filter((t: any) => t.status === 'resolved' || t.status === 'closed')
   } else {
-    // All Tickets (default): Exclude resolved/closed
-    tickets = tickets.filter((t: any) => 
-      t.status !== 'resolved' && 
-      t.status !== 'closed'
-    )
+    // 'all' - exclude resolved/closed by default for cleaner view
+    tickets = tickets.filter((t: any) => t.status !== 'resolved' && t.status !== 'closed')
   }
   
-  // STEP 3: Apply top filter bar filters (always apply these)
-  if (statusFilter !== 'all') {
-    tickets = tickets.filter((t: any) => t.status === statusFilter)
-  }
-  if (priorityFilter !== 'all') {
-    tickets = tickets.filter((t: any) => t.priority === priorityFilter)
-  }
-  if (sentimentFilter !== 'all') {
-    tickets = tickets.filter((t: any) => t.sentiment === sentimentFilter)
-  }
-  if (channelFilter !== 'all') {
-    tickets = tickets.filter((t: any) => t.channel === channelFilter)
-  }
-  
-  // Apply assignment filter from dropdown (only when NOT using sidebar URL filters)
-  const hasUrlFilter = isOpenFilter || isResolvedFilter || isSnoozedFilter || isVipFilter || 
-                       isMyTicketsFilter || isUnassignedFilter || isAllEscalatedFilter || 
-                       isAllAssignedFilter || isSamFilter || isTedFilter
-  
-  if (!hasUrlFilter && assignmentFilter !== 'all') {
-    if (assignmentFilter === 'vip') {
-      tickets = tickets.filter((t: any) => t.vip === 1)
-    } else if (assignmentFilter === 'unassigned') {
+  // 2. Assignment filter
+  if (assignmentFilter !== 'all') {
+    if (assignmentFilter === 'unassigned') {
       tickets = tickets.filter((t: any) => !t.assigned_to || t.assigned_to === null)
     } else if (assignmentFilter === 'all-assigned') {
       tickets = tickets.filter((t: any) => t.assigned_to && t.assigned_to !== null)
     } else if (assignmentFilter === 'all-escalated') {
       tickets = tickets.filter((t: any) => t.has_escalation === 1)
+    } else if (assignmentFilter === 'resolved') {
+      // Override status filter for resolved view from dropdown
+      tickets = (data || []).filter((t: any) => t.status === 'resolved' || t.status === 'closed')
     } else {
-      // Filter by specific staff ID
-      tickets = tickets.filter((t: any) => t.assigned_to === assignmentFilter)
+      // Filter by specific staff ID (including ai-agent-001 for McCarthy AI, or current user)
+      tickets = tickets.filter((t: any) => 
+        t.assigned_to === assignmentFilter || t.is_escalated_to_me === 1
+      )
     }
+  }
+  
+  // 3. VIP filter
+  if (vipFilter) {
+    tickets = tickets.filter((t: any) => t.vip === 1)
+  }
+  
+  // 4. Priority filter
+  if (priorityFilter !== 'all') {
+    tickets = tickets.filter((t: any) => t.priority === priorityFilter)
+  }
+  
+  // 5. Sentiment filter
+  if (sentimentFilter !== 'all') {
+    tickets = tickets.filter((t: any) => t.sentiment === sentimentFilter)
+  }
+  
+  // 6. Channel/Platform filter
+  if (channelFilter !== 'all') {
+    tickets = tickets.filter((t: any) => t.channel === channelFilter)
   }
   
   // Apply time filter
@@ -410,15 +363,25 @@ export default function TicketsPage() {
 
   // Get queue title based on current filter
   const getQueueTitle = () => {
-    if (isMyTicketsFilter) return 'My Tickets'
-    if (isOpenFilter) return 'Open'
-    if (isUnassignedFilter) return 'Unassigned'
-    if (isAllEscalatedFilter) return '⚠️ All Escalated Tickets'
-    if (isSnoozedFilter) return 'Snoozed'
-    if (isVipFilter) return 'VIP'
-    if (isResolvedFilter) return 'Resolved'
-    if (isSamFilter) return 'Sam Johnson'
-    if (isTedFilter) return 'Ted Smith'
+    // Check assignment filter first
+    if (assignmentFilter === user?.id) return 'My Tickets'
+    if (assignmentFilter === 'unassigned') return 'Unassigned'
+    if (assignmentFilter === 'all-escalated') return '⚠️ All Escalated Tickets'
+    if (assignmentFilter === 'all-assigned') return 'All Assigned'
+    if (assignmentFilter === 'ai-agent-001') return 'McCarthy AI'
+    
+    // Check if it's a staff member
+    const staffMember = staffList.find(s => s.id === assignmentFilter)
+    if (staffMember) return `${staffMember.first_name} ${staffMember.last_name}`
+    
+    // Check status filter
+    if (statusFilter === 'snoozed') return 'Snoozed'
+    if (statusFilter === 'resolved') return 'Resolved'
+    if (statusFilter === 'open-in-progress') return 'Open (in-progress)'
+    
+    // Check VIP filter
+    if (vipFilter) return 'VIP'
+    
     return 'All Tickets'
   }
 
@@ -447,13 +410,42 @@ export default function TicketsPage() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters - Order: All Tickets, All Platforms, All Statuses, All Priorities, All Sentiments, All Time */}
         <div className="mt-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        
+        {/* 1. All Tickets (Assignment Filter) */}
+        <select 
+          value={assignmentFilter}
+          onChange={(e) => {
+            const value = e.target.value
+            setAssignmentFilter(value)
+            setVipFilter(value === 'vip')
+          }}
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
+        >
+          <option value="all">All Tickets</option>
+          <option value={user?.id || ''}>My Tickets</option>
+          {/* Dynamic staff list */}
+          {staffList
+            .filter(staff => staff.id !== 'ai-agent-001' && staff.id !== user?.id)
+            .map(staff => (
+              <option key={staff.id} value={staff.id}>
+                {staff.first_name} {staff.last_name}
+              </option>
+            ))
+          }
+          <option value="ai-agent-001">McCarthy AI</option>
+          <option value="all-assigned">Assigned All</option>
+          <option value="unassigned">Unassigned</option>
+          <option value="resolved">Resolved</option>
+        </select>
+
+        {/* 2. All Platforms */}
         <select
           value={channelFilter}
           onChange={(e) => setChannelFilter(e.target.value)}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
         >
           <option value="all">All Platforms</option>
           <option value="email">📧 Email</option>
@@ -464,22 +456,23 @@ export default function TicketsPage() {
           <option value="phone">📞 Phone</option>
         </select>
 
+        {/* 3. All Statuses */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
         >
           <option value="all">All Statuses</option>
-          <option value="open">Open</option>
-          <option value="in-progress">In Progress</option>
+          <option value="open-in-progress">Open (in-progress)</option>
           <option value="snoozed">Snoozed</option>
           <option value="resolved">Resolved</option>
         </select>
 
+        {/* 4. All Priorities */}
         <select
           value={priorityFilter}
           onChange={(e) => setPriorityFilter(e.target.value)}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
         >
           <option value="all">All Priorities</option>
           <option value="low">Low</option>
@@ -489,10 +482,11 @@ export default function TicketsPage() {
           <option value="critical">Critical</option>
         </select>
 
+        {/* 5. All Sentiments */}
         <select
           value={sentimentFilter}
           onChange={(e) => setSentimentFilter(e.target.value)}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
         >
           <option value="all">All Sentiments</option>
           <option value="positive">😊 Positive</option>
@@ -501,27 +495,11 @@ export default function TicketsPage() {
           <option value="angry">😡 Angry</option>
         </select>
 
-        <select 
-          value={assignmentFilter}
-          onChange={(e) => {
-            const value = e.target.value
-            setAssignmentFilter(value)
-            setVipFilter(value === 'vip')
-          }}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
-        >
-          <option value="all">All Tickets</option>
-          <option value="00000000-0000-0000-0000-000000000001">My Tickets</option>
-          <option value="vip">VIP Tickets</option>
-          <option value="00000000-0000-0000-0000-000000000003">Sam Johnson</option>
-          <option value="00000000-0000-0000-0000-000000000002">Ted Smith</option>
-          <option value="unassigned">Unassigned</option>
-        </select>
-
+        {/* 6. All Time */}
         <select
           value={timeFilter}
           onChange={(e) => setTimeFilter(e.target.value)}
-          className="block w-full rounded-lg border-2 border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white"
+          className="block w-full rounded-lg border-2 text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 bg-white border-gray-300"
         >
           <option value="all">All Time</option>
           <option value="today">Today</option>
@@ -725,11 +703,11 @@ export default function TicketsPage() {
                 ) : (
                   tickets.map((ticket: any) => {
                     // Build URL with filter context
-                    // Chat tickets go to chat dashboard, email tickets go to ticket detail
+                    // Chat tickets go to chat ticket detail, email tickets go to ticket detail
                     let ticketUrl: string;
                     if (ticket.channel === 'chat') {
-                      // Find conversation ID for this ticket and redirect to chat dashboard
-                      ticketUrl = `/chat?ticket=${ticket.ticket_id}`;
+                      // Chat tickets go to dedicated chat ticket detail page
+                      ticketUrl = `/chat-ticket/${ticket.ticket_id}`;
                     } else {
                       const params = new URLSearchParams()
                       if (vipFilter) {
@@ -824,7 +802,7 @@ export default function TicketsPage() {
                       <td className="px-2 py-3 text-sm text-gray-500">
                         {ticket.assigned_to ? (
                           <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 truncate">
-                            {staffNames[ticket.assigned_to] || ticket.assigned_to}
+                            {staffNames[ticket.assigned_to] || ticket.assigned_staff_name || ticket.assigned_to}
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-xs font-medium text-gray-500 ring-1 ring-inset ring-gray-300">

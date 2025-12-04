@@ -50,13 +50,17 @@ export async function listTickets(c: Context<{ Bindings: Env }>) {
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
 
-    // Build query - fetch all tickets with escalation flags (exclude deleted)
+    // Build query - fetch all tickets with escalation flags and staff names (exclude deleted)
     let query = `
       SELECT t.*, 
         MAX(CASE WHEN e.escalated_to = ? AND e.status = 'pending' THEN 1 ELSE 0 END) as is_escalated_to_me,
-        MAX(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END) as has_escalation
+        MAX(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END) as has_escalation,
+        s.first_name as assigned_staff_first_name,
+        s.last_name as assigned_staff_last_name,
+        CASE WHEN s.first_name IS NOT NULL THEN (s.first_name || ' ' || COALESCE(s.last_name, '')) ELSE NULL END as assigned_staff_name
       FROM tickets t
       LEFT JOIN escalations e ON t.ticket_id = e.ticket_id
+      LEFT JOIN staff_users s ON t.assigned_to = s.id
       WHERE t.deleted_at IS NULL
     `;
     const params: any[] = [user.id];

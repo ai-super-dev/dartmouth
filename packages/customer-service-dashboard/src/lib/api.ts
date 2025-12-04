@@ -140,6 +140,22 @@ export const staffApi = {
     api.put(`/api/staff/${id}/presence`, { isAvailable }),
   updateAvailability: (id: string, status: 'online' | 'offline' | 'away') =>
     api.put(`/api/staff/${id}/availability`, { status }),
+  uploadAvatar: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return api.post(`/api/staff/${id}/avatar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteAvatar: (id: string) => api.delete(`/api/staff/${id}/avatar`),
+  getAvatarUrl: (avatarPath: string | null | undefined) => {
+    if (!avatarPath) return null;
+    // If it's already a full URL, return as is
+    if (avatarPath.startsWith('http')) return avatarPath;
+    // Otherwise, prepend the API base URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://dartmouth-os-worker.dartmouth.workers.dev';
+    return `${baseUrl}${avatarPath}`;
+  },
 }
 
 // Chat Settings API

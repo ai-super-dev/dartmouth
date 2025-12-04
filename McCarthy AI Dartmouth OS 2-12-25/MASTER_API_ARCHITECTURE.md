@@ -1,8 +1,8 @@
 # 🌐 MCCARTHY AI DARTMOUTH OS - MASTER API ARCHITECTURE
 
-**Version:** 2.1  
+**Version:** 3.0  
 **Date:** December 5, 2025  
-**Status:** Active Development - 94% Complete  
+**Status:** Active Development - 96% Complete  
 **Document Type:** Unified API Specification
 
 ---
@@ -15,12 +15,15 @@
 4. [Core Platform APIs](#4-core-platform-apis)
 5. [Agent APIs](#5-agent-apis)
 6. [Customer Service APIs](#6-customer-service-apis)
-7. [Integration APIs](#7-integration-apis)
-8. [Admin APIs](#8-admin-apis)
-9. [WebSocket Protocol](#9-websocket-protocol)
-10. [Error Handling](#10-error-handling)
-11. [Rate Limiting](#11-rate-limiting)
-12. [API Versioning](#12-api-versioning)
+7. [Live Chat APIs](#7-live-chat-apis)
+8. [AI Agent Configuration APIs](#8-ai-agent-configuration-apis)
+9. [Auto-Assignment APIs](#9-auto-assignment-apis)
+10. [Integration APIs](#10-integration-apis)
+11. [Admin APIs](#11-admin-apis)
+12. [WebSocket Protocol](#12-websocket-protocol)
+13. [Error Handling](#13-error-handling)
+14. [Rate Limiting](#14-rate-limiting)
+15. [API Versioning](#15-api-versioning)
 
 ---
 
@@ -33,6 +36,9 @@ This document defines the **complete API architecture** for McCarthy AI Dartmout
 - **Core Platform APIs** - Health, monitoring, analytics
 - **Agent APIs** - McCarthy Artwork, Customer Service, Sales, PA
 - **Customer Service APIs** - Tickets, staff, mentions
+- **Live Chat APIs** - Real-time chat conversations
+- **AI Agent Configuration APIs** - RAG, System Message, Widget Settings
+- **Auto-Assignment APIs** - Email ticket auto-assignment
 - **Integration APIs** - Shopify, PERP, Stripe, Twilio
 - **Admin APIs** - Tenant management, settings, permissions
 
@@ -40,7 +46,7 @@ This document defines the **complete API architecture** for McCarthy AI Dartmout
 
 | Environment | Base URL |
 |-------------|----------|
-| **Production** | `https://api.dartmouth-os.com` |
+| **Production** | `https://dartmouth-os-worker.dartmouth.workers.dev` |
 | **Staging** | `https://staging-api.dartmouth-os.com` |
 | **Development** | `http://localhost:8787` |
 
@@ -172,126 +178,6 @@ Login with email and password.
 }
 ```
 
-**Status Codes:**
-- `200` - Success
-- `401` - Invalid credentials
-- `403` - Account locked
-
----
-
-#### POST /api/v2/auth/register
-
-Register a new user.
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "firstName": "John",
-  "lastName": "Doe"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expiresIn": 3600,
-    "user": {
-      "id": "usr_abc123",
-      "email": "user@example.com",
-      "firstName": "John",
-      "lastName": "Doe",
-      "role": "user"
-    }
-  }
-}
-```
-
-**Status Codes:**
-- `201` - Success
-- `400` - Invalid email or password
-- `409` - Email already exists
-
----
-
-#### POST /api/v2/auth/refresh
-
-Refresh access token.
-
-**Request:**
-```json
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expiresIn": 3600
-  }
-}
-```
-
-**Status Codes:**
-- `200` - Success
-- `401` - Invalid or expired refresh token
-
----
-
-#### POST /api/v2/auth/logout
-
-Logout and invalidate tokens.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "success": true
-  }
-}
-```
-
----
-
-#### GET /api/v2/auth/me
-
-Get current user information.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "id": "usr_abc123",
-    "email": "john@dtf.com.au",
-    "firstName": "John",
-    "lastName": "Hutchison",
-    "role": "admin",
-    "permissions": ["*"],
-    "isActive": true,
-    "isAvailable": true,
-    "createdAt": "2025-01-01T00:00:00Z",
-    "updatedAt": "2025-12-02T10:00:00Z"
-  }
-}
-```
-
 ---
 
 ### Role-Based Access Control (RBAC)
@@ -301,7 +187,7 @@ Authorization: Bearer {accessToken}
 | **admin** | `*` (all) | Full system access |
 | **manager** | `tickets:*, staff:read, settings:read` | Manage tickets and view staff |
 | **agent** | `tickets:read, tickets:write, tickets:own` | Handle assigned tickets |
-| **user** | `tickets:own` | View own tickets only |
+| **general** | `tickets:own` | View own tickets only |
 
 ---
 
@@ -328,38 +214,6 @@ System health check.
 }
 ```
 
-**Status Codes:**
-- `200` - All systems operational
-- `503` - One or more services down
-
----
-
-#### GET /health/ready
-
-Readiness check for load balancers.
-
-**Response:**
-```json
-{
-  "ready": true,
-  "timestamp": "2025-12-02T10:00:00Z"
-}
-```
-
----
-
-#### GET /health/live
-
-Liveness check for orchestrators.
-
-**Response:**
-```json
-{
-  "alive": true,
-  "timestamp": "2025-12-02T10:00:00Z"
-}
-```
-
 ---
 
 ### Analytics
@@ -367,11 +221,6 @@ Liveness check for orchestrators.
 #### GET /api/v2/analytics/overview
 
 Get system-wide analytics.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-```
 
 **Query Parameters:**
 - `startDate` (optional) - ISO 8601 date (default: 30 days ago)
@@ -391,7 +240,9 @@ Authorization: Bearer {accessToken}
     "ai": {
       "automationRate": 0.75,
       "averageConfidence": 0.82,
-      "escalationRate": 0.25
+      "escalationRate": 0.25,
+      "averageQuality": 4.2,
+      "approvalRate": 0.85
     },
     "staff": {
       "totalActive": 5,
@@ -413,12 +264,6 @@ Send a message to any agent.
 
 **Path Parameters:**
 - `agentId` - Agent identifier (`mccarthy-artwork`, `customer-service`, `sales-agent`, `mccarthy-pa`)
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-Content-Type: application/json
-```
 
 **Request:**
 ```json
@@ -449,500 +294,6 @@ Content-Type: application/json
 }
 ```
 
-**Status Codes:**
-- `200` - Success
-- `400` - Invalid request
-- `401` - Unauthorized
-- `404` - Agent not found
-- `429` - Rate limit exceeded
-- `500` - Server error
-
----
-
-### McCarthy Artwork Agent
-
-#### POST /api/v2/agents/mccarthy-artwork/chat
-
-**Specialized endpoint for artwork agent.**
-
-**Request:**
-```json
-{
-  "message": "What's the DPI at 28.5cm wide?",
-  "sessionId": "sess_abc123",
-  "artworkData": {
-    "width": 2811,
-    "height": 2539,
-    "dpi": 300,
-    "colorMode": "RGB",
-    "hasTransparency": true,
-    "iccProfile": null
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "content": "At 28.5cm (11.22\") wide: **251 DPI** ⭐⭐⭐⭐ (Optimal quality)",
-    "metadata": {
-      "sessionId": "sess_abc123",
-      "intent": "calculate_dpi",
-      "confidence": 0.95,
-      "handler": "SizeCalculationHandler",
-      "calculation": {
-        "width": 28.5,
-        "unit": "cm",
-        "dpi": 251,
-        "quality": "optimal"
-      }
-    }
-  }
-}
-```
-
----
-
-### Customer Service Agent
-
-#### POST /api/v2/agents/customer-service/chat
-
-**Specialized endpoint for customer service agent.**
-
-**Request:**
-```json
-{
-  "message": "Where is my order #12345?",
-  "sessionId": "sess_abc123",
-  "customerId": "cust_abc123"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "content": "Your order #12345 is currently in production and will be ready for shipping tomorrow. You'll receive a tracking number within 24 hours.",
-    "metadata": {
-      "sessionId": "sess_abc123",
-      "intent": "order_status",
-      "confidence": 0.92,
-      "handler": "OrderStatusHandler",
-      "shopifyData": {
-        "orderId": "12345",
-        "status": "in_production",
-        "estimatedShipDate": "2025-12-03"
-      }
-    }
-  }
-}
-```
-
----
-
-### Sales Agent
-
-#### POST /api/v2/agents/sales-agent/chat
-
-**Specialized endpoint for sales agent.**
-
-**Request:**
-```json
-{
-  "message": "How much for 100 custom t-shirts?",
-  "sessionId": "sess_abc123"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "content": "100 custom t-shirts: **$1,485** (inc GST)\n\nBreakdown:\n- Base: $1,500\n- Volume discount (10%): -$150\n- Subtotal: $1,350\n- GST (10%): $135\n- **Total: $1,485**\n\nWould you like a formal quote?",
-    "metadata": {
-      "sessionId": "sess_abc123",
-      "intent": "pricing_inquiry",
-      "confidence": 0.95,
-      "handler": "PricingHandler",
-      "pricing": {
-        "quantity": 100,
-        "unitPrice": 15.00,
-        "subtotal": 1500.00,
-        "discount": 150.00,
-        "tax": 135.00,
-        "total": 1485.00,
-        "currency": "AUD"
-      }
-    }
-  }
-}
-```
-
----
-
-### PA Agent (McCarthy PA)
-
-**⚠️ IMPORTANT: PA Agent API is UNCHANGED - Developer is using this specification**
-
-#### POST /api/v2/agents/mccarthy-pa/chat
-
-Send a text message to McCarthy PA.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "message": "Remind me to call John at 3pm",
-  "sessionId": "session123"
-}
-```
-
-**Response:**
-```json
-{
-  "response": "Got it! I'll remind you to call John at 3pm",
-  "intent": "create_reminder",
-  "entities": {
-    "contact": "John",
-    "time": "15:00"
-  },
-  "sessionId": "session123"
-}
-```
-
----
-
-#### POST /api/v2/agents/mccarthy-pa/voice
-
-Send voice input to McCarthy PA.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-Content-Type: audio/webm
-```
-
-**Request:**
-```
-<audio binary data>
-```
-
-**Response:**
-```json
-{
-  "transcript": "Remind me to call John at 3pm",
-  "response": "Got it! I'll remind you to call John at 3pm",
-  "audioUrl": "https://r2.dartmouth-os.com/audio/response123.wav",
-  "intent": "create_reminder",
-  "entities": {
-    "contact": "John",
-    "time": "15:00"
-  }
-}
-```
-
----
-
-#### WebSocket /api/v2/agents/mccarthy-pa/voice/stream
-
-Real-time voice streaming.
-
-**Connection:**
-```javascript
-const socket = io('wss://api.dartmouth-os.com', {
-  auth: { token: accessToken }
-});
-```
-
-**Events:**
-
-**Client → Server:**
-```javascript
-// Send audio chunk
-socket.emit('audio-chunk', { audio: audioBuffer, final: false });
-
-// Send final audio chunk
-socket.emit('audio-chunk', { audio: audioBuffer, final: true });
-```
-
-**Server → Client:**
-```javascript
-// Receive transcript
-socket.on('transcript', (data) => {
-  console.log(data.text); // "Remind me to call John at 3pm"
-});
-
-// Receive audio response
-socket.on('audio-response', (data) => {
-  playAudio(data.audio); // ArrayBuffer
-});
-```
-
----
-
-#### GET /api/v2/agents/mccarthy-pa/tasks
-
-Get all tasks for the authenticated user.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-```
-
-**Query Parameters:**
-- `status` (optional) - Filter by status (`pending`, `completed`)
-- `limit` (optional) - Number of results (default: 50)
-- `offset` (optional) - Pagination offset (default: 0)
-
-**Response:**
-```json
-{
-  "tasks": [
-    {
-      "id": "task123",
-      "title": "Call John",
-      "description": "Discuss project timeline",
-      "status": "pending",
-      "priority": "high",
-      "dueDate": "2025-12-02T15:00:00Z",
-      "createdAt": "2025-12-01T10:00:00Z"
-    }
-  ],
-  "total": 15,
-  "limit": 50,
-  "offset": 0
-}
-```
-
----
-
-#### POST /api/v2/agents/mccarthy-pa/tasks
-
-Create a new task.
-
-**Request:**
-```json
-{
-  "title": "Call John",
-  "description": "Discuss project timeline",
-  "priority": "high",
-  "dueDate": "2025-12-02T15:00:00Z"
-}
-```
-
-**Response:**
-```json
-{
-  "task": {
-    "id": "task123",
-    "title": "Call John",
-    "description": "Discuss project timeline",
-    "status": "pending",
-    "priority": "high",
-    "dueDate": "2025-12-02T15:00:00Z",
-    "createdAt": "2025-12-02T10:00:00Z"
-  }
-}
-```
-
----
-
-#### PUT /api/v2/agents/mccarthy-pa/tasks/:id
-
-Update a task.
-
-**Request:**
-```json
-{
-  "status": "completed"
-}
-```
-
-**Response:**
-```json
-{
-  "task": {
-    "id": "task123",
-    "title": "Call John",
-    "status": "completed",
-    "completedAt": "2025-12-02T15:30:00Z"
-  }
-}
-```
-
----
-
-#### DELETE /api/v2/agents/mccarthy-pa/tasks/:id
-
-Delete a task.
-
-**Response:**
-```json
-{
-  "success": true
-}
-```
-
----
-
-**📝 NOTE: Full PA Agent API specification preserved at:**
-`docs/agents/mccarthy-pa/v8/MCCARTHY_PA_API_REFERENCE.md`
-
----
-
-### PerfectPrint AI (In Development)
-
-**⚠️ NOTE: PerfectPrint AI is currently in active development (Phase 0 - 85% complete)**
-
-PerfectPrint AI is a separate product that integrates with Dartmouth OS for automated artwork preparation.
-
-#### POST /api/v2/perfectprint/process
-
-Process artwork through the 7-step pipeline.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-Content-Type: multipart/form-data
-```
-
-**Request:**
-```
-file: <image file> (PNG/JPG)
-options: {
-  "upscale": true,
-  "removeBackground": true,
-  "removeShadow": true,
-  "fixTransparency": true,
-  "vectorize": "auto",  // auto, force, never
-  "halftone": false,
-  "fadeToFabric": false
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "jobId": "job_abc123",
-    "status": "processing",
-    "estimatedTime": 15,
-    "steps": [
-      {
-        "step": 1,
-        "name": "Upscaling",
-        "status": "completed",
-        "duration": 3.2
-      },
-      {
-        "step": 2,
-        "name": "Background Removal",
-        "status": "in_progress"
-      }
-    ]
-  }
-}
-```
-
-**Status Codes:**
-- `202` - Accepted, processing started
-- `400` - Invalid file format
-- `401` - Unauthorized
-- `413` - File too large
-- `429` - Rate limit exceeded
-
----
-
-#### GET /api/v2/perfectprint/jobs/:jobId
-
-Get job status and results.
-
-**Response:**
-```json
-{
-  "data": {
-    "jobId": "job_abc123",
-    "status": "completed",
-    "originalFile": "https://r2.../original.png",
-    "processedFiles": {
-      "cleanedPng": "https://r2.../cleaned.png",
-      "vectorSvg": "https://r2.../vector.svg",
-      "printReadyPdf": "https://r2.../print.pdf"
-    },
-    "processingTime": 14.3,
-    "steps": [
-      {
-        "step": 1,
-        "name": "Upscaling",
-        "status": "completed",
-        "method": "Real-ESRGAN",
-        "scaleFactor": 2,
-        "duration": 3.2
-      },
-      {
-        "step": 2,
-        "name": "Background Removal",
-        "status": "completed",
-        "method": "BRIA-RMBG-2.0",
-        "quality": 98,
-        "duration": 2.1
-      }
-    ],
-    "metadata": {
-      "originalDpi": 150,
-      "finalDpi": 300,
-      "imageType": "logo",
-      "vectorizerUsed": "StarVector"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/perfectprint/batch
-
-Process multiple files in batch.
-
-**Request:**
-```
-files: [<file1>, <file2>, ...]
-preset: "logo" | "t-shirt" | "photo" | "custom"
-options: { ... }
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "batchId": "batch_xyz789",
-    "totalFiles": 10,
-    "jobs": [
-      {
-        "jobId": "job_001",
-        "filename": "logo1.png",
-        "status": "queued"
-      }
-    ]
-  }
-}
-```
-
----
-
-**📝 NOTE: PerfectPrint AI API is under development. Full specification at:**
-`D:\coding\PerfectPrint AI\API_SPECIFICATION.md`
-
-**Integration Status:** Planned integration with McCarthy Artwork Agent
-
-**Launch Date:** Late January 2026
-
 ---
 
 ## 6. CUSTOMER SERVICE APIs
@@ -952,11 +303,6 @@ options: { ... }
 #### GET /api/v2/tickets
 
 List tickets with optional filters.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-```
 
 **Query Parameters:**
 - `status` (optional) - Filter by status (`open`, `in-progress`, `resolved`, `closed`, `escalated`, `snoozed`)
@@ -974,7 +320,7 @@ Authorization: Bearer {accessToken}
     "tickets": [
       {
         "ticket_id": "tkt_abc123",
-        "ticket_number": "TICK-1001",
+        "ticket_number": "TKT-000001",
         "customer_email": "customer@example.com",
         "customer_name": "John Doe",
         "subject": "Order inquiry",
@@ -984,6 +330,7 @@ Authorization: Bearer {accessToken}
         "category": "order_status",
         "platform": "email",
         "assigned_to": "usr_xyz789",
+        "assigned_staff_name": "John Hutchison",
         "created_at": "2025-12-02T10:00:00Z",
         "updated_at": "2025-12-02T10:00:00Z"
       }
@@ -997,81 +344,14 @@ Authorization: Bearer {accessToken}
 
 ---
 
-#### GET /api/v2/tickets/:id
+#### POST /api/v2/tickets/:id/merge
 
-Get single ticket with messages and notes.
-
-**Response:**
-```json
-{
-  "data": {
-    "ticket": {
-      "ticket_id": "tkt_abc123",
-      "ticket_number": "TICK-1001",
-      "customer_email": "customer@example.com",
-      "customer_name": "John Doe",
-      "subject": "Order inquiry",
-      "description": "Where is my order #12345?",
-      "status": "open",
-      "priority": "normal",
-      "sentiment": "neutral",
-      "category": "order_status",
-      "platform": "email",
-      "assigned_to": "usr_xyz789",
-      "created_at": "2025-12-02T10:00:00Z",
-      "updated_at": "2025-12-02T10:00:00Z"
-    },
-    "messages": [
-      {
-        "id": "msg_001",
-        "ticket_id": "tkt_abc123",
-        "sender_type": "customer",
-        "sender_name": "John Doe",
-        "content": "Where is my order #12345?",
-        "was_scheduled": false,
-        "created_at": "2025-12-02T10:00:00Z"
-      },
-      {
-        "id": "msg_002",
-        "ticket_id": "tkt_abc123",
-        "sender_type": "agent",
-        "sender_id": "usr_xyz789",
-        "sender_name": "John Hutchison",
-        "content": "Your order is in production...",
-        "was_scheduled": false,
-        "created_at": "2025-12-02T10:05:00Z"
-      }
-    ],
-    "notes": [
-      {
-        "id": "note_001",
-        "ticket_id": "tkt_abc123",
-        "staff_id": "usr_xyz789",
-        "staff_name": "John Hutchison",
-        "content": "Customer called, very happy",
-        "note_type": "general",
-        "created_at": "2025-12-02T10:10:00Z"
-      }
-    ]
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets
-
-Create a new ticket.
+Merge multiple tickets into one.
 
 **Request:**
 ```json
 {
-  "customer_email": "customer@example.com",
-  "customer_name": "John Doe",
-  "subject": "Order inquiry",
-  "description": "Where is my order #12345?",
-  "platform": "email",
-  "priority": "normal"
+  "sourceTicketIds": ["tkt_def456", "tkt_ghi789"]
 }
 ```
 
@@ -1081,33 +361,24 @@ Create a new ticket.
   "data": {
     "ticket": {
       "ticket_id": "tkt_abc123",
-      "ticket_number": "TICK-1001",
-      "customer_email": "customer@example.com",
-      "customer_name": "John Doe",
-      "subject": "Order inquiry",
-      "status": "open",
-      "priority": "normal",
-      "sentiment": "neutral",
-      "created_at": "2025-12-02T10:00:00Z"
+      "merged_from": ["tkt_def456", "tkt_ghi789"],
+      "merged_at": "2025-12-02T10:05:00Z",
+      "merged_by": "usr_xyz789"
     }
   }
 }
 ```
 
-**Status Codes:**
-- `201` - Created
-- `400` - Invalid request
-- `401` - Unauthorized
-
 ---
 
-#### PUT /api/v2/tickets/:id/assign
+#### POST /api/v2/tickets/bulk-reassign
 
-Assign ticket to staff member.
+Reassign multiple tickets at once.
 
 **Request:**
 ```json
 {
+  "ticketIds": ["tkt_abc123", "tkt_def456"],
   "assignedTo": "usr_xyz789"
 }
 ```
@@ -1116,25 +387,22 @@ Assign ticket to staff member.
 ```json
 {
   "data": {
-    "ticket": {
-      "ticket_id": "tkt_abc123",
-      "assigned_to": "usr_xyz789",
-      "updated_at": "2025-12-02T10:00:00Z"
-    }
+    "success": true,
+    "reassignedCount": 2
   }
 }
 ```
 
 ---
 
-#### PUT /api/v2/tickets/:id/status
+#### POST /api/v2/tickets/bulk-delete
 
-Update ticket status.
+Delete multiple tickets at once (soft delete).
 
 **Request:**
 ```json
 {
-  "status": "resolved"
+  "ticketIds": ["tkt_abc123", "tkt_def456"]
 }
 ```
 
@@ -1142,228 +410,8 @@ Update ticket status.
 ```json
 {
   "data": {
-    "ticket": {
-      "ticket_id": "tkt_abc123",
-      "status": "resolved",
-      "updated_at": "2025-12-02T10:00:00Z"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets/:id/reply
-
-Reply to ticket.
-
-**Request:**
-```json
-{
-  "content": "Your order is in production and will ship tomorrow."
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "message": {
-      "id": "msg_002",
-      "ticket_id": "tkt_abc123",
-      "sender_type": "agent",
-      "sender_id": "usr_xyz789",
-      "content": "Your order is in production...",
-      "created_at": "2025-12-02T10:05:00Z"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets/:id/schedule-reply
-
-Schedule a reply for later.
-
-**Request:**
-```json
-{
-  "content": "Following up on your order...",
-  "scheduledFor": "2025-12-03T09:00:00Z"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "scheduledMessage": {
-      "id": "sched_001",
-      "ticket_id": "tkt_abc123",
-      "content": "Following up on your order...",
-      "scheduled_for": "2025-12-03T09:00:00Z",
-      "status": "pending",
-      "created_at": "2025-12-02T10:00:00Z"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets/:id/notes
-
-Add internal note to ticket.
-
-**Request:**
-```json
-{
-  "content": "Customer called, very happy with service",
-  "noteType": "general"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "note": {
-      "id": "note_001",
-      "ticket_id": "tkt_abc123",
-      "staff_id": "usr_xyz789",
-      "content": "Customer called, very happy with service",
-      "note_type": "general",
-      "created_at": "2025-12-02T10:10:00Z"
-    }
-  }
-}
-```
-
----
-
-### AI Draft Responses (NEW - Phase 1)
-
-#### GET /api/v2/tickets/:id/ai-draft
-
-Get AI-generated draft response for ticket.
-
-**Response:**
-```json
-{
-  "data": {
-    "draft": {
-      "id": "draft_001",
-      "ticket_id": "tkt_abc123",
-      "draft_content": "Your order #12345 is currently in production...",
-      "confidence_score": 0.85,
-      "intent": "order_status",
-      "handler_used": "OrderStatusHandler",
-      "reasoning": "High confidence - order found in Shopify, production status confirmed in PERP",
-      "suggested_actions": ["Send immediately", "Add tracking link when available"],
-      "shopify_data": {
-        "orderId": "12345",
-        "status": "in_production"
-      },
-      "status": "pending",
-      "created_at": "2025-12-02T10:00:00Z"
-    }
-  }
-}
-```
-
-**Status Codes:**
-- `200` - Draft found
-- `404` - No draft available
-
----
-
-#### POST /api/v2/tickets/:id/ai-draft/approve
-
-Approve and send AI draft response.
-
-**Response:**
-```json
-{
-  "data": {
-    "message": {
-      "id": "msg_002",
-      "ticket_id": "tkt_abc123",
-      "sender_type": "agent",
-      "sender_id": "ai-agent-001",
-      "content": "Your order #12345 is currently in production...",
-      "created_at": "2025-12-02T10:05:00Z"
-    },
-    "draft": {
-      "id": "draft_001",
-      "status": "approved",
-      "approved_by": "usr_xyz789",
-      "approved_at": "2025-12-02T10:05:00Z"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets/:id/ai-draft/edit
-
-Edit and send AI draft response.
-
-**Request:**
-```json
-{
-  "editedContent": "Your order #12345 is currently in production and will ship tomorrow. You'll receive tracking within 24 hours."
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "message": {
-      "id": "msg_002",
-      "ticket_id": "tkt_abc123",
-      "sender_type": "agent",
-      "sender_id": "usr_xyz789",
-      "content": "Your order #12345 is currently in production...",
-      "created_at": "2025-12-02T10:05:00Z"
-    },
-    "draft": {
-      "id": "draft_001",
-      "status": "edited",
-      "approved_by": "usr_xyz789",
-      "edited_content": "Your order #12345 is currently in production...",
-      "approved_at": "2025-12-02T10:05:00Z"
-    }
-  }
-}
-```
-
----
-
-#### POST /api/v2/tickets/:id/ai-draft/reject
-
-Reject AI draft response.
-
-**Request:**
-```json
-{
-  "reason": "Incorrect information - order is not in production"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "draft": {
-      "id": "draft_001",
-      "status": "rejected",
-      "rejected_by": "usr_xyz789",
-      "rejection_reason": "Incorrect information - order is not in production",
-      "rejected_at": "2025-12-02T10:05:00Z"
-    }
+    "success": true,
+    "deletedCount": 2
   }
 }
 ```
@@ -1387,19 +435,23 @@ List all active staff members.
         "first_name": "John",
         "last_name": "Hutchison",
         "role": "admin",
+        "job_title": "Owner",
+        "department": "Management",
+        "phone": "+61 400 000 000",
         "is_active": true,
-        "is_available": true,
+        "availability_status": "online",
+        "auto_assignment_opt_out": false,
         "created_at": "2025-01-01T00:00:00Z"
       },
       {
         "id": "ai-agent-001",
         "email": "ai-agent@dtf.com.au",
-        "first_name": "AI",
-        "last_name": "Agent",
+        "first_name": "McCarthy",
+        "last_name": "AI",
         "role": "agent",
         "is_active": true,
-        "is_available": true,
         "is_ai": true,
+        "availability_status": "online",
         "created_at": "2025-12-01T00:00:00Z"
       }
     ]
@@ -1409,46 +461,18 @@ List all active staff members.
 
 ---
 
-#### GET /api/v2/staff/:id
-
-Get single staff member details.
-
-**Response:**
-```json
-{
-  "data": {
-    "staff": {
-      "id": "usr_abc123",
-      "email": "john@dtf.com.au",
-      "first_name": "John",
-      "last_name": "Hutchison",
-      "role": "admin",
-      "is_active": true,
-      "is_available": true,
-      "created_at": "2025-01-01T00:00:00Z",
-      "stats": {
-        "totalTickets": 250,
-        "openTickets": 15,
-        "resolvedTickets": 235,
-        "averageResponseTime": 245
-      }
-    }
-  }
-}
-```
-
----
-
-#### PUT /api/v2/staff/:id/presence
+#### PUT /api/v2/staff/:id/availability
 
 Update staff availability status.
 
 **Request:**
 ```json
 {
-  "isAvailable": true
+  "status": "online"
 }
 ```
+
+**Valid statuses:** `online`, `away`, `offline`
 
 **Response:**
 ```json
@@ -1456,7 +480,7 @@ Update staff availability status.
   "data": {
     "staff": {
       "id": "usr_abc123",
-      "is_available": true,
+      "availability_status": "online",
       "updated_at": "2025-12-02T10:00:00Z"
     }
   }
@@ -1465,13 +489,426 @@ Update staff availability status.
 
 ---
 
-## 7. INTEGRATION APIs
+## 7. LIVE CHAT APIs
 
-### Shopify Integration (Phase 3)
+### Chat Conversations
 
-#### GET /api/v2/integrations/shopify/products
+#### GET /api/chat/conversations
 
-Get products from Shopify.
+List chat conversations by tab.
+
+**Query Parameters:**
+- `tab` - Filter by tab (`ai`, `staff`, `queued`, `closed`)
+- `limit` (optional) - Number of results (default: 50)
+
+**Response:**
+```json
+{
+  "data": {
+    "conversations": [
+      {
+        "id": "conv_abc123",
+        "ticket_id": "tkt_xyz789",
+        "ticket_number": "TKT-000178",
+        "customer_name": "John Doe",
+        "customer_email": "john@example.com",
+        "status": "ai_handling",
+        "assigned_to": "ai-agent-001",
+        "assigned_staff_first_name": "McCarthy",
+        "assigned_staff_last_name": "AI",
+        "priority": "normal",
+        "sentiment": "neutral",
+        "last_message": "What are the heat settings for DTF?",
+        "message_count": 5,
+        "started_at": "2025-12-05T10:00:00Z",
+        "last_message_at": "2025-12-05T10:05:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### POST /api/chat/start
+
+Start a new chat conversation.
+
+**Request:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "message": "Hello, I have a question about my order"
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "conversationId": "conv_abc123",
+    "ticketId": "tkt_xyz789",
+    "customerId": "cust_def456",
+    "aiResponse": "Hi John! 👋 I'm McCarthy AI, your virtual assistant. How can I help you today?"
+  }
+}
+```
+
+---
+
+#### POST /api/chat/message
+
+Send a message in a chat conversation.
+
+**Request:**
+```json
+{
+  "conversationId": "conv_abc123",
+  "message": "What are the heat settings for DTF transfers?",
+  "customerId": "cust_def456"
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "messageId": "msg_xyz789",
+    "aiResponse": "For DTF transfers, the recommended heat press settings are:\n\n- **Temperature**: 150-160°C (302-320°F)\n- **Pressure**: Medium to firm\n- **Time**: 8-12 seconds\n- **Peel**: Hot peel (within 2-10 seconds)"
+  }
+}
+```
+
+---
+
+#### POST /api/chat/conversations/:id/takeover
+
+Staff takes over a conversation from AI.
+
+**Response:**
+```json
+{
+  "data": {
+    "success": true,
+    "conversation": {
+      "id": "conv_abc123",
+      "status": "staff_handling",
+      "assigned_to": "usr_xyz789"
+    }
+  }
+}
+```
+
+---
+
+#### POST /api/chat/conversations/:id/pickup
+
+Staff picks up a queued conversation.
+
+**Response:**
+```json
+{
+  "data": {
+    "success": true,
+    "conversation": {
+      "id": "conv_abc123",
+      "status": "staff_handling",
+      "assigned_to": "usr_xyz789"
+    }
+  }
+}
+```
+
+---
+
+#### POST /api/chat/conversations/:id/close
+
+Close a chat conversation.
+
+**Request:**
+```json
+{
+  "resolutionType": "staff_resolved"
+}
+```
+
+**Valid resolution types:** `ai_resolved`, `staff_resolved`, `inactive_closed`, `abandoned`
+
+**Response:**
+```json
+{
+  "data": {
+    "success": true,
+    "conversation": {
+      "id": "conv_abc123",
+      "status": "closed",
+      "resolution_type": "staff_resolved",
+      "closed_at": "2025-12-05T10:30:00Z"
+    }
+  }
+}
+```
+
+---
+
+#### POST /api/chat/conversations/:id/reassign
+
+Reassign a conversation to another staff member or back to AI.
+
+**Request:**
+```json
+{
+  "assignedTo": "usr_abc123",
+  "reason": "Specialist knowledge required"
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "success": true,
+    "conversation": {
+      "id": "conv_abc123",
+      "assigned_to": "usr_abc123",
+      "status": "staff_handling"
+    }
+  }
+}
+```
+
+---
+
+## 8. AI AGENT CONFIGURATION APIs
+
+### RAG Knowledge
+
+#### GET /api/ai-agent/knowledge
+
+List all RAG knowledge documents.
+
+**Response:**
+```json
+{
+  "data": {
+    "documents": [
+      {
+        "id": "doc_abc123",
+        "title": "DTF Application Guide",
+        "filename": "dtf-guide.md",
+        "category": "products",
+        "word_count": 1250,
+        "created_at": "2025-12-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### POST /api/ai-agent/knowledge
+
+Upload a new RAG document.
+
+**Request (multipart/form-data):**
+- `file` - The document file (.md, .txt, .pdf)
+- `title` - Document title
+- `category` - Category (policies, products, faq, general, other)
+
+**Response:**
+```json
+{
+  "data": {
+    "document": {
+      "id": "doc_xyz789",
+      "title": "Return Policy",
+      "filename": "return-policy.md",
+      "category": "policies",
+      "word_count": 500,
+      "created_at": "2025-12-05T10:00:00Z"
+    }
+  }
+}
+```
+
+---
+
+#### DELETE /api/ai-agent/knowledge/:id
+
+Delete a RAG document.
+
+**Response:**
+```json
+{
+  "data": {
+    "success": true
+  }
+}
+```
+
+---
+
+### System Message
+
+#### GET /api/ai-agent/system-message
+
+Get the AI system message configuration.
+
+**Response:**
+```json
+{
+  "data": {
+    "config": {
+      "role": "You are McCarthy AI, a helpful customer service assistant...",
+      "personality": "Friendly, professional, and knowledgeable",
+      "responsibilities": "Answer customer questions, help with orders...",
+      "dos": "Be helpful, use RAG knowledge, escalate when unsure",
+      "donts": "Don't make up information, don't promise things you can't deliver",
+      "tone_of_voice": "Warm and professional with occasional emojis",
+      "custom_instructions": "Always check RAG documents first"
+    }
+  }
+}
+```
+
+---
+
+#### PUT /api/ai-agent/system-message
+
+Update the AI system message configuration.
+
+**Request:**
+```json
+{
+  "role": "You are McCarthy AI...",
+  "personality": "Friendly and helpful",
+  "responsibilities": "...",
+  "dos": "...",
+  "donts": "...",
+  "tone_of_voice": "...",
+  "custom_instructions": "..."
+}
+```
+
+---
+
+### Widget Settings
+
+#### GET /api/ai-agent/widget-settings
+
+Get chat widget settings.
+
+**Response:**
+```json
+{
+  "data": {
+    "settings": {
+      "primary_color": "#4F46E5",
+      "secondary_color": "#EEF2FF",
+      "text_color": "#1F2937",
+      "welcome_message": "Hi! 👋 How can I help you today?",
+      "offline_message": "We're currently offline. Please leave a message.",
+      "button_text": "Chat with us",
+      "agent_name": "McCarthy AI",
+      "position": "bottom-right"
+    }
+  }
+}
+```
+
+---
+
+#### PUT /api/ai-agent/widget-settings
+
+Update chat widget settings.
+
+---
+
+#### GET /api/ai-agent/embed-code
+
+Get the embed code for the chat widget.
+
+**Response:**
+```json
+{
+  "data": {
+    "embedCode": "<script src=\"https://dartmouth-os-worker.dartmouth.workers.dev/chat-widget.js\" data-tenant=\"default\"></script>"
+  }
+}
+```
+
+---
+
+## 9. AUTO-ASSIGNMENT APIs
+
+### Configuration
+
+#### GET /api/auto-assignment/config
+
+Get auto-assignment configuration.
+
+**Response:**
+```json
+{
+  "data": {
+    "config": {
+      "enabled": true,
+      "mode": "round_robin",
+      "max_tickets_per_staff": 8,
+      "refill_threshold": 3,
+      "priority_order": "high_first",
+      "business_hours_only": true,
+      "exclude_ai_tickets": false
+    }
+  }
+}
+```
+
+---
+
+#### PUT /api/auto-assignment/config
+
+Update auto-assignment configuration.
+
+**Request:**
+```json
+{
+  "enabled": true,
+  "max_tickets_per_staff": 10,
+  "refill_threshold": 5
+}
+```
+
+---
+
+#### POST /api/auto-assignment/run
+
+Manually trigger auto-assignment.
+
+**Response:**
+```json
+{
+  "data": {
+    "assigned": 5,
+    "skipped": 2,
+    "details": [
+      {
+        "ticketId": "tkt_abc123",
+        "assignedTo": "usr_xyz789",
+        "reason": "lowest_count"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET /api/auto-assignment/history
+
+Get auto-assignment audit log.
 
 **Query Parameters:**
 - `limit` (optional) - Number of results (default: 50)
@@ -1481,31 +918,58 @@ Get products from Shopify.
 ```json
 {
   "data": {
-    "products": [
+    "history": [
       {
-        "id": "prod_123",
-        "title": "Custom T-Shirt",
-        "price": 15.00,
-        "currency": "AUD",
-        "inventory": 500,
-        "variants": [
-          {
-            "id": "var_456",
-            "title": "Small",
-            "price": 15.00,
-            "inventory": 100
-          }
-        ]
+        "id": "log_abc123",
+        "ticket_id": "tkt_xyz789",
+        "assigned_to": "usr_def456",
+        "assigned_by": "system",
+        "reason": "round_robin",
+        "created_at": "2025-12-05T10:00:00Z"
       }
-    ],
-    "total": 150,
-    "limit": 50,
-    "offset": 0
+    ]
   }
 }
 ```
 
 ---
+
+#### GET /api/auto-assignment/staff/:id
+
+Get per-staff auto-assignment settings.
+
+**Response:**
+```json
+{
+  "data": {
+    "staff": {
+      "id": "usr_abc123",
+      "auto_assignment_opt_out": false,
+      "current_ticket_count": 5,
+      "max_tickets": 8
+    }
+  }
+}
+```
+
+---
+
+#### PUT /api/auto-assignment/staff/:id
+
+Update per-staff auto-assignment settings.
+
+**Request:**
+```json
+{
+  "optOut": true
+}
+```
+
+---
+
+## 10. INTEGRATION APIs
+
+### Shopify Integration (Planned)
 
 #### GET /api/v2/integrations/shopify/orders/:orderId
 
@@ -1525,16 +989,8 @@ Get order details from Shopify.
       "status": "in_production",
       "totalPrice": 150.00,
       "currency": "AUD",
-      "lineItems": [
-        {
-          "productId": "prod_123",
-          "title": "Custom T-Shirt",
-          "quantity": 10,
-          "price": 15.00
-        }
-      ],
-      "createdAt": "2025-12-01T10:00:00Z",
-      "estimatedShipDate": "2025-12-03T00:00:00Z"
+      "lineItems": [...],
+      "createdAt": "2025-12-01T10:00:00Z"
     }
   }
 }
@@ -1542,47 +998,62 @@ Get order details from Shopify.
 
 ---
 
-### PERP Integration (Phase 3)
+## 11. ADMIN APIs
 
-#### GET /api/v2/integrations/perp/production/:orderId
+### Business Hours
 
-Get production status from PERP.
+#### GET /api/business-hours
+
+Get business hours configuration.
 
 **Response:**
 ```json
 {
   "data": {
-    "production": {
-      "orderId": "12345",
-      "status": "in_production",
-      "artworkStatus": "approved",
-      "productionStage": "printing",
-      "estimatedCompletion": "2025-12-03T00:00:00Z",
-      "assignedTo": "Production Team A"
-    }
+    "hours": {
+      "monday": { "open": "09:00", "close": "17:00", "is_open": true },
+      "tuesday": { "open": "09:00", "close": "17:00", "is_open": true },
+      "wednesday": { "open": "09:00", "close": "17:00", "is_open": true },
+      "thursday": { "open": "09:00", "close": "17:00", "is_open": true },
+      "friday": { "open": "09:00", "close": "17:00", "is_open": true },
+      "saturday": { "open": "10:00", "close": "14:00", "is_open": true },
+      "sunday": { "open": null, "close": null, "is_open": false }
+    },
+    "timezone": "Australia/Brisbane"
   }
 }
 ```
 
 ---
 
-#### GET /api/v2/integrations/perp/invoices/:invoiceId
+#### PUT /api/business-hours
 
-Get invoice from PERP.
+Update business hours configuration.
+
+---
+
+### Tenant Settings (Dartmouth OS Settings)
+
+#### GET /api/settings/tenant
+
+Get tenant-level settings.
 
 **Response:**
 ```json
 {
   "data": {
-    "invoice": {
-      "id": "inv_123",
-      "invoiceNumber": "INV-1001",
-      "customerId": "cust_456",
-      "totalAmount": 150.00,
+    "settings": {
+      "business_name": "Direct to Film Australia",
+      "business_email": "info@directtofilm.com.au",
+      "business_phone": "+61 7 1234 5678",
+      "business_address": "Brisbane, QLD, Australia",
+      "business_website": "https://directtofilm.com.au",
+      "timezone": "Australia/Brisbane",
+      "language": "en-AU",
+      "measurement_system": "metric",
       "currency": "AUD",
-      "status": "paid",
-      "dueDate": "2025-12-15T00:00:00Z",
-      "paidDate": "2025-12-01T10:00:00Z"
+      "date_format": "DD/MM/YYYY",
+      "time_format": "12h"
     }
   }
 }
@@ -1590,71 +1061,13 @@ Get invoice from PERP.
 
 ---
 
-## 8. ADMIN APIs
+#### PUT /api/settings/tenant
 
-### Settings
-
-#### GET /api/v2/admin/settings
-
-List all system settings.
-
-**Headers:**
-```http
-Authorization: Bearer {accessToken}
-X-Required-Role: admin
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "settings": [
-      {
-        "key": "ai_response_mode",
-        "value": "draft",
-        "type": "string",
-        "description": "AI response mode: auto or draft"
-      },
-      {
-        "key": "auto_escalation_enabled",
-        "value": "true",
-        "type": "boolean",
-        "description": "Enable automatic escalation"
-      }
-    ]
-  }
-}
-```
+Update tenant-level settings.
 
 ---
 
-#### PUT /api/v2/admin/settings/:key
-
-Update setting value.
-
-**Request:**
-```json
-{
-  "value": "auto"
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "setting": {
-      "key": "ai_response_mode",
-      "value": "auto",
-      "updated_at": "2025-12-02T10:00:00Z"
-    }
-  }
-}
-```
-
----
-
-## 9. WEBSOCKET PROTOCOL
+## 12. WEBSOCKET PROTOCOL
 
 ### Connection
 
@@ -1691,16 +1104,11 @@ socket.on('ticket-message', (data) => {
 socket.on('ticket-status-changed', (data) => {
   console.log(data.ticketId, data.newStatus);
 });
-
-// Staff typing indicator
-socket.on('staff-typing', (data) => {
-  console.log(data.staffName, data.isTyping);
-});
 ```
 
 ---
 
-## 10. ERROR HANDLING
+## 13. ERROR HANDLING
 
 ### Error Response Format
 
@@ -1711,8 +1119,7 @@ socket.on('staff-typing', (data) => {
     "message": "Invalid email format",
     "details": {
       "field": "email",
-      "value": "invalid-email",
-      "constraint": "Must be a valid email address"
+      "value": "invalid-email"
     }
   },
   "meta": {
@@ -1733,11 +1140,10 @@ socket.on('staff-typing', (data) => {
 | `CONFLICT` | 409 | Resource already exists |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
 | `INTERNAL_ERROR` | 500 | Server error |
-| `SERVICE_UNAVAILABLE` | 503 | Service temporarily down |
 
 ---
 
-## 11. RATE LIMITING
+## 14. RATE LIMITING
 
 ### Limits
 
@@ -1749,47 +1155,15 @@ socket.on('staff-typing', (data) => {
 | **Tickets (write)** | 20 requests | 1 minute |
 | **Admin endpoints** | 50 requests | 1 minute |
 
-### Rate Limit Headers
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1701518400
-```
-
-### Rate Limit Exceeded Response
-
-```json
-{
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Too many requests. Please try again in 45 seconds.",
-    "details": {
-      "limit": 100,
-      "remaining": 0,
-      "resetAt": "2025-12-02T10:01:00Z"
-    }
-  }
-}
-```
-
 ---
 
-## 12. API VERSIONING
+## 15. API VERSIONING
 
 ### Version Strategy
 
 - **URL-based versioning:** `/api/v1`, `/api/v2`, `/api/v3`
 - **Backward compatibility:** v1 supported for 12 months after v2 release
 - **Deprecation warnings:** Returned in response headers
-
-### Deprecation Header
-
-```http
-X-API-Deprecation: This endpoint is deprecated and will be removed on 2026-12-31
-X-API-Sunset: 2026-12-31T00:00:00Z
-X-API-Replacement: /api/v3/tickets
-```
 
 ---
 
@@ -1805,77 +1179,22 @@ X-API-Replacement: /api/v3/tickets
 | **Customer Service Agent** | ✅ Complete & Integrated | 100% |
 | **Sales Agent** | ❌ Not Built | 0% |
 | **PA Agent** | 🚧 In Development | 20% |
-| **PerfectPrint AI** | 🚧 In Development | 5% |
 | **Customer Service APIs** | ✅ Complete | 100% |
 | **AI Draft Responses** | ✅ Complete | 100% |
 | **Live Chat APIs** | ✅ Complete | 100% |
 | **Auto-Assignment APIs** | ✅ Complete | 100% |
 | **RAG Knowledge APIs** | ✅ Complete | 100% |
 | **System Message APIs** | ✅ Complete | 100% |
+| **Business Hours APIs** | ✅ Complete | 100% |
+| **Tenant Settings APIs** | ✅ Complete | 100% |
 | **Shopify Integration** | ❌ Not Built | 0% |
 | **PERP Integration** | ❌ Not Built | 0% |
-| **Admin APIs** | 🟡 Partial | 70% |
-| **WebSocket** | ❌ Not Built | 0% |
-
-### New APIs Added (Dec 4-5, 2025)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/chat/conversations` | GET | List chat conversations by tab |
-| `/api/chat/conversations/:id/takeover` | POST | Staff takes over from AI |
-| `/api/chat/conversations/:id/pickup` | POST | Staff picks up from queue |
-| `/api/chat/conversations/:id/close` | POST | Close conversation |
-| `/api/chat/conversations/:id/reassign` | POST | Reassign to staff/AI |
-| `/api/chat/messages` | GET/POST | Get/send chat messages |
-| `/api/auto-assignment/config` | GET/PUT | Auto-assignment settings |
-| `/api/auto-assignment/run` | POST | Manually trigger assignment |
-| `/api/auto-assignment/history` | GET | Assignment audit log |
-| `/api/auto-assignment/staff/:id` | GET/PUT | Per-staff settings |
-| `/api/ai-agent/knowledge` | GET/POST/DELETE | RAG documents |
-| `/api/ai-agent/system-message` | GET/PUT | System message config |
-| `/api/ai-agent/widget-settings` | GET/PUT | Chat widget config |
-| `/api/ai-agent/embed-code` | GET | Get embed script |
+| **Admin APIs** | 🟡 Partial | 80% |
+| **WebSocket** | 🚧 Planned | 10% |
 
 ---
 
-## 🚨 CRITICAL NOTES
-
-### PA Agent API - DO NOT CHANGE
-
-**⚠️ The PA Agent API specification is UNCHANGED and must remain as-is.**
-
-- Developer is currently building against this spec
-- Any changes will break their development
-- Full specification: `docs/agents/mccarthy-pa/v8/MCCARTHY_PA_API_REFERENCE.md`
-
-### No Fundamental Design Flaws Detected
-
-After reviewing the PA Agent API, **no critical design flaws were found**. The API is:
-- ✅ Well-structured
-- ✅ RESTful
-- ✅ Consistent with other agent APIs
-- ✅ Supports both text and voice
-- ✅ Includes WebSocket for real-time streaming
-
----
-
-## 📚 ADDITIONAL RESOURCES
-
-### Related Documentation
-
-- **System Blueprint:** `DARTMOUTH_OS_BLUEPRINT_2025.md`
-- **Build Plan:** `MASTER_BUILD_PLAN_DEC_2_2025.md`
-- **Big Picture:** `BIG_PICTURE_DEC_2_2025.md`
-- **PA Agent API (Full):** `docs/agents/mccarthy-pa/v8/MCCARTHY_PA_API_REFERENCE.md`
-
-### API Testing
-
-**Postman Collection:** (To be created)  
-**API Documentation:** (To be deployed with Swagger/OpenAPI)
-
----
-
-**Document Version:** 2.1  
+**Document Version:** 3.0  
 **Created:** December 2, 2025  
 **Last Updated:** December 5, 2025  
 **Author:** AI Assistant  
@@ -1884,4 +1203,3 @@ After reviewing the PA Agent API, **no critical design flaws were found**. The A
 ---
 
 **🌐 MCCARTHY AI DARTMOUTH OS - UNIFIED API ARCHITECTURE**
-

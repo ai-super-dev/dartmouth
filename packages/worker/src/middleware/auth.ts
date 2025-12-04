@@ -1,15 +1,74 @@
 /**
  * Authentication Middleware
  * JWT-based authentication for API routes
+ * 
+ * ROLES:
+ * - admin: Full access to everything
+ * - manager: Everything except Settings
+ * - customer_service: Tickets, AI Chat, Group Chat, Customers
+ * - general: Group Chat, Customers only
  */
 
 import type { Context, Next } from 'hono';
 import type { Env } from '../types/shared';
 
+export type UserRole = 'admin' | 'manager' | 'customer_service' | 'general';
+
 export interface AuthUser {
   id: string;
   email: string;
-  role: 'admin' | 'manager' | 'agent';
+  role: UserRole;
+}
+
+// Define permissions for each feature area
+export const PERMISSIONS = {
+  // Tickets
+  'tickets:view': ['admin', 'manager', 'customer_service'],
+  'tickets:create': ['admin', 'manager', 'customer_service'],
+  'tickets:edit': ['admin', 'manager', 'customer_service'],
+  'tickets:delete': ['admin'],
+  'tickets:assign': ['admin', 'manager'],
+  'tickets:bulk_assign': ['admin', 'manager'],
+  
+  // AI Chat
+  'chat:view': ['admin', 'manager', 'customer_service'],
+  'chat:respond': ['admin', 'manager', 'customer_service'],
+  'chat:takeover': ['admin', 'manager', 'customer_service'],
+  
+  // Group Chat (internal staff chat)
+  'group_chat:view': ['admin', 'manager', 'customer_service', 'general'],
+  'group_chat:send': ['admin', 'manager', 'customer_service', 'general'],
+  
+  // Customers
+  'customers:view': ['admin', 'manager', 'customer_service', 'general'],
+  'customers:edit': ['admin', 'manager', 'customer_service'],
+  
+  // Staff
+  'staff:view': ['admin', 'manager'],
+  'staff:create': ['admin'],
+  'staff:edit': ['admin'],
+  'staff:delete': ['admin'],
+  
+  // Analytics
+  'analytics:view': ['admin', 'manager'],
+  
+  // Settings (Admin only)
+  'settings:view': ['admin'],
+  'settings:edit': ['admin'],
+  
+  // AI Agent Config
+  'ai_agent:view': ['admin', 'manager'],
+  'ai_agent:edit': ['admin'],
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+/**
+ * Check if a role has a specific permission
+ */
+export function hasPermission(role: UserRole, permission: Permission): boolean {
+  const allowedRoles = PERMISSIONS[permission];
+  return allowedRoles.includes(role);
 }
 
 /**
@@ -69,6 +128,86 @@ export async function requireManagerOrAdmin(c: Context<{ Bindings: Env }>, next:
 }
 
 /**
+ * Require ticket access (admin, manager, or customer_service)
+ */
+export async function requireTicketAccess(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user') as AuthUser;
+  
+  if (!user || !hasPermission(user.role, 'tickets:view')) {
+    return c.json({ error: 'Forbidden: You do not have access to tickets' }, 403);
+  }
+  
+  await next();
+}
+
+/**
+ * Require chat access (admin, manager, or customer_service)
+ */
+export async function requireChatAccess(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user') as AuthUser;
+  
+  if (!user || !hasPermission(user.role, 'chat:view')) {
+    return c.json({ error: 'Forbidden: You do not have access to chat' }, 403);
+  }
+  
+  await next();
+}
+
+/**
+ * Require customer access (all roles)
+ */
+export async function requireCustomerAccess(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user') as AuthUser;
+  
+  if (!user || !hasPermission(user.role, 'customers:view')) {
+    return c.json({ error: 'Forbidden: You do not have access to customers' }, 403);
+  }
+  
+  await next();
+}
+
+/**
+ * Require settings access (admin only)
+ */
+export async function requireSettingsAccess(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user') as AuthUser;
+  
+  if (!user || !hasPermission(user.role, 'settings:view')) {
+    return c.json({ error: 'Forbidden: You do not have access to settings' }, 403);
+  }
+  
+  await next();
+}
+
+/**
+ * Require analytics access (admin, manager)
+ */
+export async function requireAnalyticsAccess(c: Context<{ Bindings: Env }>, next: Next) {
+  const user = c.get('user') as AuthUser;
+  
+  if (!user || !hasPermission(user.role, 'analytics:view')) {
+    return c.json({ error: 'Forbidden: You do not have access to analytics' }, 403);
+  }
+  
+  await next();
+}
+
+/**
+ * Create a permission checker middleware
+ */
+export function requirePermission(permission: Permission) {
+  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+    const user = c.get('user') as AuthUser;
+    
+    if (!user || !hasPermission(user.role, permission)) {
+      return c.json({ error: `Forbidden: Missing permission: ${permission}` }, 403);
+    }
+    
+    await next();
+  };
+}
+
+/**
  * Verify JWT token
  */
 async function verifyToken(token: string, secret: string): Promise<AuthUser | null> {
@@ -114,10 +253,16 @@ async function verifyToken(token: string, secret: string): Promise<AuthUser | nu
       return null;
     }
 
+    // Map legacy 'agent' role to 'customer_service'
+    let role = payload.role as UserRole;
+    if (role === 'agent' as any) {
+      role = 'customer_service';
+    }
+
     return {
       id: payload.sub,
       email: payload.email,
-      role: payload.role
+      role: role
     };
   } catch (error) {
     console.error('[Auth] Token verification error:', error);
@@ -168,4 +313,3 @@ export async function generateToken(user: AuthUser, secret: string, expiresIn: n
 
   return `${headerB64}.${payloadB64}.${signatureB64}`;
 }
-

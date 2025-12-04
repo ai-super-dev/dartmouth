@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ticketsApi } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { User, Package, ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react'
+import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import StatusModal from '../components/StatusModal'
 import ReassignModal from '../components/ReassignModal'
@@ -156,17 +156,37 @@ export default function TicketDetailPage() {
   
   const handlePrevious = () => {
     if (hasPrevious) {
+      const prevTicket = allTickets[currentIndex - 1]
       const params = new URLSearchParams(searchParams)
-      navigate(`/tickets/${allTickets[currentIndex - 1].ticket_id}?${params.toString()}`)
+      // Check if previous ticket is a chat ticket
+      if (prevTicket.channel === 'chat') {
+        navigate(`/chat-ticket/${prevTicket.ticket_id}?${params.toString()}`)
+      } else {
+        navigate(`/tickets/${prevTicket.ticket_id}?${params.toString()}`)
+      }
     }
   }
   
   const handleNext = () => {
     if (hasNext) {
+      const nextTicket = allTickets[currentIndex + 1]
       const params = new URLSearchParams(searchParams)
-      navigate(`/tickets/${allTickets[currentIndex + 1].ticket_id}?${params.toString()}`)
+      // Check if next ticket is a chat ticket
+      if (nextTicket.channel === 'chat') {
+        navigate(`/chat-ticket/${nextTicket.ticket_id}?${params.toString()}`)
+      } else {
+        navigate(`/tickets/${nextTicket.ticket_id}?${params.toString()}`)
+      }
     }
   }
+  
+  // If current ticket is a chat ticket, redirect to chat ticket detail page
+  useEffect(() => {
+    if (ticket && ticket.channel === 'chat') {
+      const params = new URLSearchParams(searchParams)
+      navigate(`/chat-ticket/${ticket.ticket_id}?${params.toString()}`, { replace: true })
+    }
+  }, [ticket, navigate, searchParams])
 
   const handleSendReply = async () => {
     if (!staffResponse.trim() || !ticket) return
@@ -639,7 +659,7 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
@@ -906,9 +926,7 @@ export default function TicketDetailPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       ) : isAI ? (
-                        <svg className="w-3 h-3 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21L12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z"/>
-                        </svg>
+                        <Sparkles className="w-3 h-3 text-purple-600" />
                       ) : (
                         <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

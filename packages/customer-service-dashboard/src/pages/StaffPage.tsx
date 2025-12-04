@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { staffApi, ticketsApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { Mail, Phone, Building2, Users, Plus, Pencil, X } from 'lucide-react';
+import { Mail, Phone, Building2, Users, Plus, Pencil, X, Camera } from 'lucide-react';
 
 interface StaffMember {
   id: string;
@@ -50,6 +50,9 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [formData, setFormData] = useState<StaffFormData>(emptyFormData);
   const [formError, setFormError] = useState('');
+  const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedStaffForAvatar, setSelectedStaffForAvatar] = useState<string | null>(null);
 
   // Fetch all staff members - admin sees all, regular staff sees only themselves
   const { data: staffList, isLoading } = useQuery({
@@ -116,6 +119,52 @@ export default function StaffPage() {
       setFormError(error.response?.data?.error || 'Failed to update staff member');
     }
   });
+
+  // Upload avatar mutation
+  const uploadAvatar = useMutation({
+    mutationFn: ({ staffId, file }: { staffId: string; file: File }) => 
+      staffApi.uploadAvatar(staffId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staffUsers'] });
+      queryClient.invalidateQueries({ queryKey: ['currentStaff'] });
+      setUploadingAvatarFor(null);
+    },
+    onError: (error: any) => {
+      setFormError(error.response?.data?.error || 'Failed to upload photo');
+      setUploadingAvatarFor(null);
+    }
+  });
+
+  const handleAvatarClick = (staffId: string) => {
+    // Only allow upload for self or if admin
+    if (!isAdmin && staffId !== user?.id) return;
+    setSelectedStaffForAvatar(staffId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && selectedStaffForAvatar) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setFormError('Invalid file type. Please use JPEG, PNG, GIF, or WebP');
+        return;
+      }
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setFormError('File too large. Maximum size is 5MB');
+        return;
+      }
+      setUploadingAvatarFor(selectedStaffForAvatar);
+      uploadAvatar.mutate({ staffId: selectedStaffForAvatar, file });
+    }
+    // Reset
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setSelectedStaffForAvatar(null);
+  };
 
   const statusConfig = {
     online: { color: 'bg-green-500', label: 'Available', badgeClass: 'bg-green-100 text-green-700 border-green-200' },
@@ -256,14 +305,39 @@ export default function StaffPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
-                        <Users className="w-6 h-6" />
-                      </div>
+                    <div className="relative group">
+                      {staff.avatar_url ? (
+                        <img 
+                          src={staffApi.getAvatarUrl(staff.avatar_url) || ''} 
+                          alt={`${staff.first_name} ${staff.last_name}`}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                          <Users className="w-6 h-6" />
+                        </div>
+                      )}
                       {/* Status dot */}
                       <span 
                         className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${config.color}`}
                       />
+                      {/* Upload overlay (only for self or admin) */}
+                      {(isAdmin || isYou) && (
+                        <button
+                          onClick={() => handleAvatarClick(staff.id)}
+                          className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Upload photo"
+                        >
+                          {uploadingAvatarFor === staff.id ? (
+                            <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <Camera className="w-5 h-5 text-white" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     {/* Name & Role */}
                     <div>
@@ -347,6 +421,15 @@ export default function StaffPage() {
           No team members found
         </div>
       )}
+
+      {/* Hidden file input for avatar upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
 
       {/* Add/Edit Staff Modal */}
       {showModal && (

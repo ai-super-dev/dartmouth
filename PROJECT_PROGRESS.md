@@ -1,9 +1,20 @@
 # Dartmouth OS - Customer Service System
 ## Project Progress Tracker
 
-**Last Updated**: November 29, 2025, 9:00 AM  
-**Overall Progress**: 52.3% Complete  
-**Status**: ✅ MAJOR MILESTONE ACHIEVED - System Fully Operational
+**Last Updated**: December 5, 2025, 11:30 PM AEST  
+**Overall Progress**: 94% Complete  
+**Status**: ✅ MAJOR MILESTONE - Live Chat System Complete, AI Agent Fully Integrated
+
+---
+
+## 🎯 EXECUTIVE SUMMARY
+
+McCarthy AI Dartmouth OS is now a fully functional customer service platform with:
+- ✅ **Email Ticket System** - Complete with AI draft responses
+- ✅ **Live Chat System** - AI-first with human escalation
+- ✅ **AI Agent Integration** - RAG knowledge, system message config, learning
+- ✅ **Auto-Assignment** - Smart ticket distribution to staff
+- ✅ **Modern Dashboard** - Beautiful UI with all management features
 
 ---
 
@@ -11,80 +22,115 @@
 
 ### ✅ Phase 1: Foundation (100% Complete)
 - [x] Database schema design
-- [x] D1 migrations (5 migrations applied)
+- [x] D1 migrations (35+ migrations applied)
 - [x] Core types and interfaces
 - [x] Environment setup
 - [x] Cloudflare Workers configuration
 
 ### ✅ Phase 2: Core Services (100% Complete)
 - [x] TicketManager service
-- [x] GmailIntegration service
+- [x] EmailHandler service (V2)
 - [x] CustomerServiceAgent integration
-- [x] OmnichannelRouter
+- [x] AIAgentProcessor service
+- [x] KnowledgeService (RAG + System Message)
+- [x] AutoAssignmentService
 - [x] AuthenticationService
 
 ### ✅ Phase 3: Email Processing (100% Complete)
-- [x] Gmail OAuth setup
-- [x] Email polling worker (cron: every 5 minutes)
-- [x] Email storage in database
+- [x] Cloudflare Email Routing (inbound)
+- [x] Resend API (outbound)
+- [x] Email threading (In-Reply-To, References)
+- [x] MIME parsing (multipart, base64, quoted-printable)
 - [x] Ticket creation from emails
-- [x] Priority detection
-- [x] Category detection
-- [x] Sentiment analysis
-- [x] Auto-reply vs draft logic
-- [x] Escalation workflow
+- [x] Priority detection (5 levels)
+- [x] Category detection (10+ categories)
+- [x] Sentiment analysis (4 levels)
+- [x] AI draft response generation
+- [x] Scheduled message sending
+- [x] Duplicate ticket detection
 
 ### ✅ Phase 4: API Development (100% Complete)
 - [x] JWT authentication middleware
 - [x] Role-based access control (RBAC)
-- [x] Auth endpoints (login, logout, me)
-- [x] Tickets endpoints (CRUD, assign, status, reply, notes, snooze)
-- [x] Mentions endpoints (list, create, reply, mark as read)
-- [x] Staff endpoints (list, get, update presence)
-- [x] Settings endpoints (list, get, update)
-- [x] API documentation
-- [x] Error handling
-- [x] Request validation
+- [x] Auth endpoints (login, logout, me, register)
+- [x] Tickets endpoints (CRUD, assign, status, reply, notes, snooze, merge, bulk)
+- [x] Chat endpoints (conversations, messages, takeover, pickup, close, reassign)
+- [x] Staff endpoints (list, get, update presence, availability)
+- [x] AI Agent endpoints (knowledge, system-message, widget-settings, embed-code)
+- [x] Auto-Assignment endpoints (config, run, history, staff settings)
+- [x] Business Hours endpoints
+- [x] Analytics endpoints
+- [x] Settings endpoints
 
-### 🚧 Phase 5: Frontend Dashboard (60% Complete)
-- [x] React + Vite setup
-- [x] Tailwind CSS + Tailwind UI
-- [x] Authentication flow
-- [x] Login page
-- [x] Dashboard layout (sidebar, header)
-- [x] Tickets list page
-- [x] State management (Zustand)
-- [x] API client (Axios)
-- [x] Real-time updates (TanStack Query)
-- [ ] Ticket detail page (0%)
-- [ ] Mentions page (0%)
-- [ ] Settings page (0%)
-- [ ] Staff management page (0%)
-- [ ] Search and filtering
-- [ ] Pagination controls
-- [ ] Mobile responsiveness
+### ✅ Phase 5: Frontend Dashboard (98% Complete)
+- [x] React + Vite + TypeScript setup
+- [x] Tailwind CSS + Custom styling
+- [x] Authentication flow (login, logout, session)
+- [x] Dashboard layout (sidebar, header, profile menu)
+- [x] Tickets list page (filters, search, bulk actions)
+- [x] Ticket detail page (messages, notes, AI draft panel)
+- [x] Chat dashboard page (4 tabs, staff filter)
+- [x] Chat ticket detail page
+- [x] AI Agent settings pages (knowledge, system message, widget)
+- [x] Business hours configuration
+- [x] Auto-assignment settings
+- [x] Staff management page
+- [x] Analytics dashboard
+- [x] Settings hub page
+- [x] My Account page
+- [ ] Mobile responsiveness (partial)
 
-### ⬜ Phase 6: Advanced Features (0% Complete)
-- [ ] AI response generation (CustomerServiceAgent)
-- [ ] Email sending (auto-reply or draft)
-- [ ] Snooze functionality UI
-- [ ] SLA tracking and alerts
-- [ ] Analytics dashboard
-- [ ] Email templates
-- [ ] Bulk actions
-- [ ] Advanced reporting
-- [ ] Customer portal
-- [ ] Multi-language support
+### ✅ Phase 6: Live Chat System (100% Complete)
+- [x] Chat widget package (standalone)
+- [x] Widget customization (colors, text, position)
+- [x] Pre-chat form (name, email)
+- [x] Real-time messaging (polling)
+- [x] AI-first handling
+- [x] Human escalation detection
+- [x] Staff takeover/pickup flow
+- [x] Chat reassignment
+- [x] Conversation close with resolution types
+- [x] File attachments (backend)
+- [x] Embed code generator
+- [x] Business hours display
+- [x] Online/offline indicator
 
-### ⬜ Phase 7: Production Deployment (0% Complete)
-- [ ] Frontend deployment to Cloudflare Pages
-- [ ] Environment configuration
-- [ ] Production secrets setup
-- [ ] Domain configuration
-- [ ] SSL/TLS setup
+### ✅ Phase 7: AI Agent Integration (100% Complete)
+- [x] AI Agent as staff member
+- [x] AI draft response generation
+- [x] Confidence scoring
+- [x] Auto-escalation logic
+- [x] RAG knowledge base
+- [x] System message configuration
+- [x] Learning examples injection
+- [x] RLHF data collection
+- [x] Quality scoring (1-5 stars)
+- [x] Approve/Edit/Reject workflow
+- [x] AI Analytics dashboard
+
+### 🚧 Phase 8: Advanced Features (60% Complete)
+- [x] Scheduled replies
+- [x] Ticket snooze (30m, 1h, 4h, tomorrow, next week)
+- [x] Ticket merging
+- [x] Bulk reassignment
+- [x] Bulk delete
+- [x] Soft delete
+- [x] Duplicate detection
+- [x] Email auto-assignment
+- [ ] Callback feature (form-based) - Pending
+- [ ] Post-chat survey - Pending
+- [ ] Typing indicators - Pending
+- [ ] Vector embeddings for RAG - Pending
+
+### ⬜ Phase 9: Production Deployment (70% Complete)
+- [x] Worker deployed to Cloudflare
+- [x] Dashboard deployed to Cloudflare Pages
+- [x] Environment configuration
+- [x] Production secrets setup
+- [ ] Custom domain configuration
+- [ ] SSL/TLS setup (Cloudflare handles)
 - [ ] Monitoring and logging
 - [ ] Performance optimization
-- [ ] Security hardening
 
 ---
 
@@ -93,74 +139,150 @@
 ### Email System
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Gmail OAuth | ✅ Working | Configured and tested |
-| Email polling | ✅ Working | Cron: every 5 minutes |
-| Email storage | ✅ Working | Stored in D1 database |
-| Ticket creation | ✅ Working | Auto-generated ticket numbers |
+| Cloudflare Email Routing | ✅ Working | Inbound email processing |
+| Resend API | ✅ Working | Outbound email sending |
+| Email threading | ✅ Working | In-Reply-To, References headers |
+| MIME parsing | ✅ Working | Multipart, base64, quoted-printable |
+| Ticket creation | ✅ Working | Auto-generated TKT-XXXXXX numbers |
 | Priority detection | ✅ Working | Low, normal, high, urgent, critical |
-| Category detection | ✅ Working | Order status, artwork issue, payment, etc. |
-| Sentiment analysis | ✅ Working | Positive, neutral, negative |
-| Email filtering | ⬜ Not Started | Need to filter customer emails only |
-| AI responses | ⬜ Not Started | CustomerServiceAgent ready but not active |
-| Email sending | ⬜ Not Started | Auto-reply or draft creation |
+| Category detection | ✅ Working | Order status, artwork, payment, etc. |
+| Sentiment analysis | ✅ Working | Positive, neutral, negative, angry |
+| AI draft responses | ✅ Working | Auto-generated with confidence scores |
+| Scheduled messages | ✅ Working | Cron job sends at scheduled time |
+| Duplicate detection | ✅ Working | Auto-archive within 5 mins |
+| Paragraph spacing | ✅ Working | Preserved in all views |
 
-### API
+### Live Chat System
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication | ✅ Working | JWT with RBAC |
-| Tickets CRUD | ✅ Working | All endpoints implemented |
-| Mentions | ✅ Working | All endpoints implemented |
-| Staff | ✅ Working | All endpoints implemented |
-| Settings | ✅ Working | All endpoints implemented |
-| Error handling | ✅ Working | Consistent error responses |
-| Rate limiting | ⬜ Not Started | Future enhancement |
-| API versioning | ⬜ Not Started | Currently v1 |
+| Chat widget | ✅ Working | Embeddable JavaScript |
+| Pre-chat form | ✅ Working | Name & email collection |
+| AI-first handling | ✅ Working | All chats start with AI |
+| Human escalation | ✅ Working | Specific keyword detection |
+| Staff takeover | ✅ Working | Take over from AI |
+| Staff pickup | ✅ Working | Pick up from queue |
+| Chat reassignment | ✅ Working | Reassign to staff or AI |
+| Conversation close | ✅ Working | With resolution types |
+| RAG integration | ✅ Working | Uses knowledge documents |
+| Priority/Sentiment | ✅ Working | AI analyzes chat messages |
+| File attachments | 🚧 Backend Only | UI pending |
+| Typing indicator | ⬜ Not Started | Planned |
+| Callback feature | ⬜ Not Started | Form-based flow planned |
+
+### AI Agent
+| Feature | Status | Notes |
+|---------|--------|-------|
+| AI staff member | ✅ Working | McCarthy AI (ai-agent-001) |
+| Draft generation | ✅ Working | For all new tickets |
+| Confidence scoring | ✅ Working | 0-1 scale |
+| Auto-escalation | ✅ Working | Low confidence → human |
+| RAG knowledge | ✅ Working | 12 documents uploaded |
+| System message | ✅ Working | Configurable personality |
+| Learning examples | ✅ Working | Top 5 high-quality responses |
+| RLHF collection | ✅ Working | Quality, helpful, notes |
+| Analytics dashboard | ✅ Working | Stats, charts, tables |
+| Stronger RAG usage | ✅ Working | Prioritizes knowledge docs |
 
 ### Dashboard
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Login | ✅ Working | Full authentication flow |
-| Tickets list | ✅ Working | Table view with filters |
-| Ticket detail | ⬜ Not Started | Placeholder only |
-| Mentions | ⬜ Not Started | Placeholder only |
-| Settings | ⬜ Not Started | Placeholder only |
-| Staff management | ⬜ Not Started | Not implemented |
-| Search | ⬜ Not Started | Not implemented |
-| Pagination UI | ⬜ Not Started | API supports it, UI doesn't |
+| Login/Auth | ✅ Working | JWT with refresh |
+| Tickets list | ✅ Working | Filters, search, bulk actions |
+| Ticket detail | ✅ Working | Messages, notes, AI panel |
+| Chat dashboard | ✅ Working | 4 tabs, staff filter |
+| Chat ticket detail | ✅ Working | Dedicated page |
+| AI settings | ✅ Working | Knowledge, system message, widget |
+| Business hours | ✅ Working | Day-by-day config |
+| Auto-assignment | ✅ Working | Config and history |
+| Staff management | ✅ Working | List, add, edit |
+| Analytics | ✅ Working | AI performance metrics |
+| Settings hub | ✅ Working | Central settings page |
+| My Account | ✅ Working | Staff profile editing |
+| Profile menu | ✅ Working | Status toggle, logout |
+| Collapsible sidebar | ✅ Working | Default collapsed |
 | Mobile responsive | 🚧 Partial | Desktop works, mobile needs work |
 
 ### Database
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Schema | ✅ Complete | 15+ tables |
-| Migrations | ✅ Working | 5 migrations applied |
+| Schema | ✅ Complete | 20+ tables |
+| Migrations | ✅ Working | 35+ migrations applied |
 | Indexes | ✅ Complete | All foreign keys indexed |
-| Seeding | ✅ Complete | Staff users and settings seeded |
-| Backup | ⬜ Not Started | Need backup strategy |
+| Seeding | ✅ Complete | Staff users and settings |
 
 ---
 
 ## Metrics
 
 ### Code Statistics
-- **Backend Files**: 25+
-- **Frontend Files**: 15+
-- **Total Lines of Code**: ~5,000+
-- **API Endpoints**: 20+
-- **Database Tables**: 15+
-- **Migrations**: 5
+- **Backend Files**: 50+
+- **Frontend Files**: 40+
+- **Total Lines of Code**: ~15,000+
+- **API Endpoints**: 50+
+- **Database Tables**: 20+
+- **Migrations**: 35+
 
 ### System Statistics
-- **Tickets Created**: 58+ (and counting)
-- **Emails Processed**: 48+
-- **Staff Users**: 4 (seeded)
-- **System Settings**: 5 (seeded)
+- **Tickets Created**: 180+ (and counting)
+- **Chat Conversations**: 20+
+- **Staff Users**: 5 (including AI)
+- **RAG Documents**: 12
+- **System Settings**: 20+
 
 ### Performance
-- **Email Poll Time**: ~21 seconds (for 48 emails)
 - **API Response Time**: <100ms (average)
+- **AI Draft Generation**: ~2-3 seconds
 - **Dashboard Load Time**: <1 second
-- **Database Query Time**: <50ms (average)
+- **Chat Response Time**: ~1-2 seconds
+
+---
+
+## Recent Achievements
+
+### December 5, 2025 (Today)
+- ✅ Fixed ticket filtering to allow all filters to combine
+- ✅ Fixed navigation arrows in chat dashboard
+- ✅ Fixed ticket number display (TKT-XXXXXX format)
+- ✅ Fixed AI assignment for chat tickets
+- ✅ Added dynamic staff list in sidebar
+- ✅ Added staff-specific ticket counts
+- ✅ Improved escalation keywords (less false positives)
+- ✅ Added stronger RAG instructions to AI prompt
+- ✅ Fixed chat dashboard header alignment
+- ✅ Added staff filter dropdown to chat dashboard
+- ✅ Removed McCarthy AI from staff filter
+- ✅ Changed "Staff Live" to "Staff" in tabs
+- ✅ Fixed assigned staff name display
+- ✅ Updated all documentation
+
+### December 4, 2025
+- ✅ Built complete Live Chat System
+- ✅ Built Chat Widget package
+- ✅ Built Chat Dashboard with 4 tabs
+- ✅ Built Chat Ticket Detail page
+- ✅ Implemented AI-first chat handling
+- ✅ Implemented human escalation detection
+- ✅ Built RAG Knowledge UI
+- ✅ Built System Message Configuration UI
+- ✅ Built Email Auto-Assignment System
+- ✅ Built Navigation & UI Overhaul
+- ✅ Built Staff Profile & Account System
+
+### December 3, 2025
+- ✅ Built AI Agent Analytics Dashboard
+- ✅ Implemented RLHF data collection
+- ✅ Built scheduled replies feature
+- ✅ Built ticket merging feature
+- ✅ Built bulk operations
+- ✅ Built snooze functionality (30m option)
+- ✅ Built duplicate ticket detection
+
+### December 2, 2025
+- ✅ Completed AI Agent Integration
+- ✅ Built AIAgentProcessor service
+- ✅ Built KnowledgeService
+- ✅ Built AI Draft Response Panel
+- ✅ Integrated CustomerServiceAgent
 
 ---
 
@@ -170,120 +292,70 @@
 None! 🎉
 
 ### High Priority
-1. **Email Filtering**: Processes all unread emails (needs domain/sender filtering)
-2. **No Pagination UI**: Can only see first 100 tickets in dashboard
+1. **Callback Feature**: Form-based callback flow not yet implemented
+2. **Mobile Responsiveness**: Dashboard needs mobile optimization
 
 ### Medium Priority
-1. **bcryptjs Compatibility**: May not work in Cloudflare Workers (use Web Crypto API)
-2. **AI Not Active**: CustomerServiceAgent exists but not generating responses
-3. **No Email Sending**: Can't send replies yet
+1. **Typing Indicators**: Not implemented for chat
+2. **Post-Chat Survey**: Not implemented
+3. **Vector Embeddings**: RAG uses keyword search, not semantic
 
 ### Low Priority
-1. **Mobile Responsiveness**: Dashboard needs mobile optimization
-2. **No Search**: Can't search tickets yet
-3. **No Bulk Actions**: Can't perform bulk operations
-
----
-
-## Recent Achievements
-
-### November 29, 2025
-- ✅ Fixed Gmail OAuth issues (typo in secret name, enabled API)
-- ✅ Fixed critical D1_TYPE_ERROR bug in ticket creation
-- ✅ Fixed wrangler devtools opening hundreds of browsers
-- ✅ Built complete API (20+ endpoints)
-- ✅ Built frontend dashboard with Tailwind UI
-- ✅ End-to-end email processing working
-- ✅ Created 58+ tickets from real emails
-- ✅ Dashboard displaying tickets in real-time
-
-### November 28, 2025
-- ✅ Completed Phase 3 (Email Processing & Agent Integration)
-- ✅ Gmail OAuth setup and testing
-- ✅ Email polling worker implementation
-- ✅ CustomerServiceAgent integration
-- ✅ Auto-reply vs draft logic
-- ✅ Escalation workflow
+1. **File Attachments UI**: Backend done, UI pending
+2. **Group Chat**: Internal team chat not started
+3. **Shopify Integration**: Not connected yet
 
 ---
 
 ## Next Milestones
 
 ### Immediate (Next Session)
-1. Add email filtering (only process customer emails)
-2. Complete ticket detail page
-3. Implement AI response generation
-4. Deploy frontend to Cloudflare Pages
+1. Implement Callback Feature (form-based flow)
+2. Test all recent fixes
+3. Full backup and commit
 
 ### Short Term (1-2 weeks)
-1. Complete all dashboard pages (mentions, settings)
-2. Add search and advanced filtering
-3. Implement pagination UI
-4. Add staff management UI
-5. Mobile responsiveness improvements
+1. Post-chat survey
+2. Typing indicators
+3. Vector embeddings for RAG
+4. Mobile responsiveness
 
 ### Medium Term (1 month)
-1. Analytics dashboard
-2. SLA tracking and alerts
-3. Email templates
-4. Bulk actions
-5. Advanced reporting
+1. Shopify integration
+2. Group chat system
+3. Advanced analytics
+4. Performance optimization
 
 ### Long Term (2-3 months)
-1. Customer portal
-2. Multi-language support
-3. Advanced AI features
-4. Integration with other platforms
-5. Mobile app
-
----
-
-## Team Notes
-
-### What's Working Great
-- Email polling is rock solid
-- Ticket creation is fast and reliable
-- Dashboard is beautiful and responsive
-- API is well-structured and documented
-- Database schema is clean and efficient
-
-### What Needs Attention
-- Email filtering (too many non-customer emails)
-- AI integration (not active yet)
-- Pagination UI (missing controls)
-- Mobile responsiveness (needs work)
-
-### What to Celebrate
-- **MAJOR MILESTONE**: End-to-end system is fully operational!
-- All core functionality working
-- Beautiful, modern UI
-- Solid foundation for future features
-- 52.3% complete in record time
+1. WhatsApp integration
+2. Instagram DM integration
+3. Multi-tenant SaaS
+4. Mobile app
 
 ---
 
 ## Resources
 
 ### Documentation
-- `SESSION_COMPLETE_2025-11-29.md` - Full session summary
-- `NEXT_SESSION_START_HERE_2025-11-29.md` - Quick start guide
-- `API_ENDPOINTS.md` - API documentation
-- `CUSTOMER_SERVICE_MVP_BUILD_PLAN.md` - Master plan
-- `DARTMOUTH_OS_ARCHITECTURE_2025-11-28.md` - Architecture guide
+- `McCarthy AI Dartmouth OS 2-12-25/MASTER_API_ARCHITECTURE.md` - API documentation
+- `McCarthy AI Dartmouth OS 2-12-25/NEW_FEATURES_BEYOND_ORIGINAL_ARCHITECTURE.md` - New features
+- `MASTER_BUILD_PLAN_DEC_2_2025.md` - Master plan
+- `TESTING_GUIDE.md` - Testing instructions
 
 ### Deployment
 - Worker URL: https://dartmouth-os-worker.dartmouth.workers.dev
-- Dashboard URL: http://localhost:3000 (dev)
-- Database: dartmouth-os-db (7cf1c2ab-a284-49bb-8484-ade563391cb2)
+- Dashboard URL: https://dartmouth-os-dashboard.pages.dev
+- Database: dartmouth-os-db (D1)
 
 ### Credentials
-- Admin: admin@dtf.com.au / admin123
-- Manager: manager@dtf.com.au / manager123
-- Agent: agent@dtf.com.au / agent123
+- Admin: john@directtofilm.com.au
 
 ---
 
 **Status**: ✅ ON TRACK  
 **Morale**: 🚀 HIGH  
-**Next Session**: Ready to continue building!
+**Next Session**: Callback feature, testing, backup
 
+---
+
+*Last Updated: December 5, 2025, 11:30 PM AEST*

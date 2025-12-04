@@ -5,13 +5,13 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import TicketsPage from './pages/TicketsPage'
 import TicketDetailPage from './pages/TicketDetailPage'
 import MentionsPage from './pages/MentionsPage'
-// import SettingsPage from './pages/SettingsPage' // Replaced by SettingsHubPage
 import AIAgentAnalyticsPage from './pages/AIAgentAnalyticsPage'
 import BusinessHoursPage from './pages/BusinessHoursPage'
 import ChatWidgetSettingsPage from './pages/ChatWidgetSettingsPage'
 import StaffPage from './pages/StaffPage'
 import StaffPerformancePage from './pages/StaffPerformancePage'
 import ChatDashboardPage from './pages/ChatDashboardPage'
+import ChatTicketDetailPage from './pages/ChatTicketDetailPage'
 import ChatEmbedCodePage from './pages/ChatEmbedCodePage'
 import AIAgentWidgetPage from './pages/AIAgentWidgetPage'
 import AIAgentKnowledgePage from './pages/AIAgentKnowledgePage'
@@ -20,6 +20,7 @@ import DartmouthOSSettingsPage from './pages/DartmouthOSSettingsPage'
 import AgentRegionalOverridesPage from './pages/AgentRegionalOverridesPage'
 import AutoAssignmentSettingsPage from './pages/AutoAssignmentSettingsPage'
 import SettingsHubPage from './pages/SettingsHubPage'
+import MyAccountPage from './pages/MyAccountPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -59,6 +60,9 @@ function App() {
           <Route path="staff" element={<StaffPage />} />
           <Route path="staff/performance" element={<StaffPerformancePage />} />
           <Route path="chat" element={<ChatDashboardPage />} />
+          <Route path="chat-ticket/:id" element={<ChatTicketDetailPage />} />
+          {/* Account */}
+          <Route path="account" element={<MyAccountPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -66,5 +70,3 @@ function App() {
 }
 
 export default App
-
-

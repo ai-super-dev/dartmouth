@@ -60,8 +60,8 @@ export async function startConversation(c: Context<{ Bindings: Env }>) {
     await c.env.DB.prepare(`
       INSERT INTO tickets (
         ticket_id, ticket_number, customer_id, customer_email, customer_name, subject, description,
-        status, priority, category, sentiment, channel, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'normal', 'chat_inquiry', 'neutral', 'chat', ?, ?)
+        status, priority, category, sentiment, channel, assigned_to, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'normal', 'chat_inquiry', 'neutral', 'chat', 'ai-agent-001', ?, ?)
     `).bind(
       ticketId,
       ticketNumber,
@@ -155,8 +155,8 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
       await c.env.DB.prepare(`
         INSERT INTO tickets (
           ticket_id, ticket_number, customer_id, customer_email, customer_name, subject, description,
-          status, priority, category, sentiment, channel, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'normal', 'chat_inquiry', 'neutral', 'chat', ?, ?)
+          status, priority, category, sentiment, channel, assigned_to, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'normal', 'chat_inquiry', 'neutral', 'chat', 'ai-agent-001', ?, ?)
       `).bind(
         ticketId,
         ticketNumber,
@@ -291,6 +291,11 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
 
     console.log('[Chat] AI responded to conversation:', conversation.id);
 
+    // Analyze chat message for priority and sentiment (async, don't wait)
+    analyzeChatPriorityAndSentiment(c.env, conversation.ticket_id, message).catch(err => {
+      console.error('[Chat] Priority/sentiment analysis error:', err);
+    });
+
     return c.json({
       success: true,
       conversationId: conversation.id,
@@ -318,9 +323,13 @@ export async function getConversation(c: Context<{ Bindings: Env }>) {
     const conversation = await c.env.DB.prepare(`
       SELECT c.*,
         s.first_name as assigned_staff_first_name,
-        s.last_name as assigned_staff_last_name
+        s.last_name as assigned_staff_last_name,
+        t.ticket_number,
+        t.priority,
+        t.sentiment
       FROM chat_conversations c
       LEFT JOIN staff_users s ON c.assigned_to = s.id
+      LEFT JOIN tickets t ON c.ticket_id = t.ticket_id
       WHERE c.id = ?
     `).bind(conversationId).first();
 
@@ -356,9 +365,13 @@ export async function getConversationByTicket(c: Context<{ Bindings: Env }>) {
     const conversation = await c.env.DB.prepare(`
       SELECT c.*,
         s.first_name as assigned_staff_first_name,
-        s.last_name as assigned_staff_last_name
+        s.last_name as assigned_staff_last_name,
+        t.ticket_number,
+        t.priority,
+        t.sentiment
       FROM chat_conversations c
       LEFT JOIN staff_users s ON c.assigned_to = s.id
+      LEFT JOIN tickets t ON c.ticket_id = t.ticket_id
       WHERE c.ticket_id = ?
     `).bind(ticketId).first();
 
@@ -451,9 +464,13 @@ export async function listConversations(c: Context<{ Bindings: Env }>) {
         (SELECT COUNT(*) FROM chat_messages WHERE conversation_id = c.id) as message_count,
         (SELECT content FROM chat_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
         s.first_name as assigned_staff_first_name,
-        s.last_name as assigned_staff_last_name
+        s.last_name as assigned_staff_last_name,
+        t.ticket_number,
+        t.priority,
+        t.sentiment
       FROM chat_conversations c
       LEFT JOIN staff_users s ON c.assigned_to = s.id
+      LEFT JOIN tickets t ON c.ticket_id = t.ticket_id
       WHERE ${whereClause}
       ORDER BY ${tab === 'queued' ? 'c.queue_entered_at ASC' : 'c.last_message_at DESC'}
       LIMIT 50
@@ -1003,15 +1020,20 @@ async function getNextTicketNumber(db: D1Database): Promise<string> {
 
 // Check if message is requesting human assistance
 function isRequestingHuman(message: string): boolean {
+  // Only match EXPLICIT requests for human assistance
+  // Avoid generic words like "help me", "person", "agent" that could appear in normal questions
   const humanKeywords = [
-    'human', 'real person', 'actual person', 'speak to someone',
-    'talk to someone', 'agent', 'representative', 'staff',
-    'person', 'help me', 'not helping', 'useless', 'real human',
-    'speak with a human', 'talk to a human', 'connect me',
-    'transfer', 'escalate', 'manager', 'supervisor',
-    'anyone free', 'is anyone free', 'anyone available', 'someone available',
-    'speak to a person', 'talk to a person', 'need a human', 'want a human',
-    'live agent', 'live person', 'live chat', 'real support', 'actual support'
+    'speak to a human', 'talk to a human', 'real human', 'need a human', 'want a human',
+    'real person', 'actual person', 'speak to someone', 'talk to someone',
+    'speak to a person', 'talk to a person', 'connect me to a person',
+    'representative please', 'staff please', 'human please',
+    'not helping', 'useless bot', 'useless ai', 'stupid bot', 'stupid ai',
+    'transfer me', 'escalate please', 'escalate this',
+    'manager please', 'supervisor please',
+    'is anyone there', 'anyone free to help', 'is anyone available',
+    'live agent please', 'live person please', 'real support please',
+    'i want to speak to', 'i need to speak to', 'let me talk to',
+    'can i speak to someone', 'can i talk to someone'
   ];
   
   const lowerMessage = message.toLowerCase();
@@ -1440,8 +1462,14 @@ async function getAIResponse(env: Env, message: string, conversation: Conversati
     console.log('[Chat] Knowledge loaded for fallback:', {
       systemMessageLength: knowledge.systemMessage.length,
       learningExamples: knowledge.learningExamples.length,
-      ragDocuments: knowledge.ragDocuments.length
+      ragDocuments: knowledge.ragDocuments.length,
+      ragContext: knowledge.ragContext?.substring(0, 200) || 'none'
     });
+
+    // Log actual RAG document titles if any
+    if (knowledge.ragDocuments.length > 0) {
+      console.log('[Chat] RAG documents found:', knowledge.ragDocuments.map(d => d.title));
+    }
 
     const systemPrompt = `${knowledge.systemMessage}
 
@@ -1451,13 +1479,19 @@ You're chatting live with a customer. Be conversational, helpful, and concise. K
 Customer: ${conversation.customer_name}
 Email: ${conversation.customer_email}
 
+# CRITICAL INSTRUCTIONS
+1. ALWAYS check the "Knowledge Base Context" section FIRST before answering any question
+2. If information is available in the Knowledge Base, USE IT - do not make up or guess information
+3. Quote specific details from the Knowledge Base (temperatures, times, pressures, etc.)
+4. If the Knowledge Base has specific values, use those EXACT values
+5. Only say "I don't have access to specific documents" if there truly is no relevant Knowledge Base content
+
 # Additional Guidelines
 - Be warm and professional
 - If you don't know something specific, offer to connect them with a human agent
 - Use emojis sparingly but appropriately
 - Don't make up order information or specific prices
-- If customer asks for a callback, ask for their phone number
-- PRIORITIZE information from the Knowledge Base Context section when answering`;
+- If customer asks for a callback, ask for their phone number`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -1486,5 +1520,96 @@ Email: ${conversation.customer_email}
 
   // Final fallback
   return { response: "Thanks for reaching out! 👋 I'm here to help with any questions about our DTF printing services. What can I assist you with today?" };
+}
+
+/**
+ * Analyze chat message for priority and sentiment
+ * Updates the ticket with the analysis results
+ */
+async function analyzeChatPriorityAndSentiment(env: Env, ticketId: string, message: string): Promise<void> {
+  const openaiKey = env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    console.log('[Chat] No OpenAI key for priority/sentiment analysis');
+    return;
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: `You are a customer service analyst. Analyze the customer message and determine:
+1. Priority: urgent (needs immediate attention, mentions deadlines, frustrated), high (important issue, time-sensitive), normal (standard inquiry), low (general question, not time-sensitive)
+2. Sentiment: positive (happy, satisfied, complimentary), neutral (factual, no strong emotion), negative (frustrated, angry, disappointed)
+
+Respond ONLY with valid JSON in this exact format:
+{"priority": "normal", "sentiment": "neutral"}
+
+Examples:
+- "My order is 3 days late and I need it for an event tomorrow!" → {"priority": "urgent", "sentiment": "negative"}
+- "Just checking on my order status" → {"priority": "normal", "sentiment": "neutral"}
+- "Thanks so much for the quick help!" → {"priority": "low", "sentiment": "positive"}
+- "This is ridiculous, I've been waiting for weeks!" → {"priority": "high", "sentiment": "negative"}`
+          },
+          { role: 'user', content: message }
+        ],
+        max_tokens: 50,
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[Chat] Priority/sentiment API error:', response.status);
+      return;
+    }
+
+    const data = await response.json() as any;
+    const content = data.choices?.[0]?.message?.content?.trim();
+    
+    if (!content) {
+      console.log('[Chat] No content in priority/sentiment response');
+      return;
+    }
+
+    // Parse the JSON response
+    let analysis: { priority?: string; sentiment?: string };
+    try {
+      analysis = JSON.parse(content);
+    } catch (parseError) {
+      console.error('[Chat] Failed to parse priority/sentiment JSON:', content);
+      return;
+    }
+
+    // Validate values
+    const validPriorities = ['urgent', 'high', 'normal', 'low'];
+    const validSentiments = ['positive', 'neutral', 'negative'];
+    
+    const priority = validPriorities.includes(analysis.priority || '') ? analysis.priority : 'normal';
+    const sentiment = validSentiments.includes(analysis.sentiment || '') ? analysis.sentiment : 'neutral';
+
+    console.log('[Chat] Analyzed priority/sentiment:', { ticketId, priority, sentiment, originalMessage: message.substring(0, 50) });
+
+    // Update the ticket with the analysis
+    await env.DB.prepare(`
+      UPDATE tickets SET priority = ?, sentiment = ?, updated_at = ? WHERE ticket_id = ?
+    `).bind(priority, sentiment, new Date().toISOString(), ticketId).run();
+
+    // Also update the conversation
+    await env.DB.prepare(`
+      UPDATE chat_conversations SET priority = ?, sentiment = ?, updated_at = ? WHERE ticket_id = ?
+    `).bind(priority, sentiment, new Date().toISOString(), ticketId).run();
+
+    console.log('[Chat] Updated ticket and conversation with priority/sentiment');
+
+  } catch (error: any) {
+    console.error('[Chat] Priority/sentiment analysis error:', error.message);
+  }
 }
 

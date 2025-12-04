@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, User, Send, UserPlus, X, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive, ChevronLeft } from 'lucide-react';
+import { User, Send, UserPlus, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { useSearchParams, Link } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
 
 interface ChatConversation {
   id: string;
   ticket_id: string;
+  ticket_number: string; // Actual ticket number like TKT-000178
   customer_name: string;
   customer_email: string;
   // New status model: ai_handling, queued, assigned, staff_handling, closed
@@ -74,7 +76,7 @@ const chatApi = {
 // Tab configuration
 const tabs: { key: TabType; label: string; icon: React.ReactNode; description: string }[] = [
   { key: 'ai', label: 'AI', icon: <Sparkles className="w-4 h-4" />, description: 'Active chats with AI' },
-  { key: 'staff', label: 'Staff Live', icon: <Users className="w-4 h-4" />, description: 'Escalated to staff' },
+  { key: 'staff', label: 'Staff', icon: <Users className="w-4 h-4" />, description: 'Escalated to staff' },
   { key: 'queued', label: 'Queued', icon: <Inbox className="w-4 h-4" />, description: 'Awaiting staff' },
   { key: 'closed', label: 'Closed', icon: <Archive className="w-4 h-4" />, description: 'Resolved & inactive' },
 ];
@@ -96,6 +98,23 @@ export default function ChatDashboardPage() {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignTo, setReassignTo] = useState<string>('');
   const [reassignReason, setReassignReason] = useState('');
+  const [showInternalNotes, setShowInternalNotes] = useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [showOrders, setShowOrders] = useState(false);
+  const [showShopify, setShowShopify] = useState(false);
+  const [staffFilter, setStaffFilter] = useState<string>('all');
+
+  // Keyboard shortcut: Ctrl+Y for Staff Notes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        setShowInternalNotes(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Check for conversation or ticket param in URL (from ticket list click)
   useEffect(() => {
@@ -227,17 +246,46 @@ export default function ChatDashboardPage() {
     },
   });
 
-  // Fetch staff list for reassignment
+  // Fetch staff list for reassignment and staff filter dropdown
   const { data: staffData } = useQuery({
     queryKey: ['staff-list'],
     queryFn: () => chatApi.getStaffList(),
-    enabled: showReassignModal,
+    enabled: showReassignModal || activeTab === 'staff',
   });
   const staffList: StaffMember[] = staffData?.staff || [];
 
   const conversations: ChatConversation[] = conversationsData?.conversations || [];
   const messages: ChatMessage[] = conversationData?.messages || [];
   const currentConversation = conversationData?.conversation;
+
+  // Filtered conversations for navigation
+  const filteredConversations = conversations.filter((conv) => 
+    staffFilter === 'all' || conv.assigned_to === staffFilter
+  );
+
+  // Navigation handlers
+  const handlePreviousConversation = () => {
+    if (!selectedConversation || filteredConversations.length === 0) return;
+    const currentIndex = filteredConversations.findIndex(c => c.id === selectedConversation);
+    if (currentIndex > 0) {
+      setSelectedConversation(filteredConversations[currentIndex - 1].id);
+    }
+  };
+
+  const handleNextConversation = () => {
+    if (!selectedConversation || filteredConversations.length === 0) return;
+    const currentIndex = filteredConversations.findIndex(c => c.id === selectedConversation);
+    if (currentIndex < filteredConversations.length - 1) {
+      setSelectedConversation(filteredConversations[currentIndex + 1].id);
+    }
+  };
+
+  // Check if navigation is possible
+  const currentIndex = selectedConversation 
+    ? filteredConversations.findIndex(c => c.id === selectedConversation) 
+    : -1;
+  const canGoPrevious = currentIndex > 0;
+  const canGoNext = currentIndex >= 0 && currentIndex < filteredConversations.length - 1;
 
   const handleSendReply = () => {
     if (!selectedConversation || !replyMessage.trim()) return;
@@ -247,15 +295,6 @@ export default function ChatDashboardPage() {
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    }
-    return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
   };
 
   const getQueueWaitTime = (queueEnteredAt?: string) => {
@@ -312,8 +351,8 @@ export default function ChatDashboardPage() {
       {/* Conversation List */}
       <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
         {/* Header with Tabs */}
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2">
             <Link 
               to="/tickets" 
               className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
@@ -321,10 +360,13 @@ export default function ChatDashboardPage() {
             >
               <ChevronLeft className="w-5 h-5 text-gray-500" />
             </Link>
-            <MessageSquare className="w-5 h-5 text-indigo-600" />
+            <svg className="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+              <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
+            </svg>
             Live Chats
           </h2>
-          <div className="flex gap-1">
+          <div className="flex gap-1 mb-2">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -332,7 +374,7 @@ export default function ChatDashboardPage() {
                   setActiveTab(tab.key);
                   setSelectedConversation(null);
                 }}
-                className={`flex-1 flex flex-col items-center px-2 py-2 text-xs rounded-lg transition-colors ${
+                className={`flex-1 flex flex-col items-center px-2 py-1.5 text-xs rounded-lg transition-colors ${
                   activeTab === tab.key
                     ? 'bg-indigo-600 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -340,7 +382,7 @@ export default function ChatDashboardPage() {
                 title={tab.description}
               >
                 {tab.icon}
-                <span className="mt-1">{tab.label}</span>
+                <span className="mt-0.5">{tab.label}</span>
                 {tabCounts && tabCounts[tab.key] > 0 && (
                   <span className={`mt-0.5 px-1.5 py-0.5 text-xs rounded-full ${
                     activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
@@ -351,13 +393,37 @@ export default function ChatDashboardPage() {
               </button>
             ))}
           </div>
+          
+          {/* Staff Filter Dropdown - Same size as action buttons (h-7) */}
+          <select
+            value={activeTab === 'staff' ? staffFilter : 'all'}
+            onChange={(e) => setStaffFilter(e.target.value)}
+            disabled={activeTab !== 'staff'}
+            className={`w-full h-7 text-xs border rounded-lg px-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+              activeTab === 'staff' 
+                ? 'border-indigo-300 bg-white' 
+                : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <option value="all">All Staff</option>
+            {staffList
+              .filter((staff) => staff.id !== 'ai-agent-001')
+              .map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.first_name} {staff.last_name} ({
+                  staff.availability_status === 'online' ? 'Online' : 
+                  staff.availability_status === 'away' ? 'Away' : 'Offline'
+                })
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto">
           {loadingConversations ? (
             <div className="p-4 text-center text-gray-500">Loading...</div>
-          ) : conversations.length === 0 ? (
+          ) : filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               <div className="text-gray-300 mb-2">
                 {activeTab === 'ai' && <Bot className="w-8 h-8 mx-auto" />}
@@ -365,10 +431,13 @@ export default function ChatDashboardPage() {
                 {activeTab === 'queued' && <Inbox className="w-8 h-8 mx-auto" />}
                 {activeTab === 'closed' && <Archive className="w-8 h-8 mx-auto" />}
               </div>
-              No {tabs.find(t => t.key === activeTab)?.label.toLowerCase()} chats
+              {staffFilter !== 'all' 
+                ? `No chats for selected staff member`
+                : `No ${tabs.find(t => t.key === activeTab)?.label.toLowerCase()} chats`
+              }
             </div>
           ) : (
-            conversations.map((conv) => (
+            filteredConversations.map((conv) => (
               <div
                 key={conv.id}
                 onClick={() => setSelectedConversation(conv.id)}
@@ -426,12 +495,15 @@ export default function ChatDashboardPage() {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col bg-gray-50">
+      {/* Chat Area - EXACT MATCH to ChatTicketDetailPage */}
+      <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
         {!selectedConversation ? (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
-              <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+              <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+                <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
+              </svg>
               <p>Select a conversation to view</p>
             </div>
           </div>
@@ -441,71 +513,213 @@ export default function ChatDashboardPage() {
           </div>
         ) : (
           <>
-            {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-indigo-600" />
+            {/* Header - EXACT MATCH to ChatTicketDetailPage */}
+            <div className="bg-white border-b border-gray-200 p-3 flex-shrink-0">
+              {/* Top Row: Ticket number, badges, and assigned to */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+                      <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
+                    </svg>
+                    <h1 className="text-base font-semibold text-gray-900">
+                      {currentConversation?.ticket_number || 'Chat'}
+                    </h1>
+                  </div>
+                  <button className={`px-1.5 py-0.5 rounded-lg text-xs border font-medium ${
+                    currentConversation?.status === 'ai_handling' ? 'bg-green-100 text-green-800 border-green-200' :
+                    currentConversation?.status === 'staff_handling' || currentConversation?.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                    currentConversation?.status === 'queued' ? 'bg-green-100 text-green-800 border-green-200' :
+                    currentConversation?.status === 'closed' ? 'bg-gray-100 text-gray-800 border-gray-200' :
+                    'bg-green-100 text-green-800 border-green-200'
+                  }`}>
+                    {currentConversation?.status === 'ai_handling' ? 'open' :
+                     currentConversation?.status === 'staff_handling' ? 'in-progress' :
+                     currentConversation?.status === 'assigned' ? 'in-progress' :
+                     currentConversation?.status === 'queued' ? 'open' :
+                     currentConversation?.status === 'closed' ? 'resolved' :
+                     currentConversation?.status}
+                  </button>
+                  <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-blue-50 text-blue-700 ring-blue-600/20">
+                    {currentConversation?.priority || 'normal'}
+                  </span>
+                  <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-gray-50 text-gray-600 ring-gray-500/20">
+                    {currentConversation?.sentiment === 'positive' ? '😊' : currentConversation?.sentiment === 'negative' ? '😟' : currentConversation?.sentiment === 'angry' ? '😡' : '😐'} {currentConversation?.sentiment || 'neutral'}
+                  </span>
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">{currentConversation?.customer_name}</p>
-                  <p className="text-sm text-gray-500">{currentConversation?.customer_email}</p>
-                </div>
-                {getPriorityBadge(currentConversation?.priority)}
-                {getSentimentBadge(currentConversation?.sentiment)}
+                <button className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                  {currentConversation?.assigned_to === 'ai-agent-001' 
+                    ? 'McCarthy AI' 
+                    : currentConversation?.assigned_staff_first_name 
+                      ? `${currentConversation.assigned_staff_first_name} ${currentConversation.assigned_staff_last_name || ''}`
+                      : 'Unassigned'}
+                </button>
               </div>
-              <div className="flex items-center gap-2">
-                {/* Queued tab - Pickup button */}
-                {activeTab === 'queued' && (
-                  <button
-                    onClick={() => pickupMutation.mutate(selectedConversation)}
-                    disabled={pickupMutation.isPending}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Pick Up
-                  </button>
-                )}
-                
-                {/* AI tab - Takeover button */}
-                {activeTab === 'ai' && currentConversation?.assigned_to === 'ai-agent-001' && (
-                  <button
-                    onClick={() => takeoverMutation.mutate(selectedConversation)}
-                    disabled={takeoverMutation.isPending}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Take Over
-                  </button>
-                )}
-                
-                {/* Staff tab - Reassign button */}
-                {activeTab === 'staff' && currentConversation?.status !== 'closed' && (
-                  <button
+
+              {/* Middle Row: Customer name and date/time */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-gray-900">{currentConversation?.customer_name || currentConversation?.customer_email}</span>
+                  <span className="text-xs text-gray-500">
+                    {currentConversation?.started_at && new Date(currentConversation.started_at).toLocaleString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom Row: Subject and action buttons */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600 flex-1 truncate mr-4">
+                  <span className="font-medium">Subject:</span> Live Chat Conversation
+                </p>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Pickup button for queued */}
+                  {currentConversation?.status === 'queued' && (
+                    <button 
+                      onClick={() => pickupMutation.mutate(selectedConversation)}
+                      disabled={pickupMutation.isPending}
+                      className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      <span>Pick Up</span>
+                    </button>
+                  )}
+                  
+                  {/* Takeover button for AI handling */}
+                  {currentConversation?.status === 'ai_handling' && currentConversation?.assigned_to === 'ai-agent-001' && (
+                    <button 
+                      onClick={() => takeoverMutation.mutate(selectedConversation)}
+                      disabled={takeoverMutation.isPending}
+                      className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      <span>Take Over</span>
+                    </button>
+                  )}
+                  
+                  <button 
                     onClick={() => setShowReassignModal(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
+                    className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    Reassign
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Reassign</span>
                   </button>
-                )}
-                
-                {/* Close button (for AI and Staff tabs) */}
-                {(activeTab === 'ai' || activeTab === 'staff') && currentConversation?.status !== 'closed' && (
-                  <button
-                    onClick={() => setShowCloseModal(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700"
-                  >
-                    <X className="w-4 h-4" />
-                    Close Chat
-                  </button>
-                )}
+                  
+                  {currentConversation?.status !== 'closed' && (
+                    <button 
+                      onClick={() => setShowCloseModal(true)}
+                      className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Close Chat</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Messages - Threaded style, newest at top */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-4">
+            {/* Action Buttons - SEPARATE row like ChatTicketDetailPage */}
+            <div className="px-4 py-3 bg-white border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowCustomerDetails(!showCustomerDetails)}
+                  className="h-7 text-xs px-2 py-1 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center space-x-1"
+                >
+                  <User className="w-3 h-3" />
+                  <span>Customer Info</span>
+                </button>
+                <button
+                  onClick={() => setShowOrders(!showOrders)}
+                  className="h-7 text-xs px-2 py-1 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center space-x-1"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>Order History</span>
+                </button>
+                <button
+                  onClick={() => setShowShopify(!showShopify)}
+                  className={`h-7 text-xs px-2 py-1 border rounded-lg hover:opacity-80 transition-colors flex items-center justify-center space-x-1 font-medium ${
+                    showShopify 
+                      ? 'bg-green-600 text-white border-green-700' 
+                      : 'bg-white text-green-700 border-green-300'
+                  }`}
+                >
+                  <CheckCircle className="w-3 h-3" />
+                  <span>Shopify</span>
+                </button>
+              </div>
+              
+              {/* Navigation arrows */}
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={handlePreviousConversation}
+                  disabled={!canGoPrevious}
+                  className={`p-1 border border-gray-200 rounded ${
+                    canGoPrevious 
+                      ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' 
+                      : 'text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={handleNextConversation}
+                  disabled={!canGoNext}
+                  className={`p-1 border border-gray-200 rounded ${
+                    canGoNext 
+                      ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' 
+                      : 'text-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Messages Container - Scrollable, Threaded style */}
+            <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
+              {/* Customer Details Panel */}
+              {showCustomerDetails && (
+                <div className="p-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+                  <div className="bg-white rounded-lg p-3 text-xs">
+                    <h4 className="font-semibold text-gray-800 mb-2">Customer Profile</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-500">Name:</span>
+                        <span className="ml-2 font-medium">{currentConversation?.customer_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">VIP:</span>
+                        <span className="ml-2 font-medium text-amber-600">No</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Email:</span>
+                        <span className="ml-2 font-medium">{currentConversation?.customer_email}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Order History Panel */}
+              {showOrders && (
+                <div className="p-3 bg-green-50 border-b border-green-100 flex-shrink-0">
+                  <div className="bg-white rounded-lg p-3">
+                    <h4 className="font-semibold text-gray-800 mb-2 text-xs">Order History</h4>
+                    <p className="text-xs text-gray-500">Order history will be loaded from Shopify</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 space-y-4 bg-gray-50">
                 {[...messages].reverse().map((msg) => {
                   const isCustomer = msg.sender_type === 'customer';
                   const isSystem = msg.sender_type === 'system';
@@ -513,7 +727,7 @@ export default function ChatDashboardPage() {
                   
                   if (isSystem) {
                     return (
-                      <div key={msg.id} className="text-center">
+                      <div key={msg.id} className="py-3 text-center">
                         <span className="inline-block px-3 py-1 text-xs text-gray-500 bg-gray-100 rounded-full">
                           {msg.content}
                         </span>
@@ -538,26 +752,24 @@ export default function ChatDashboardPage() {
                           )}
                         </div>
                         <span className="font-medium text-sm text-gray-900">
-                          {msg.sender_name || (isCustomer ? 'Customer' : isAI ? 'McCarthy AI' : 'Staff')}
+                          {msg.sender_name || (isCustomer ? currentConversation?.customer_name : isAI ? 'McCarthy AI' : 'Staff')}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {formatDate(msg.created_at)} {formatTime(msg.created_at)}
+                          {msg.created_at && formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">
-                        {msg.content}
-                      </div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{msg.content}</div>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Reply Input - Only for staff tab or after takeover */}
+            {/* Reply Input Area - Same style as ChatTicketDetailPage */}
             {(activeTab === 'staff' || (activeTab === 'ai' && currentConversation?.assigned_to !== 'ai-agent-001')) && 
              currentConversation?.status !== 'closed' && (
-              <div className="bg-white border-t border-gray-200 p-4">
-                <div className="flex gap-2">
+              <div className="flex-shrink-0 bg-gray-50 border-t border-gray-200 p-4">
+                <div className="flex gap-3">
                   <textarea
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
@@ -567,14 +779,14 @@ export default function ChatDashboardPage() {
                         handleSendReply();
                       }
                     }}
-                    placeholder="Type your reply..."
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                    rows={2}
+                    placeholder="Type your reply... (Press Enter to send, Shift+Enter for new line)"
+                    className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-white"
+                    rows={3}
                   />
                   <button
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || replyMutation.isPending}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors self-end"
                   >
                     <Send className="w-4 h-4" />
                     Send
@@ -582,7 +794,143 @@ export default function ChatDashboardPage() {
                 </div>
               </div>
             )}
+            
+            {/* Show "Closed" message for closed chats */}
+            {currentConversation?.status === 'closed' && (
+              <div className="flex-shrink-0 bg-gray-100 border-t border-gray-200 p-4 text-center text-gray-500">
+                <CheckCircle className="w-5 h-5 inline-block mr-2" />
+                <span className="text-sm">This chat has been closed</span>
+              </div>
+            )}
+
+            {/* Staff Notes Section - EXACT MATCH to ChatTicketDetailPage */}
+            <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              {/* Header Bar - Clickable to toggle */}
+              <div 
+                className="px-4 py-2.5 bg-gradient-to-r from-yellow-50 to-yellow-100 border-b border-yellow-200 flex items-center gap-2 cursor-pointer hover:from-yellow-100 hover:to-yellow-150 transition-colors"
+                onClick={() => setShowInternalNotes(!showInternalNotes)}
+              >
+                <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-gray-800">📝 Staff Notes (Internal Only)</h3>
+                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-300">Ctrl+Y</span>
+              </div>
+              
+              {/* Expandable Notes Area */}
+              {showInternalNotes && (
+                <div className="flex flex-col bg-yellow-50" style={{ height: '200px' }}>
+                  <div className="p-4 flex-1 flex flex-col min-h-0">
+                    <textarea
+                      placeholder="Add internal notes for other staff members... (Press Enter to save)"
+                      className="w-full flex-1 border border-yellow-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none bg-white min-h-0"
+                    />
+                    <button className="mt-2 text-xs px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 self-start flex-shrink-0">
+                      Attach File
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
+        )}
+      </div>
+
+      {/* Shopify Right Sidebar - Slides in from right */}
+      <div className={`bg-white border-l border-gray-200 transition-all duration-300 ease-in-out overflow-y-auto ${
+        showShopify ? 'w-96' : 'w-0'
+      }`}>
+        {showShopify && currentConversation && (
+          <div className="p-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <h2 className="text-base font-semibold text-gray-900">Shopify</h2>
+              </div>
+              <button 
+                onClick={() => setShowShopify(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer Section */}
+            <div className="mb-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">CUSTOMER</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{currentConversation.customer_name || 'Customer'}</p>
+                  <p className="text-xs text-gray-500">{currentConversation.customer_email}</p>
+                  <p className="text-xs text-gray-500">+1 (555) 123-4567</p>
+                </div>
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-500">Total Spent:</span>
+                    <span className="font-semibold text-indigo-600">$2,847.00</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Total Orders:</span>
+                    <span className="font-semibold text-gray-900">8</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Section */}
+            <div className="mb-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ORDER</h3>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Order #5421</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full font-medium">
+                      Fulfilled
+                    </span>
+                    <span className="text-xs text-gray-500">Total: <span className="font-semibold text-gray-900">$342.50</span></span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-gray-200 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Created:</span>
+                    <span className="text-gray-900">Nov 28, 2024</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Shipped:</span>
+                    <span className="text-gray-900">Nov 29, 2024</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Tracking:</span>
+                    <span className="text-indigo-600 font-medium">1Z999AA10123456784</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Section */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ITEMS</h3>
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3 p-2 bg-gray-50 rounded-lg">
+                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">IMG</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">DTF Transfer - Custom Design</p>
+                    <p className="text-xs text-gray-500">Size: A3 • Qty: 50</p>
+                    <p className="text-xs font-medium text-gray-900 mt-1">$175.00</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-2 bg-gray-50 rounded-lg">
+                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">IMG</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">Gang Sheet - Mixed Designs</p>
+                    <p className="text-xs text-gray-500">Size: 22x60" • Qty: 2</p>
+                    <p className="text-xs font-medium text-gray-900 mt-1">$167.50</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -635,57 +983,112 @@ export default function ChatDashboardPage() {
         </div>
       )}
 
-      {/* Reassign Chat Modal */}
+      {/* Reassign Chat Modal - Same style as ChatTicketDetailPage */}
       {showReassignModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Reassign Chat</h3>
-            <p className="text-sm text-gray-600 mb-4">Transfer this conversation to another team member or back to AI.</p>
-            
-            <div className="space-y-4">
-              {/* Assign to dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign to</label>
-                <select
-                  value={reassignTo}
-                  onChange={(e) => setReassignTo(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] flex flex-col">
+            {/* Fixed Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+              <h3 className="text-lg font-semibold text-gray-900">Reassign Chat</h3>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              <p className="text-sm text-gray-600 mb-4">
+                Reassign this chat to another staff member:
+              </p>
+
+              {/* Only one online warning */}
+              {staffList.filter(s => s.availability_status === 'online').length === 1 && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    ℹ️ You're the only staff member online
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {/* McCarthy AI option */}
+                <label
+                  className={`flex items-center p-3 border rounded-lg transition-colors cursor-pointer hover:bg-gray-50 ${
+                    reassignTo === 'ai-agent-001'
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : 'border-gray-300'
+                  }`}
                 >
-                  <option value="">Select...</option>
-                  <option value="ai-agent-001">🤖 McCarthy AI</option>
-                  {staffList
-                    .filter(s => s.id !== 'ai-agent-001')
-                    .map(staff => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.first_name} {staff.last_name}
-                        {staff.availability_status === 'online' ? ' 🟢' : staff.availability_status === 'away' ? ' 🟡' : ' 🔴'}
-                      </option>
-                    ))
-                  }
-                </select>
+                  <input
+                    type="radio"
+                    name="staff"
+                    value="ai-agent-001"
+                    checked={reassignTo === 'ai-agent-001'}
+                    onChange={(e) => setReassignTo(e.target.value)}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 flex-shrink-0 mr-3"
+                  />
+                  <div className="w-2 h-2 rounded-full mr-3 bg-purple-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      McCarthy AI
+                    </p>
+                    <p className="text-xs text-gray-500">Return to AI handling</p>
+                  </div>
+                </label>
+
+                {/* Staff members */}
+                {staffList
+                  .filter(s => s.id !== 'ai-agent-001')
+                  .map((staff) => (
+                    <label
+                      key={staff.id}
+                      className={`flex items-center p-3 border rounded-lg transition-colors cursor-pointer hover:bg-gray-50 ${
+                        reassignTo === staff.id
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="staff"
+                        value={staff.id}
+                        checked={reassignTo === staff.id}
+                        onChange={(e) => setReassignTo(e.target.value)}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 flex-shrink-0 mr-3"
+                      />
+                      <div className={`w-2 h-2 rounded-full mr-3 ${
+                        staff.availability_status === 'online' ? 'bg-green-500' : 
+                        staff.availability_status === 'away' ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{staff.first_name} {staff.last_name}</p>
+                        <p className="text-xs text-gray-500 capitalize">{staff.availability_status || 'Offline'}</p>
+                      </div>
+                    </label>
+                  ))
+                }
               </div>
 
-              {/* Reason (optional) */}
-              <div>
+              {/* Reason field */}
+              <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
                 <textarea
                   value={reassignReason}
                   onChange={(e) => setReassignReason(e.target.value)}
                   placeholder="e.g., Sales inquiry, needs technical support..."
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                 />
               </div>
             </div>
-            
-            <div className="flex gap-3 mt-6">
+
+            {/* Fixed Footer */}
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end gap-3 border-t border-gray-200 flex-shrink-0">
               <button
                 onClick={() => {
                   setShowReassignModal(false);
                   setReassignTo('');
                   setReassignReason('');
                 }}
-                className="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>

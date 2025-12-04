@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { ticketsApi } from '../../lib/api'
 import Sidebar from './Sidebar'
+import HeaderProfileMenu from './HeaderProfileMenu'
 import {
   Bars3Icon,
   XMarkIcon,
@@ -41,7 +42,8 @@ export default function DashboardLayout() {
   console.log('DashboardLayout - All tickets:', tickets.map((t: any) => ({ 
     id: t.ticket_number, 
     assigned: t.assigned_to, 
-    status: t.status 
+    status: t.status,
+    channel: t.channel
   })))
   
   const ticketCounts = {
@@ -87,20 +89,18 @@ export default function DashboardLayout() {
       t.status !== 'resolved' &&
       t.status !== 'closed'
     ).length,
-    // Staff member counts (includes open, in-progress, AND snoozed - excludes resolved/closed)
-    sam: tickets.filter((t: any) => 
-      (t.assigned_to === '00000000-0000-0000-0000-000000000003' || 
-       (t.is_escalated_to_me === 1 && user?.id === '00000000-0000-0000-0000-000000000003')) &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    ).length,
-    ted: tickets.filter((t: any) => 
-      (t.assigned_to === '00000000-0000-0000-0000-000000000002' ||
-       (t.is_escalated_to_me === 1 && user?.id === '00000000-0000-0000-0000-000000000002')) &&
-      t.status !== 'resolved' &&
-      t.status !== 'closed'
-    ).length,
+    // Dynamic staff counts - calculate per staff member from tickets
+    staffCounts: tickets
+      .filter((t: any) => t.assigned_to && t.status !== 'resolved' && t.status !== 'closed')
+      .reduce((acc: Record<string, number>, t: any) => {
+        acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
   }
+  
+  // Debug: Log calculated staff counts
+  console.log('DashboardLayout - Staff counts:', ticketCounts.staffCounts)
+  console.log('DashboardLayout - McCarthy AI count:', ticketCounts.staffCounts['ai-agent-001'])
 
   // Keyboard shortcut: Ctrl+B to toggle sidebar
   useEffect(() => {
@@ -210,15 +210,30 @@ export default function DashboardLayout() {
         />
       </div>
 
-      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-sm sm:px-6 lg:hidden">
-        <button type="button" className="-m-2.5 p-2.5 text-gray-700 lg:hidden" onClick={() => setSidebarOpen(true)}>
-          <span className="sr-only">Open sidebar</span>
-          <Bars3Icon className="h-6 w-6" aria-hidden="true" />
-        </button>
-        <div className="flex-1 text-sm font-semibold leading-6 text-gray-900">Dashboard</div>
+      {/* Top Header Bar */}
+      <div className={`fixed top-0 right-0 z-40 transition-all duration-300 ${desktopSidebarCollapsed ? 'lg:left-16' : 'lg:left-64'} left-0`}>
+        <div className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 shadow-sm">
+          {/* Mobile menu button */}
+          <button 
+            type="button" 
+            className="-m-2.5 p-2.5 text-gray-700 lg:hidden" 
+            onClick={() => setSidebarOpen(true)}
+          >
+            <span className="sr-only">Open sidebar</span>
+            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+          </button>
+          
+          {/* Spacer for desktop */}
+          <div className="hidden lg:block" />
+          
+          {/* Right side - Profile Menu */}
+          <div className="flex items-center gap-4">
+            <HeaderProfileMenu />
+          </div>
+        </div>
       </div>
 
-      <main className={`transition-all duration-300 ${desktopSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
+      <main className={`transition-all duration-300 pt-14 ${desktopSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
         <Outlet />
       </main>
     </div>

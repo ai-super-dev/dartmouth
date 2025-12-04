@@ -103,11 +103,14 @@ export function createAPIRouter() {
   app.get('/api/staff', authenticate, staffController.listStaff);
   app.get('/api/staff/me', authenticate, staffController.getCurrentStaff);
   app.get('/api/staff/online-count', authenticate, staffController.getOnlineStaffCount);
+  app.get('/api/staff/avatar/*', staffController.getAvatar); // Public - serve avatar images
   app.get('/api/staff/:id', authenticate, staffController.getStaff);
   app.post('/api/staff', authenticate, staffController.createStaff);
   app.put('/api/staff/:id', authenticate, staffController.updateStaff);
   app.put('/api/staff/:id/presence', authenticate, staffController.updatePresence);
   app.put('/api/staff/:id/availability', authenticate, staffController.updateAvailability);
+  app.post('/api/staff/:id/avatar', authenticate, staffController.uploadAvatar);
+  app.delete('/api/staff/:id/avatar', authenticate, staffController.deleteAvatar);
 
   // ========================================================================
   // BUSINESS HOURS & CHAT SETTINGS ROUTES

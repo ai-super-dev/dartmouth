@@ -264,6 +264,200 @@ export async function createStaff(c: Context<{ Bindings: Env }>) {
 }
 
 /**
+ * Upload staff avatar
+ * POST /api/staff/:id/avatar
+ * Staff can upload their own avatar, admins can upload for anyone
+ * 
+ * If R2 is not configured, stores as base64 data URL in the database
+ */
+export async function uploadAvatar(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as AuthUser;
+    const staffId = c.req.param('id');
+
+    // Check if user can update this staff member
+    const isAdmin = user.role === 'admin';
+    const isSelf = user.id === staffId;
+
+    if (!isAdmin && !isSelf) {
+      return c.json({ error: 'Not authorized to update this staff member' }, 403);
+    }
+
+    // Check if staff exists
+    const existing = await c.env.DB.prepare(`
+      SELECT id, avatar_url FROM staff_users WHERE id = ?
+    `).bind(staffId).first<{ id: string; avatar_url: string | null }>();
+
+    if (!existing) {
+      return c.json({ error: 'Staff member not found' }, 404);
+    }
+
+    // Get the file from the request
+    const formData = await c.req.formData();
+    const file = formData.get('avatar') as File | null;
+
+    if (!file) {
+      return c.json({ error: 'No avatar file provided' }, 400);
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: 'Invalid file type. Allowed: JPEG, PNG, GIF, WebP' }, 400);
+    }
+
+    // Validate file size (max 2MB for base64 storage, 5MB for R2)
+    const maxSizeBase64 = 2 * 1024 * 1024;
+    const maxSizeR2 = 5 * 1024 * 1024;
+    
+    let avatarUrl: string;
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Check if R2 is available
+    if (c.env.ATTACHMENTS) {
+      // Use R2 storage
+      if (file.size > maxSizeR2) {
+        return c.json({ error: 'File too large. Maximum size is 5MB' }, 400);
+      }
+
+      // Generate unique filename
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filename = `avatars/${staffId}-${Date.now()}.${ext}`;
+
+      // Upload to R2
+      await c.env.ATTACHMENTS.put(filename, arrayBuffer, {
+        httpMetadata: {
+          contentType: file.type,
+        },
+      });
+
+      avatarUrl = `/api/staff/avatar/${filename}`;
+
+      // Delete old avatar if exists in R2
+      if (existing.avatar_url && existing.avatar_url.startsWith('/api/staff/avatar/')) {
+        const oldKey = existing.avatar_url.replace('/api/staff/avatar/', '');
+        try {
+          await c.env.ATTACHMENTS.delete(oldKey);
+        } catch (e) {
+          console.warn('[Staff] Failed to delete old avatar:', e);
+        }
+      }
+
+      console.log(`[Staff] Avatar uploaded to R2 for ${staffId}: ${filename}`);
+    } else {
+      // Fallback: Store as base64 data URL in database
+      if (file.size > maxSizeBase64) {
+        return c.json({ error: 'File too large. Maximum size is 2MB' }, 400);
+      }
+
+      // Convert to base64 data URL
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      avatarUrl = `data:${file.type};base64,${base64}`;
+
+      console.log(`[Staff] Avatar stored as base64 for ${staffId} (${Math.round(file.size / 1024)}KB)`);
+    }
+
+    // Update database with new avatar URL
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(`
+      UPDATE staff_users SET avatar_url = ?, updated_at = ? WHERE id = ?
+    `).bind(avatarUrl, now, staffId).run();
+
+    return c.json({ 
+      message: 'Avatar uploaded successfully',
+      avatarUrl 
+    });
+  } catch (error: any) {
+    console.error('[Staff] Upload avatar error:', error);
+    return c.json({ error: error.message || 'Internal server error' }, 500);
+  }
+}
+
+/**
+ * Get staff avatar
+ * GET /api/staff/avatar/:path
+ * Public endpoint to serve avatar images
+ */
+export async function getAvatar(c: Context<{ Bindings: Env }>) {
+  try {
+    // Get the full path after /api/staff/avatar/
+    const url = new URL(c.req.url);
+    const pathMatch = url.pathname.match(/\/api\/staff\/avatar\/(.+)/);
+    const key = pathMatch ? pathMatch[1] : null;
+
+    if (!key) {
+      return c.json({ error: 'Avatar path required' }, 400);
+    }
+
+    const object = await c.env.ATTACHMENTS.get(key);
+
+    if (!object) {
+      return c.json({ error: 'Avatar not found' }, 404);
+    }
+
+    const headers = new Headers();
+    headers.set('Content-Type', object.httpMetadata?.contentType || 'image/jpeg');
+    headers.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+
+    return new Response(object.body, { headers });
+  } catch (error: any) {
+    console.error('[Staff] Get avatar error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+}
+
+/**
+ * Delete staff avatar
+ * DELETE /api/staff/:id/avatar
+ * Staff can delete their own avatar, admins can delete for anyone
+ */
+export async function deleteAvatar(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as AuthUser;
+    const staffId = c.req.param('id');
+
+    // Check if user can update this staff member
+    const isAdmin = user.role === 'admin';
+    const isSelf = user.id === staffId;
+
+    if (!isAdmin && !isSelf) {
+      return c.json({ error: 'Not authorized to update this staff member' }, 403);
+    }
+
+    // Get current avatar
+    const existing = await c.env.DB.prepare(`
+      SELECT avatar_url FROM staff_users WHERE id = ?
+    `).bind(staffId).first<{ avatar_url: string | null }>();
+
+    if (!existing) {
+      return c.json({ error: 'Staff member not found' }, 404);
+    }
+
+    if (existing.avatar_url && existing.avatar_url.startsWith('/api/staff/avatar/')) {
+      const key = existing.avatar_url.replace('/api/staff/avatar/', '');
+      try {
+        await c.env.ATTACHMENTS.delete(key);
+      } catch (e) {
+        console.warn('[Staff] Failed to delete avatar file:', e);
+      }
+    }
+
+    // Update database to remove avatar URL
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(`
+      UPDATE staff_users SET avatar_url = NULL, updated_at = ? WHERE id = ?
+    `).bind(now, staffId).run();
+
+    console.log(`[Staff] Avatar deleted for ${staffId}`);
+
+    return c.json({ message: 'Avatar deleted successfully' });
+  } catch (error: any) {
+    console.error('[Staff] Delete avatar error:', error);
+    return c.json({ error: error.message || 'Internal server error' }, 500);
+  }
+}
+
+/**
  * Update staff member
  * PUT /api/staff/:id
  * Admin can update anyone, staff can only update themselves (limited fields)

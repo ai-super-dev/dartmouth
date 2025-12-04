@@ -1,7 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import StaffAvailabilityToggle from '../StaffAvailabilityToggle'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../../lib/api'
+
+interface StaffMember {
+  id: string
+  first_name: string
+  last_name: string
+  availability_status: string
+}
 
 interface SidebarProps {
   ticketCounts?: {
@@ -15,20 +23,30 @@ interface SidebarProps {
     escalatedToMe: number
     vip: number
     allAssigned: number
-    sam: number
-    ted: number
+    staffCounts?: Record<string, number>
   }
   isCollapsed: boolean
   onToggle: () => void
 }
 
 export default function Sidebar({ 
-  ticketCounts = { all: 0, myTickets: 0, pending: 0, unassigned: 0, snoozed: 0, resolved: 0, escalated: 0, escalatedToMe: 0, vip: 0, allAssigned: 0, sam: 0, ted: 0 },
+  ticketCounts = { all: 0, myTickets: 0, pending: 0, unassigned: 0, snoozed: 0, resolved: 0, escalated: 0, escalatedToMe: 0, vip: 0, allAssigned: 0, staffCounts: {} },
   isCollapsed,
   onToggle
 }: SidebarProps) {
+  // Fetch staff list
+  const { data: staffData } = useQuery({
+    queryKey: ['staff-list-sidebar'],
+    queryFn: async () => {
+      const response = await api.get('/api/staff')
+      return response.data
+    },
+    staleTime: 60000, // Cache for 1 minute
+  })
+  const staffList: StaffMember[] = staffData?.staff || []
   const location = useLocation()
   const navigate = useNavigate()
+  
   // All sections collapsed by default
   const [isTicketsExpanded, setIsTicketsExpanded] = useState(false)
   const [isCustomersExpanded, setIsCustomersExpanded] = useState(false)
@@ -36,8 +54,12 @@ export default function Sidebar({
   const [isGroupChatExpanded, setIsGroupChatExpanded] = useState(false)
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false)
   const [isAssignedExpanded, setIsAssignedExpanded] = useState(false)
+  // Settings submenus
+  const [isIntegrationsExpanded, setIsIntegrationsExpanded] = useState(false)
+  const [isMetaExpanded, setIsMetaExpanded] = useState(false)
+  const [isGeneralExpanded, setIsGeneralExpanded] = useState(false)
+  const [isBillingExpanded, setIsBillingExpanded] = useState(false)
   const [isBusinessExpanded, setIsBusinessExpanded] = useState(false)
-  const [isTemplatesExpanded, setIsTemplatesExpanded] = useState(false)
   const [isAIAgentExpanded, setIsAIAgentExpanded] = useState(false)
 
   const isActive = (path: string) => location.pathname === path
@@ -141,8 +163,9 @@ export default function Sidebar({
   )
   
   const AIChatIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+      <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
     </svg>
   )
   
@@ -181,20 +204,17 @@ export default function Sidebar({
     <div className={`bg-white border-r border-gray-200 h-screen flex flex-col transition-all duration-300 ${
       isCollapsed ? 'w-16' : 'w-64'
     }`}>
-      {/* Header with hamburger */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onToggle}
-            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title={isCollapsed ? "Expand Navigation" : "Collapse Navigation"}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          {!isCollapsed && <StaffAvailabilityToggle />}
-        </div>
+      {/* Header with hamburger - h-14 matches main header */}
+      <div className="flex-shrink-0 h-14 flex items-center px-4 border-b border-gray-200">
+        <button
+          onClick={onToggle}
+          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+          title={isCollapsed ? "Expand Navigation" : "Collapse Navigation"}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
       </div>
 
       {isCollapsed ? (
@@ -304,7 +324,7 @@ export default function Sidebar({
           >
             <NavLink to="/tickets" count={ticketCounts.all}>All Tickets</NavLink>
             <NavLink to="/tickets?filter=my" count={ticketCounts.myTickets}>My Tickets</NavLink>
-            <NavLink to="/tickets?status=open" count={ticketCounts.pending}>Open</NavLink>
+            <NavLink to="/tickets?status=open" count={ticketCounts.pending}>Open (in-progress)</NavLink>
             
             {/* Assigned - Nested collapsible under Open */}
             <div>
@@ -322,8 +342,26 @@ export default function Sidebar({
               {isAssignedExpanded && (
                 <div className="ml-4 mt-1 space-y-1">
                   <NavLink to="/tickets?filter=all-assigned" count={ticketCounts.allAssigned}>All</NavLink>
-                  <NavLink to="/tickets?assigned=00000000-0000-0000-0000-000000000003" count={ticketCounts.sam}>Sam</NavLink>
-                  <NavLink to="/tickets?assigned=00000000-0000-0000-0000-000000000002" count={ticketCounts.ted}>Ted</NavLink>
+                  {/* Dynamic staff list */}
+                  {staffList
+                    .filter(staff => staff.id !== 'ai-agent-001') // Exclude AI from assigned staff
+                    .map(staff => (
+                      <NavLink 
+                        key={staff.id} 
+                        to={`/tickets?assigned=${staff.id}`} 
+                        count={ticketCounts.staffCounts?.[staff.id] || 0}
+                      >
+                        {staff.first_name}
+                      </NavLink>
+                    ))
+                  }
+                  {/* McCarthy AI */}
+                  <NavLink 
+                    to="/tickets?assigned=ai-agent-001" 
+                    count={ticketCounts.staffCounts?.['ai-agent-001'] || 0}
+                  >
+                    McCarthy AI
+                  </NavLink>
                 </div>
               )}
             </div>
@@ -343,8 +381,9 @@ export default function Sidebar({
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+              <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
             </svg>
             AI Chat
           </Link>
@@ -408,10 +447,10 @@ export default function Sidebar({
             isExpanded={isSettingsExpanded}
             onToggle={() => setIsSettingsExpanded(!isSettingsExpanded)}
           >
-            <SubNavLink to="/settings">All Settings</SubNavLink>
+            {/* Dartmouth OS - System Settings */}
             <SubNavLink to="/settings/dartmouth-os">Dartmouth OS</SubNavLink>
             
-            {/* Business nested submenu */}
+            {/* Business submenu */}
             <div className="mb-1">
               <button
                 onClick={() => setIsBusinessExpanded(!isBusinessExpanded)}
@@ -436,34 +475,7 @@ export default function Sidebar({
               )}
             </div>
             
-            {/* Templates nested submenu */}
-            <div className="mb-1">
-              <button
-                onClick={() => setIsTemplatesExpanded(!isTemplatesExpanded)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
-                  location.pathname.startsWith('/settings/templates')
-                    ? 'bg-indigo-50 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <span>Templates</span>
-                {isTemplatesExpanded ? (
-                  <ChevronUp className="w-4 h-4 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                )}
-              </button>
-              {isTemplatesExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
-                  <SubNavLink to="/settings/templates/email">Email Templates</SubNavLink>
-                  <SubNavLink to="/settings/templates/canned">Canned Responses</SubNavLink>
-                </div>
-              )}
-            </div>
-            
-            <SubNavLink to="/settings/tags">Tags</SubNavLink>
-            
-            {/* AI Agent nested submenu */}
+            {/* AI Agent submenu */}
             <div className="mb-1">
               <button
                 onClick={() => setIsAIAgentExpanded(!isAIAgentExpanded)}
@@ -490,10 +502,108 @@ export default function Sidebar({
               )}
             </div>
             
-            <SubNavLink to="/settings/auth">Auth & Security</SubNavLink>
-            <SubNavLink to="/settings/shopify">Shopify</SubNavLink>
-            <SubNavLink to="/settings/perp">PERP Integration</SubNavLink>
-            <SubNavLink to="/settings/integrations">Integrations</SubNavLink>
+            {/* Integrations submenu */}
+            <div className="mb-1">
+              <button
+                onClick={() => setIsIntegrationsExpanded(!isIntegrationsExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                  location.pathname.startsWith('/settings/integrations')
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>Integrations</span>
+                {isIntegrationsExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              {isIntegrationsExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  <SubNavLink to="/settings/integrations/perp">Print ERP</SubNavLink>
+                  <SubNavLink to="/settings/integrations/shopify">Shopify</SubNavLink>
+                </div>
+              )}
+            </div>
+            
+            {/* Meta submenu */}
+            <div className="mb-1">
+              <button
+                onClick={() => setIsMetaExpanded(!isMetaExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                  location.pathname.startsWith('/settings/meta')
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>Meta</span>
+                {isMetaExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              {isMetaExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  <SubNavLink to="/settings/meta/facebook">Facebook</SubNavLink>
+                  <SubNavLink to="/settings/meta/instagram">Instagram</SubNavLink>
+                  <SubNavLink to="/settings/meta/messenger">Messenger</SubNavLink>
+                  <SubNavLink to="/settings/meta/whatsapp">WhatsApp</SubNavLink>
+                </div>
+              )}
+            </div>
+            
+            {/* General submenu */}
+            <div className="mb-1">
+              <button
+                onClick={() => setIsGeneralExpanded(!isGeneralExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                  location.pathname.startsWith('/settings/general')
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>General</span>
+                {isGeneralExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              {isGeneralExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  <SubNavLink to="/settings/general/auth">Auth & Security</SubNavLink>
+                  <SubNavLink to="/settings/general/templates">Templates</SubNavLink>
+                  <SubNavLink to="/settings/general/tags">Tags</SubNavLink>
+                </div>
+              )}
+            </div>
+            
+            {/* Billing submenu */}
+            <div className="mb-1">
+              <button
+                onClick={() => setIsBillingExpanded(!isBillingExpanded)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                  location.pathname.startsWith('/settings/billing')
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span>Billing</span>
+                {isBillingExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              {isBillingExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  <SubNavLink to="/settings/billing/subscription">Subscription</SubNavLink>
+                  <SubNavLink to="/settings/billing/transactions">Transactions</SubNavLink>
+                </div>
+              )}
+            </div>
           </CollapsibleSection>
 
         </div>

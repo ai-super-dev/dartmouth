@@ -1,7 +1,7 @@
 # 🚀 NEW FEATURES BEYOND ORIGINAL ARCHITECTURE
 
 **Document Created:** December 4, 2025  
-**Last Updated:** December 5, 2025 (Early Morning)  
+**Last Updated:** December 5, 2025 (Late Night)  
 **Purpose:** Document all significant features added during development that were NOT in the original blueprint or build plan
 
 ---
@@ -15,137 +15,13 @@ During the development of McCarthy AI Dartmouth OS, numerous features were added
 - `MASTER_API_ARCHITECTURE.md` - API design
 - Original build plan documents
 
-**This document covers features added between December 2-4, 2025.**
+**This document covers features added between December 2-5, 2025.**
 
 ---
 
 ## 🔥 MAJOR NEW FEATURES
 
-### 1. MULTI-TENANT REGIONAL SETTINGS SYSTEM (PLANNED)
-
-**Status:** 🔜 To Be Implemented
-
-**What It Does:** Provides configurable regional settings at both tenant (Dartmouth OS) level and agent level, enabling true multi-tenant SaaS deployment for any country.
-
-**Architecture:**
-```
-Dartmouth OS Settings (TENANT DEFAULTS)
-├── Timezone: Australia/Brisbane (default)
-├── Language: Australian English (default)
-├── Measurement: Metric (default)
-├── Currency: AUD (default)
-├── Date Format: DD/MM/YYYY (default)
-└── Time Format: 12-hour (default)
-    │
-    ├── Agent A (inherits tenant defaults)
-    │
-    ├── Agent B (OVERRIDES for US market)
-    │   ├── Timezone: America/New_York
-    │   ├── Language: American English
-    │   ├── Measurement: Imperial
-    │   └── Currency: USD
-    │
-    └── Agent C (inherits tenant defaults)
-```
-
-**Tenant-Level Settings (Dartmouth OS Settings):**
-| Setting | Default | Options |
-|---------|---------|---------|
-| **Timezone** | Australia/Brisbane | All IANA timezones |
-| **Language/Spelling** | Australian English (en-AU) | en-AU, en-GB, en-US, en-CA |
-| **Measurement System** | Metric | Metric, Imperial |
-| **Currency** | AUD | AUD, USD, GBP, EUR, NZD, CAD, etc. |
-| **Date Format** | DD/MM/YYYY | DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD |
-| **Time Format** | 12-hour | 12-hour, 24-hour |
-| **Business Name** | (required) | Text |
-| **Business Email** | (required) | Email |
-| **Business Phone** | (optional) | Phone |
-| **Business Address** | (optional) | Text |
-| **Business Website** | (optional) | URL |
-
-**Agent-Level Overrides:**
-- Each agent can override ANY tenant setting
-- If agent setting is NULL → inherits from tenant
-- Enables different agents for different regions/markets
-
-**Database Tables:**
-```sql
--- Tenant Settings (one row per tenant)
-CREATE TABLE tenant_settings (
-  tenant_id TEXT PRIMARY KEY,
-  business_name TEXT NOT NULL,
-  business_email TEXT,
-  business_phone TEXT,
-  business_address TEXT,
-  business_website TEXT,
-  timezone TEXT DEFAULT 'Australia/Brisbane',
-  language TEXT DEFAULT 'en-AU',
-  measurement_system TEXT DEFAULT 'metric',
-  currency TEXT DEFAULT 'AUD',
-  date_format TEXT DEFAULT 'DD/MM/YYYY',
-  time_format TEXT DEFAULT '12h',
-  created_at TEXT,
-  updated_at TEXT
-);
-
--- Agent Overrides (nullable = inherit from tenant)
-ALTER TABLE agents ADD COLUMN timezone TEXT;
-ALTER TABLE agents ADD COLUMN language TEXT;
-ALTER TABLE agents ADD COLUMN measurement_system TEXT;
-ALTER TABLE agents ADD COLUMN currency TEXT;
-ALTER TABLE agents ADD COLUMN date_format TEXT;
-ALTER TABLE agents ADD COLUMN time_format TEXT;
-```
-
-**UI Location:**
-```
-Settings (sidebar)
-├── Dartmouth OS Settings ← NEW
-│   ├── Business Information
-│   ├── Regional Settings
-│   └── Date/Time Formats
-│
-└── AI Agent
-    └── Regional Overrides ← NEW (per agent)
-```
-
-**KnowledgeService Integration:**
-- Loads tenant settings from database
-- Injects regional context into AI prompts dynamically
-- Example prompt injection:
-```
-# Regional Settings
-- Timezone: Australia/Brisbane
-- Language: Australian English (use colour, metre, organisation)
-- Measurement: Metric (cm, kg, km)
-- Currency: AUD ($)
-- Date Format: DD/MM/YYYY
-```
-
-**Impact:** Enables true SaaS deployment for any country without code changes.
-
----
-
-### 2. KNOWLEDGE SERVICE (AI Learning Enhancement)
-
-**What It Does:** Connects the AI to all stored knowledge sources in real-time.
-
-**Components:**
-| Component | Description |
-|-----------|-------------|
-| **System Message Config Loader** | Loads role, personality, do's/don'ts from database |
-| **Learning Examples Injector** | Fetches top 5 high-quality (4+ stars) responses as few-shot examples |
-| **RAG Document Search** | Keyword-based search across uploaded knowledge documents |
-| **Knowledge Context Builder** | Combines all sources into a single context (~11,000 chars) |
-
-**Files Created:**
-- `packages/worker/src/services/KnowledgeService.ts`
-
-**Impact:** AI responses now use actual business knowledge, policies, and past high-quality responses instead of generic LLM output.
-
----
-
-### 2. LIVE CHAT SYSTEM (Complete Widget + Dashboard)
+### 1. LIVE CHAT SYSTEM (Complete Widget + Dashboard)
 
 **NOT in original architecture.** This is a full real-time chat system.
 
@@ -167,7 +43,7 @@ Settings (sidebar)
 **Staff Dashboard:**
 | Feature | Description |
 |---------|-------------|
-| 4-Tab Interface | AI, Staff Live, Queued, Closed |
+| 4-Tab Interface | AI, Staff, Queued, Closed |
 | Tab Counts | Badge numbers per tab |
 | Conversation List | Customer info, priority, sentiment |
 | Threaded Messages | Like email, not chat bubbles |
@@ -175,22 +51,26 @@ Settings (sidebar)
 | Pick Up Button | Queue → Staff assignment |
 | Close Chat Modal | Resolved vs Inactive options |
 | Reply Input | Staff can respond directly |
+| Staff Filter Dropdown | Filter by staff member with status |
+| Navigation Arrows | Move between conversations |
+| Back to Tickets Arrow | Return to main ticket list |
 
 **AI Integration:**
 | Feature | Description |
 |---------|-------------|
 | AI-First Handling | All new chats go to AI |
-| Human Escalation | Detects "speak to human" phrases |
-| Callback Requests | Detects "call me back" phrases |
-| Phone Capture | Collects callback numbers |
-| Callback Tickets | Creates high-priority tickets |
-| Staff Availability Check | Before escalation |
+| Human Escalation | Detects specific "speak to human" phrases |
+| RAG Integration | Uses uploaded knowledge documents |
+| System Message Config | Uses configured personality/role |
+| Priority/Sentiment Analysis | AI analyzes chat messages |
+| Callback Detection | Detects callback request keywords |
 
 **Files Created:**
 - `packages/chat-widget/` - Entire new package
 - `packages/worker/src/controllers/chat-messages.ts`
 - `packages/worker/src/controllers/chat.ts`
 - `packages/customer-service-dashboard/src/pages/ChatDashboardPage.tsx`
+- `packages/customer-service-dashboard/src/pages/ChatTicketDetailPage.tsx`
 - `packages/customer-service-dashboard/src/pages/ChatWidgetSettingsPage.tsx`
 - `packages/customer-service-dashboard/src/pages/ChatEmbedCodePage.tsx`
 
@@ -198,6 +78,26 @@ Settings (sidebar)
 - `chat_conversations`
 - `chat_messages`
 - `chat_widget_settings`
+
+---
+
+### 2. KNOWLEDGE SERVICE (AI Learning Enhancement)
+
+**What It Does:** Connects the AI to all stored knowledge sources in real-time.
+
+**Components:**
+| Component | Description |
+|-----------|-------------|
+| **System Message Config Loader** | Loads role, personality, do's/don'ts from database |
+| **Learning Examples Injector** | Fetches top 5 high-quality (4+ stars) responses as few-shot examples |
+| **RAG Document Search** | Keyword-based search across uploaded knowledge documents |
+| **Knowledge Context Builder** | Combines all sources into a single context (~11,000 chars) |
+| **Regional Settings Loader** | Loads timezone, language, measurement preferences |
+
+**Files Created:**
+- `packages/worker/src/services/KnowledgeService.ts`
+
+**Impact:** AI responses now use actual business knowledge, policies, and past high-quality responses instead of generic LLM output.
 
 ---
 
@@ -268,6 +168,7 @@ Settings (sidebar)
 | Primary Ticket | First selected becomes primary |
 | Staff Note | Records merge action with date/time |
 | Merge Banner | Shows on merged ticket detail |
+| In-Ticket Merge | Merge button on ticket detail page |
 
 **Files Modified:**
 - `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
@@ -281,18 +182,19 @@ Settings (sidebar)
 
 ---
 
-### 6. BULK TICKET REASSIGNMENT
+### 6. BULK TICKET OPERATIONS
 
 **NOT in original architecture.**
 
 **Features:**
 | Feature | Description |
 |---------|-------------|
-| Multi-Select | Same as merge feature |
-| Reassign Button | Appears when tickets selected |
+| Multi-Select | Checkbox selection on ticket list |
+| Bulk Reassign Button | Reassign multiple tickets at once |
+| Bulk Delete Button | Delete multiple tickets (admin only) |
 | Staff Dropdown | Select target staff member |
 | Staff Note | Records bulk action with date/time |
-| Success Notification | Confirms reassignment |
+| Confirmation Modal | Shows tickets to be affected |
 
 **Files Modified:**
 - `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
@@ -318,24 +220,7 @@ Settings (sidebar)
 
 ---
 
-### 8. 30-MINUTE SNOOZE OPTION
-
-**Original only had 1hr, 4hr, tomorrow, next week.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| 30m Option | Quick snooze for brief follow-ups |
-| Auto-Unsnooze | Cron job checks every 5 minutes |
-| Staff Note | Records snooze with date/time |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/components/SnoozeModal.tsx`
-- `packages/worker/src/workers/snooze-expiry-checker.ts`
-
----
-
-### 9. STAFF AVAILABILITY SYSTEM
+### 8. STAFF AVAILABILITY SYSTEM
 
 **NOT in original architecture.**
 
@@ -343,26 +228,28 @@ Settings (sidebar)
 | Feature | Description |
 |---------|-------------|
 | Status Toggle | Online / Away / Offline |
-| Sidebar Display | Shows current status |
+| Header Display | Shows current status with dropdown |
 | Chat Integration | Only online staff get escalations |
 | Persistent State | Saved to database |
+| Profile Dropdown | Status toggle in header profile menu |
 
 **Files Created:**
 - `packages/customer-service-dashboard/src/components/StaffAvailabilityToggle.tsx`
+- `packages/customer-service-dashboard/src/components/HeaderProfileMenu.tsx`
 
 **Database Column Added:**
 - `staff_users.availability_status`
 
 ---
 
-### 10. BUSINESS HOURS CONFIGURATION
+### 9. BUSINESS HOURS CONFIGURATION
 
 **NOT in original architecture.**
 
 **Features:**
 | Feature | Description |
 |---------|-------------|
-| Day-by-Day Config | Mon-Sun (Sunday last) |
+| Day-by-Day Config | Mon-Sat, then Sunday |
 | Open/Close Times | Dropdown selectors |
 | Open/Closed Toggle | Per day |
 | Timezone Setting | Dropdown selector |
@@ -376,231 +263,7 @@ Settings (sidebar)
 
 ---
 
-### 11. AI AGENT ANALYTICS DASHBOARD
-
-**NOT in original architecture.** Original only mentioned basic metrics.
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Stats Cards | Total drafts, Avg quality, Helpful rate, Approval rate |
-| Quality Distribution | Bar chart of scores 1-5 |
-| Actions Breakdown | Approved, Edited, Rejected counts |
-| Performance by Intent | Table with metrics per intent type |
-| Learning Examples | List of high-quality responses |
-| Time Range Filter | 7d, 30d, 90d, All time |
-
-**Files Created:**
-- `packages/customer-service-dashboard/src/pages/AIAgentAnalyticsPage.tsx`
-- `packages/worker/src/controllers/analytics.ts`
-
----
-
-### 12. STAFF MANAGEMENT UI
-
-**NOT in original architecture.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Staff List Page | Card layout with all staff |
-| Add Staff | Form with all fields |
-| Edit Staff | Update existing staff |
-| Profile Fields | Job title, phone, department |
-| Permission Display | Admin/Staff badge |
-
-**Files Created:**
-- `packages/customer-service-dashboard/src/pages/StaffPage.tsx`
-
-**Database Columns Added:**
-- `staff_users.job_title`
-- `staff_users.phone`
-- `staff_users.department`
-
----
-
-### 13. DUPLICATE TICKET DETECTION & AUTO-ARCHIVE
-
-**NOT in original architecture.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Email Matching | Same subject + same sender |
-| Time Window | Within 5 minutes |
-| Auto-Archive | Duplicate marked as resolved |
-| Staff Note | Records duplicate detection |
-
-**Files Modified:**
-- `packages/worker/src/services/EmailHandler.ts`
-- `packages/worker/src/services/TicketManager.ts`
-
----
-
-### 14. SOFT DELETE FOR TICKETS
-
-**NOT in original architecture.** Original assumed hard delete.
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Soft Delete | Sets deleted_at timestamp |
-| Admin Only | Permission restricted |
-| Hidden from List | Filtered out of queries |
-| Recoverable | Data preserved |
-
-**Database Columns Added:**
-- `tickets.deleted_at`
-- `tickets.deleted_by`
-
----
-
-### 15. COLLAPSIBLE SIDEBAR NAVIGATION
-
-**NOT in original architecture.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Collapsible Sections | Tickets, Customers, Staff, Settings |
-| Nested Menus | Assigned under Tickets > Open |
-| Default Collapsed | All sections closed on refresh |
-| Icon-Only Mode | Sidebar can collapse to icons |
-| Staff Counts | Shows ticket counts per staff member |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/components/layout/Sidebar.tsx`
-
----
-
-### 16. SCHEDULED REPLIES
-
-**NOT in original architecture.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Schedule Modal | Date/time picker |
-| Today's Date Default | Starts from current date |
-| Edit Scheduled | Modify before sending |
-| Cancel Scheduled | Remove from queue |
-| Cron Job | Sends at scheduled time |
-
-**Files Created:**
-- `packages/customer-service-dashboard/src/components/ScheduleReplyModal.tsx`
-- `packages/worker/src/workers/scheduled-message-sender.ts`
-
----
-
-### 17. RLHF DATA COLLECTION SYSTEM
-
-**Enhanced beyond original architecture.**
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Quality Score | 1-5 stars |
-| Helpful Toggle | Yes/No |
-| Improvement Notes | Free text |
-| Edit Distance | Characters changed |
-| Learning Examples | Auto-created from 4+ star responses |
-
-**Database Tables:**
-- `ai_draft_responses` (enhanced)
-- `ai_learning_examples`
-
----
-
-### 18. MERGE BUTTON ON TICKET DETAIL PAGE
-
-**Added:** December 5, 2025
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Merge Button | Between Snooze and Delete buttons |
-| Same Email Only | Only shows tickets from same customer email |
-| Badge Count | Shows number of mergeable tickets |
-| Radio Selection | Select one ticket to merge |
-| Primary Ticket | Current ticket becomes primary |
-| Modal UI | Shows ticket list with status and subject |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/TicketDetailPage.tsx`
-
----
-
-### 19. BULK DELETE OPTION
-
-**Added:** December 5, 2025
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Delete Button | Red button in action bar |
-| Admin Only | Permission restricted |
-| Confirmation Modal | Shows tickets to be deleted |
-| Warning Message | Cannot be undone |
-| Progress Indicator | Shows "Deleting..." |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
-
----
-
-### 20. CHAT DASHBOARD BACK NAVIGATION
-
-**Added:** December 5, 2025
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Back Arrow | Left of speech bubble icon |
-| Navigate to Tickets | Returns to main ticket list |
-| Hover Effect | Visual feedback |
-| Tooltip | "Back to Tickets" |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/ChatDashboardPage.tsx`
-
----
-
-### 21. THREADED EMAIL MESSAGE VIEW
-
-**Added:** December 5, 2025
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Full Width Blocks | No more speech bubbles |
-| Color Coded | Gray (customer), Purple (AI), Blue (staff) |
-| Avatar Icons | User icons and AI sparkles |
-| Consistent Style | Matches Chat Dashboard |
-| Scheduled Badge | Shows if message was scheduled |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/TicketDetailPage.tsx`
-
----
-
-### 22. IMPROVED TICKET FILTERING
-
-**Added:** December 5, 2025
-
-**Features:**
-| Feature | Description |
-|---------|-------------|
-| Assignment Dropdown | Now works correctly |
-| Time Filter | Today, This Week, This Month |
-| Snoozed Sorting | No longer pinned to bottom |
-| Same Email Merge Validation | Disabled if different emails |
-
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
-
----
-
-### 23. EMAIL AUTO-ASSIGNMENT SYSTEM (Hybrid with Smart Caps)
+### 10. EMAIL AUTO-ASSIGNMENT SYSTEM (Hybrid with Smart Caps)
 
 **Added:** December 5, 2025
 
@@ -630,7 +293,7 @@ Settings (sidebar)
 
 ---
 
-### 24. NAVIGATION & UI OVERHAUL
+### 11. NAVIGATION & UI OVERHAUL
 
 **Added:** December 5, 2025
 
@@ -642,76 +305,116 @@ Settings (sidebar)
 | New Top-Level Items | Tickets, AI Chat, Group Chat, Staff, Customers, Analytics, Settings |
 | Nested Settings Submenus | Business, Templates, AI Agent sections |
 | "All Tickets" Highlight Fix | Only highlights when no query params |
+| Dynamic Staff List | Sidebar shows real staff from database |
+| Staff Ticket Counts | Shows ticket count per staff member |
 
 **Files Created:**
 - `packages/customer-service-dashboard/src/pages/SettingsHubPage.tsx`
 
 **Files Modified:**
 - `packages/customer-service-dashboard/src/components/layout/Sidebar.tsx` (major refactor)
+- `packages/customer-service-dashboard/src/components/layout/DashboardLayout.tsx`
 - `packages/customer-service-dashboard/src/App.tsx`
 
 ---
 
-### 25. CHAT REASSIGNMENT FEATURE
+### 12. STAFF PROFILE & ACCOUNT SYSTEM
 
 **Added:** December 5, 2025
 
 **Features:**
 | Feature | Description |
 |---------|-------------|
-| Reassign Button | In chat header when conversation selected |
-| Staff Selection | Choose from available staff |
-| Back to AI Option | Reassign conversation back to AI |
-| Reason Field | Optional reason for reassignment |
-| System Message | Chat shows reassignment notification |
-| Ticket Sync | Main ticket also updated with new assignment |
+| Profile Icon | Top-right of header |
+| Status Indicator | Shows online/away/offline next to profile |
+| Profile Dropdown | Status toggle, account link, logout |
+| Account Page | Staff can view/edit their details |
+| Avatar Upload | Profile picture upload (R2 storage) |
+| Role Display | Shows admin/manager/agent/general badge |
 
-**Files Modified:**
-- `packages/customer-service-dashboard/src/pages/ChatDashboardPage.tsx`
-- `packages/worker/src/controllers/chat-messages.ts`
-
----
-
-### 26. CHAT STATUS MODEL OVERHAUL
-
-**Added:** December 5, 2025
-
-**New Status Model:**
-| Status | Description |
-|--------|-------------|
-| `ai_handling` | AI is actively responding |
-| `queued` | Waiting for staff pickup |
-| `assigned` | Assigned to staff, not yet picked up |
-| `staff_handling` | Staff actively responding |
-| `closed` | Conversation ended |
-
-**Resolution Types:**
-- `ai_resolved` - AI successfully resolved
-- `staff_resolved` - Staff successfully resolved
-- `inactive_closed` - Closed due to inactivity
-- `abandoned` - Customer left without resolution
-
-**Files Modified:**
-- `packages/worker/src/controllers/chat-messages.ts`
-- `packages/worker/migrations/0029_add_queued_status.sql`
-- `packages/worker/migrations/0030_chat_status_model.sql`
+**Files Created:**
+- `packages/customer-service-dashboard/src/pages/MyAccountPage.tsx`
+- `packages/customer-service-dashboard/src/components/HeaderProfileMenu.tsx`
 
 ---
 
-### 27. TICKET-CHAT STATUS SYNCHRONIZATION
+### 13. CHAT TICKET DETAIL PAGE
 
 **Added:** December 5, 2025
 
 **Features:**
 | Feature | Description |
 |---------|-------------|
-| Bidirectional Sync | Chat status changes update ticket status |
-| Assignment Sync | Chat assignment updates ticket assignment |
-| Close Sync | Closing chat closes ticket |
-| Resolve Sync | Resolving chat resolves ticket |
+| Dedicated Chat View | Separate page for chat tickets |
+| Email-Style Layout | Matches email ticket layout |
+| Header with Actions | Customer Info, Order History, Shopify buttons |
+| Navigation Arrows | Move between tickets |
+| Staff Notes Section | Same as email tickets |
+| Reassign Modal | Reassign to staff or back to AI |
+| Priority/Sentiment Badges | Shows AI analysis |
+| Consistent Icons | Speech bubble with lines throughout |
+
+**Files Created:**
+- `packages/customer-service-dashboard/src/pages/ChatTicketDetailPage.tsx`
+
+---
+
+### 14. AI ANALYTICS DASHBOARD
+
+**NOT in original architecture.** Original only mentioned basic metrics.
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Stats Cards | Total drafts, Avg quality, Helpful rate, Approval rate |
+| Quality Distribution | Bar chart of scores 1-5 |
+| Actions Breakdown | Approved, Edited, Rejected counts |
+| Performance by Intent | Table with metrics per intent type |
+| Learning Examples | List of high-quality responses |
+| Time Range Filter | 7d, 30d, 90d, All time |
+
+**Files Created:**
+- `packages/customer-service-dashboard/src/pages/AIAgentAnalyticsPage.tsx`
+- `packages/worker/src/controllers/analytics.ts`
+
+---
+
+### 15. TICKET FILTERING OVERHAUL
+
+**Added:** December 5, 2025
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| Combined Status Filter | "Open (in-progress)" combines open + in-progress |
+| All Filters Combinable | Sidebar sets one filter, dropdowns can add more |
+| Dynamic Staff Dropdown | Shows real staff from database |
+| Snoozed Sorting | No longer pinned to bottom |
+| Same Email Merge Validation | Disabled if different emails |
+| Platform Filter | Filter by email/chat |
+| Time Filter | Today, This Week, This Month, All Time |
 
 **Files Modified:**
-- `packages/worker/src/controllers/chat-messages.ts`
+- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx`
+
+---
+
+### 16. ADDITIONAL FEATURES
+
+| Feature | Description | Added |
+|---------|-------------|-------|
+| **30-Minute Snooze** | Quick snooze for brief follow-ups | Dec 3 |
+| **Duplicate Ticket Detection** | Auto-archive duplicates within 5 mins | Dec 3 |
+| **Soft Delete** | Sets deleted_at instead of hard delete | Dec 3 |
+| **Scheduled Replies** | Schedule messages for later | Dec 3 |
+| **RLHF Data Collection** | Quality scores, helpful toggle, improvement notes | Dec 3 |
+| **Threaded Email View** | Full-width blocks, color-coded by sender | Dec 5 |
+| **Collapsible Sidebar** | Default collapsed on refresh | Dec 5 |
+| **Chat Reassignment** | Reassign chats to staff or back to AI | Dec 5 |
+| **Chat Status Sync** | Chat status changes sync with ticket status | Dec 5 |
+| **AI Priority/Sentiment Analysis** | AI analyzes chat messages for priority/sentiment | Dec 5 |
+| **Improved Escalation Keywords** | More specific keywords to prevent false escalations | Dec 5 |
+| **Stronger RAG Instructions** | AI prioritizes RAG documents in responses | Dec 5 |
 
 ---
 
@@ -719,14 +422,14 @@ Settings (sidebar)
 
 | Category | Count |
 |----------|-------|
-| **Major New Features** | 27 |
-| **New Database Tables** | 11 (including auto_assignment tables) |
-| **New Database Columns** | 25+ |
-| **New Frontend Pages** | 15+ |
-| **New Backend Controllers** | 6+ |
-| **New Services** | 4+ |
+| **Major New Features** | 30+ |
+| **New Database Tables** | 12 |
+| **New Database Columns** | 30+ |
+| **New Frontend Pages** | 18+ |
+| **New Backend Controllers** | 8+ |
+| **New Services** | 5+ |
 | **New Packages** | 1 (chat-widget) |
-| **Database Migrations** | 31 |
+| **Database Migrations** | 35+ |
 
 ---
 
@@ -736,20 +439,21 @@ These are documented for future implementation:
 
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| **Multi-Tenant Regional Settings** | 🔴 Critical | To Build | Tenant + Agent level settings for SaaS |
+| **Callback Feature (Form-Based)** | 🔴 High | Pending | Yes/No buttons, form in widget, email confirmation |
+| **Multi-Tenant Regional Settings** | 🔴 Critical | Pending | Tenant + Agent level settings for SaaS |
 | Vector Embeddings | High | Pending | Semantic search for RAG |
-| Pattern Extraction | Medium | Pending | Learn from staff edits |
 | Queue Auto-Assign (Chat) | Medium | Pending | 5min timeout, round-robin |
 | AI Resolution Detection | Low | Pending | Auto-close on "thank you" |
 | Post-Chat Survey | Medium | Pending | Thumbs up/down in widget |
 | Chat Analytics | Medium | Pending | Add chat metrics to Analytics Dashboard |
+| Staff Performance Analytics | Medium | Pending | Detailed staff reports |
 | Shopify Integration | High | Pending | Order lookups |
 | WhatsApp Integration | Medium | Pending | Multi-channel support |
 | Instagram DM Integration | Medium | Pending | Multi-channel support |
 | Facebook Messenger Integration | Medium | Pending | Multi-channel support |
 | Responsive Design | Medium | Pending | Mobile-friendly UI |
 | Typing Indicator | Low | Pending | 3 dancing balls in chat |
-| Staff Performance Analytics | Medium | Pending | Detailed staff reports |
+| Group Chat System | Medium | Pending | Internal team chat |
 
 ---
 
@@ -762,16 +466,16 @@ These are documented for future implementation:
 controllers/
   - ai-agent.ts
   - analytics.ts
-  - auto-assignment.ts (NEW Dec 5)
+  - auto-assignment.ts
   - chat.ts
   - chat-messages.ts
 
 services/
-  - AutoAssignmentService.ts (NEW Dec 5)
+  - AutoAssignmentService.ts
   - KnowledgeService.ts
 
 workers/
-  - auto-assignment-job.ts (NEW Dec 5)
+  - auto-assignment-job.ts
   - scheduled-message-sender.ts
   - snooze-expiry-checker.ts
 
@@ -788,9 +492,10 @@ migrations/
   - 0025_chat_attachments.sql
   - 0026_chat_resolution_tracking.sql
   - 0027_ai_agent_config.sql
-  - 0029_add_queued_status.sql (NEW Dec 5)
-  - 0030_chat_status_model.sql (NEW Dec 5)
-  - 0031_auto_assignment_settings.sql (NEW Dec 5)
+  - 0029_add_queued_status.sql
+  - 0030_chat_status_model.sql
+  - 0031_auto_assignment_settings.sql
+  - (and more...)
 ```
 
 **Frontend (packages/customer-service-dashboard/src/):**
@@ -800,18 +505,22 @@ pages/
   - AIAgentKnowledgePage.tsx
   - AIAgentSystemMessagePage.tsx
   - AIAgentWidgetPage.tsx
-  - AutoAssignmentSettingsPage.tsx (NEW Dec 5)
+  - AutoAssignmentSettingsPage.tsx
   - BusinessHoursPage.tsx
   - ChatDashboardPage.tsx
   - ChatEmbedCodePage.tsx
+  - ChatTicketDetailPage.tsx
   - ChatWidgetSettingsPage.tsx
-  - SettingsHubPage.tsx (NEW Dec 5)
+  - DartmouthSettingsPage.tsx
+  - MyAccountPage.tsx
+  - SettingsHubPage.tsx
   - StaffPage.tsx
   - StaffPerformancePage.tsx
 
 components/
   - AIDraftFeedbackModal.tsx
   - AIDraftResponsePanel.tsx
+  - HeaderProfileMenu.tsx
   - MergeConfirmModal.tsx
   - ScheduleReplyModal.tsx
   - SnoozeModal.tsx
@@ -829,11 +538,10 @@ components/
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** December 5, 2025 (Afternoon)  
+**Document Version:** 3.0  
+**Last Updated:** December 5, 2025 (Late Night)  
 **Author:** AI Assistant  
 
 ---
 
 *This document should be updated whenever significant new features are added that weren't in the original architecture.*
-
