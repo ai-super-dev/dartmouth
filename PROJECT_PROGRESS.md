@@ -1,9 +1,9 @@
 # Dartmouth OS - Customer Service System
 ## Project Progress Tracker
 
-**Last Updated**: December 5, 2025, 2:30 PM AEST  
-**Overall Progress**: 98% Complete  
-**Status**: ✅ Shopify Integration Enhanced, Order Navigation, Product Metadata, Message Order Fixed
+**Last Updated**: December 6, 2025, 2:00 AM AEST  
+**Overall Progress**: 99% Complete  
+**Status**: ✅ Group Chat System COMPLETE!
 
 ---
 
@@ -241,6 +241,44 @@ McCarthy AI Dartmouth OS is now a fully functional customer service platform wit
 
 ## Recent Achievements
 
+### December 6, 2025 (2:00 AM) - GROUP CHAT SYSTEM COMPLETE! 💬
+- ✅ **GROUP CHAT ARCHITECTURE**: Comprehensive planning document created
+  - Designed database schema with NO foreign keys (no blocking issues)
+  - 4 tables: channels, messages, members, read_receipts
+  - 13 indexes for performance (all non-blocking)
+  - Planned 18 API endpoints
+  
+- ✅ **DATABASE MIGRATION**: Successfully deployed to production
+  - Created and tested locally first
+  - Applied to production database (18 queries executed)
+  - No foreign key constraints (learned from previous rollback)
+  - Seed data: #general channel created automatically
+  
+- ✅ **BACKEND API**: Complete group chat controller
+  - Channels: list, create, get, update, archive
+  - Messages: get, send, poll, edit, delete
+  - Members: get, add, remove
+  - Read receipts: mark as read, get unread counts
+  - File attachments: integrated with R2 storage
+  - Real-time polling: 2-second intervals
+  
+- ✅ **FRONTEND UI**: Beautiful React component
+  - 3-column layout: channels, messages, members
+  - Real-time message updates (polling)
+  - File attachment support (images inline, files as links)
+  - Unread message badges
+  - Create channel modal
+  - Member list with online status
+  - Message composer with Enter to send
+  - Auto-scroll to latest message
+  
+- ✅ **DEPLOYED TO PRODUCTION**:
+  - Worker deployed: https://dartmouth-os-worker.dartmouth.workers.dev
+  - Dashboard deployed: https://dartmouth-os-dashboard.pages.dev/group-chat
+  - Build time: ~11 seconds
+  - Deploy time: ~4 seconds
+  - Total development time: ~2 hours
+
 ### December 5, 2025 (2:30 PM) - SHOPIFY ENHANCEMENTS COMPLETE! 🛍️
 - ✅ **SHOPIFY ORDER NAVIGATION**: Added left/right arrows to browse through all orders
   - Shows "ORDER 1 OF 21" with navigation controls
@@ -384,6 +422,31 @@ None! 🎉
 
 ---
 
+## 📋 TODO List (Current Session)
+
+### ✅ Completed (1)
+1. ✅ **Main tickets - newest message first** - DONE (deployed Dec 5)
+
+### 🔴 High Priority - UX Issues (5)
+2. ⏳ **Left menu navigation** - Stop page jumping/scrolling on link clicks
+3. ⏳ **Live chat callback text** - Replace `__SHOW_CALLBACK_FORM__` with "CALL BACK REQUEST"
+4. ⏳ **AI Handling label** - Change to "McCarthy AI" in Live Chat
+5. ⏳ **Attachments fix** - Not working correctly in ticket/livechat/widget
+6. ⏳ **Live chat default view** - Default to newest ticket and show chat messages on open
+
+### 🟡 Medium Priority - Icons/Consistency (4)
+7. ⏳ **Platform dropdown icons** - Make all consistent (currently inconsistent)
+8. ⏳ **Phone icon fix** - Green on main ticket/queue for callbacks (should be red)
+9. ⏳ **Email icon** - Use envelope consistently everywhere
+10. ⏳ **Live chat icon** - Use same icon consistently everywhere
+
+### 🟢 Low Priority - Shopify Enhancements (3)
+11. ⏳ **Shopify data formatting** - Reformat preview/edit links display
+12. ⏳ **Shopify URL shortener** - Add URL shortener + hyperlinks for response area
+13. ⏳ **Shopify config page** - Create UI to configure what to show/hide and formatting
+
+---
+
 ## Resources
 
 ### 📂 Project Directories
@@ -479,4 +542,4 @@ Then open: http://localhost:5173/
 
 ---
 
-*Last Updated: December 6, 2025, 12:05 AM AEST*
+*Last Updated: December 6, 2025, 12:45 AM AEST*

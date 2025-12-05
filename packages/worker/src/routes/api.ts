@@ -27,6 +27,7 @@ import * as autoAssignmentController from '../controllers/auto-assignment';
 import * as shopifyController from '../controllers/shopify';
 import * as attachmentsController from '../controllers/attachments';
 import * as integrationsController from '../controllers/integrations';
+import * as groupChatController from '../controllers/group-chat';
 
 /**
  * Create API router
@@ -236,6 +237,33 @@ export function createAPIRouter() {
 
   // Attachments routes (public - no auth required for serving files)
   app.get('/api/attachments/*', attachmentsController.serveAttachmentWildcard);
+
+  // ========================================================================
+  // GROUP CHAT ROUTES (Internal Staff Communication)
+  // ========================================================================
+
+  // Channels
+  app.get('/api/group-chat/channels', authenticate, groupChatController.listChannels);
+  app.post('/api/group-chat/channels', authenticate, groupChatController.createChannel);
+  app.get('/api/group-chat/channels/:id', authenticate, groupChatController.getChannel);
+  app.patch('/api/group-chat/channels/:id', authenticate, groupChatController.updateChannel);
+  app.delete('/api/group-chat/channels/:id', authenticate, groupChatController.archiveChannel);
+
+  // Messages
+  app.get('/api/group-chat/channels/:id/messages', authenticate, groupChatController.getMessages);
+  app.post('/api/group-chat/channels/:id/messages', authenticate, groupChatController.sendMessage);
+  app.get('/api/group-chat/channels/:id/poll', authenticate, groupChatController.pollMessages);
+  app.patch('/api/group-chat/messages/:id', authenticate, groupChatController.editMessage);
+  app.delete('/api/group-chat/messages/:id', authenticate, groupChatController.deleteMessage);
+
+  // Members
+  app.get('/api/group-chat/channels/:id/members', authenticate, groupChatController.getMembers);
+  app.post('/api/group-chat/channels/:id/members', authenticate, groupChatController.addMember);
+  app.delete('/api/group-chat/channels/:id/members/:staffId', authenticate, groupChatController.removeMember);
+
+  // Read Receipts
+  app.post('/api/group-chat/channels/:id/read', authenticate, groupChatController.markAsRead);
+  app.get('/api/group-chat/unread', authenticate, groupChatController.getUnreadCounts);
 
   return app;
 }

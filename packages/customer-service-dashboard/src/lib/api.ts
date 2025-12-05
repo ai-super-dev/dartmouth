@@ -277,3 +277,38 @@ export const shopifyApi = {
     api.get(`/api/shopify/order/${orderId}`),
 }
 
+// Group Chat API (Internal Staff Communication)
+export const groupChatApi = {
+  // Channels
+  listChannels: () => api.get('/api/group-chat/channels'),
+  createChannel: (data: { name: string; description?: string; channelType?: string; memberIds?: string[] }) =>
+    api.post('/api/group-chat/channels', data),
+  getChannel: (channelId: string) => api.get(`/api/group-chat/channels/${channelId}`),
+  updateChannel: (channelId: string, data: { name: string; description?: string }) =>
+    api.patch(`/api/group-chat/channels/${channelId}`, data),
+  archiveChannel: (channelId: string) => api.delete(`/api/group-chat/channels/${channelId}`),
+
+  // Messages
+  getMessages: (channelId: string, params?: { limit?: number; before?: string }) =>
+    api.get(`/api/group-chat/channels/${channelId}/messages`, { params }),
+  sendMessage: (channelId: string, data: { content: string; attachments?: any[] }) =>
+    api.post(`/api/group-chat/channels/${channelId}/messages`, data),
+  pollMessages: (channelId: string, after?: string) =>
+    api.get(`/api/group-chat/channels/${channelId}/poll`, { params: { after } }),
+  editMessage: (messageId: string, content: string) =>
+    api.patch(`/api/group-chat/messages/${messageId}`, { content }),
+  deleteMessage: (messageId: string) => api.delete(`/api/group-chat/messages/${messageId}`),
+
+  // Members
+  getMembers: (channelId: string) => api.get(`/api/group-chat/channels/${channelId}/members`),
+  addMember: (channelId: string, staffId: string) =>
+    api.post(`/api/group-chat/channels/${channelId}/members`, { staffId }),
+  removeMember: (channelId: string, staffId: string) =>
+    api.delete(`/api/group-chat/channels/${channelId}/members/${staffId}`),
+
+  // Read Receipts
+  markAsRead: (channelId: string, messageId: string) =>
+    api.post(`/api/group-chat/channels/${channelId}/read`, { messageId }),
+  getUnreadCounts: () => api.get('/api/group-chat/unread'),
+}
+
