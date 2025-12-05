@@ -58,8 +58,8 @@ export const ticketsApi = {
     api.put(`/api/tickets/${id}/status`, { status }),
   reply: (id: string, content: string, attachments?: Array<{ name: string; content: string; type: string; size: number }>) =>
     api.post(`/api/tickets/${id}/reply`, { content, attachments }),
-  addNote: (id: string, content: string, noteType?: string) =>
-    api.post(`/api/tickets/${id}/notes`, { content, noteType }),
+  addNote: (id: string, content: string, noteType?: string, attachments?: Array<{ name: string; content: string; type: string; size: number }>) =>
+    api.post(`/api/tickets/${id}/notes`, { content, noteType, attachments }),
   snooze: (id: string, snoozedUntil: string, reason?: string) =>
     api.post(`/api/tickets/${id}/snooze`, { snoozedUntil, reason }),
   unsnooze: (id: string) => api.post(`/api/tickets/${id}/unsnooze`),

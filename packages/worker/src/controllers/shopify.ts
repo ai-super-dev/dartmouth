@@ -12,9 +12,10 @@ import { ShopifyIntegration } from '../services/ShopifyIntegration';
 /**
  * Get or create ShopifyIntegration instance
  */
-function getShopifyClient(env: Env): ShopifyIntegration | null {
-  const shopifyDomain = env.SHOPIFY_DOMAIN;
-  const shopifyAccessToken = env.SHOPIFY_ACCESS_TOKEN;
+async function getShopifyClient(env: Env): Promise<ShopifyIntegration | null> {
+  // Check KV first (user-configured), then fall back to Secrets
+  const shopifyDomain = await env.APP_CONFIG.get('SHOPIFY_DOMAIN') || env.SHOPIFY_DOMAIN;
+  const shopifyAccessToken = await env.APP_CONFIG.get('SHOPIFY_ACCESS_TOKEN') || env.SHOPIFY_ACCESS_TOKEN;
 
   if (!shopifyDomain || !shopifyAccessToken) {
     console.log('[Shopify] Missing SHOPIFY_DOMAIN or SHOPIFY_ACCESS_TOKEN');
@@ -36,7 +37,7 @@ export async function getCustomerByEmail(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Email parameter is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       // Return mock data if Shopify is not configured
@@ -95,7 +96,7 @@ export async function getCustomerOrders(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Customer ID is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       // Return mock data if Shopify is not configured
@@ -132,7 +133,7 @@ export async function getOrdersByEmail(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Email parameter is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       // Return mock data if Shopify is not configured
@@ -181,7 +182,7 @@ export async function searchOrder(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Order number parameter is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       // Return mock data if Shopify is not configured
@@ -224,7 +225,7 @@ export async function getOrder(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Order ID is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       return c.json({
@@ -267,7 +268,7 @@ export async function getTicketShopifyData(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Email parameter is required' }, 400);
     }
 
-    const shopify = getShopifyClient(c.env);
+    const shopify = await getShopifyClient(c.env);
     
     if (!shopify) {
       // Return structured mock data if Shopify is not configured
@@ -293,8 +294,8 @@ export async function getTicketShopifyData(c: Context<{ Bindings: Env }>) {
       });
     }
 
-    // Get orders (up to 5 recent ones)
-    const orders = await shopify.getCustomerOrders(customer.id, 5);
+    // Get all customer orders (up to 100)
+    const orders = await shopify.getCustomerOrders(customer.id, 100);
 
     // Get the latest order with tracking info
     const latestOrder = orders.length > 0 ? orders[0] : null;

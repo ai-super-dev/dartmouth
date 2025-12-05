@@ -286,7 +286,14 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
     let showCallbackForm = false;
 
     try {
-      const aiResult = await getAIResponse(c.env, message, conversation, isNewConversation);
+      // If message is empty but there's an attachment, create a descriptive message for AI
+      let messageForAI = message;
+      if (!message.trim() && attachment) {
+        const fileType = attachment.type.startsWith('image/') ? 'image' : 'file';
+        messageForAI = `[Customer sent ${fileType}: ${attachment.name}]`;
+      }
+      
+      const aiResult = await getAIResponse(c.env, messageForAI, conversation, isNewConversation);
       aiResponse = aiResult.response;
       shouldCloseChat = aiResult.closeChat || false;
       actions = aiResult.actions;

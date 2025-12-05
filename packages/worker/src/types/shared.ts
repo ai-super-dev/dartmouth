@@ -19,8 +19,9 @@ export interface Env {
   APP_CONFIG: KVNamespace;
   CACHE: KVNamespace;
   
-  // R2 Bucket
+  // R2 Buckets
   FILES: R2Bucket;
+  ATTACHMENTS: R2Bucket;
   
   // Workers AI
   WORKERS_AI: Ai;

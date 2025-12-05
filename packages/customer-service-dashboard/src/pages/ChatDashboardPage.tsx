@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Send, UserPlus, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive, ChevronLeft, ChevronRight, Paperclip } from 'lucide-react';
-import { api } from '../lib/api';
+import { User, Send, UserPlus, Sparkles, Clock, CheckCircle, XCircle, Bot, Users, Inbox, Archive, ChevronLeft, ChevronRight, Paperclip, X, Phone } from 'lucide-react';
+import { api, ticketsApi } from '../lib/api';
 import { useSearchParams, Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -88,6 +88,15 @@ interface StaffMember {
   availability_status: string;
 }
 
+// Helper function to get full attachment URL
+const getAttachmentUrl = (attachmentUrl: string | null | undefined): string => {
+  if (!attachmentUrl) return '';
+  if (attachmentUrl.startsWith('data:') || attachmentUrl.startsWith('http')) {
+    return attachmentUrl;
+  }
+  return `https://dartmouth-os-worker.dartmouth.workers.dev/api/attachments/${attachmentUrl}`;
+};
+
 export default function ChatDashboardPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,11 +108,23 @@ export default function ChatDashboardPage() {
   const [reassignTo, setReassignTo] = useState<string>('');
   const [reassignReason, setReassignReason] = useState('');
   const [showInternalNotes, setShowInternalNotes] = useState(false);
+  const [internalNote, setInternalNote] = useState('');
+  const [staffNotesHeight, setStaffNotesHeight] = useState(250);
+  const [isResizingNotes, setIsResizingNotes] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
   const [showShopify, setShowShopify] = useState(false);
   const [staffFilter, setStaffFilter] = useState<string>('all');
+  const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset order index when conversation changes or Shopify panel opens
+  useEffect(() => {
+    setCurrentOrderIndex(0);
+  }, [selectedConversation, showShopify]);
 
   // Keyboard shortcut: Ctrl+Y for Staff Notes
   useEffect(() => {
@@ -190,6 +211,32 @@ export default function ChatDashboardPage() {
     refetchInterval: 3000,
   });
 
+  const messages: ChatMessage[] = conversationData?.messages || [];
+  const currentConversation = conversationData?.conversation;
+
+  // Fetch Shopify data for the current conversation
+  const { data: shopifyData, isLoading: shopifyLoading } = useQuery({
+    queryKey: ['shopify-data', currentConversation?.customer_email],
+    queryFn: async () => {
+      if (!currentConversation?.customer_email) return null;
+      const response = await api.get(`/api/shopify/ticket-data?email=${encodeURIComponent(currentConversation.customer_email)}`);
+      return response.data;
+    },
+    enabled: !!currentConversation?.customer_email && showShopify,
+  });
+
+  // Fetch notes for the selected conversation's ticket
+  const { data: notesData, refetch: refetchNotes } = useQuery({
+    queryKey: ['ticket-notes', currentConversation?.ticket_id],
+    queryFn: async () => {
+      if (!currentConversation?.ticket_id) return null;
+      const response = await ticketsApi.get(currentConversation.ticket_id);
+      return response.data;
+    },
+    enabled: !!currentConversation?.ticket_id,
+  });
+  const notes = notesData?.notes || [];
+
   // Takeover mutation
   const takeoverMutation = useMutation({
     mutationFn: (id: string) => chatApi.takeoverConversation(id),
@@ -256,8 +303,6 @@ export default function ChatDashboardPage() {
   const staffList: StaffMember[] = staffData?.staff || [];
 
   const conversations: ChatConversation[] = conversationsData?.conversations || [];
-  const messages: ChatMessage[] = conversationData?.messages || [];
-  const currentConversation = conversationData?.conversation;
 
   // Filtered conversations for navigation
   const filteredConversations = conversations.filter((conv) => 
@@ -287,6 +332,70 @@ export default function ChatDashboardPage() {
     : -1;
   const canGoPrevious = currentIndex > 0;
   const canGoNext = currentIndex >= 0 && currentIndex < filteredConversations.length - 1;
+
+  // Resize handle logic for Staff Notes
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingNotes) return
+      
+      const newHeight = staffNotesHeight + (window.innerHeight - e.clientY - staffNotesHeight)
+      const minHeight = 150
+      const maxHeight = window.innerHeight * 0.6
+      
+      if (newHeight >= minHeight && newHeight <= maxHeight) {
+        setStaffNotesHeight(newHeight)
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingNotes(false)
+      document.body.style.cursor = 'default'
+      document.body.style.userSelect = 'auto'
+    }
+
+    if (isResizingNotes) {
+      document.body.style.cursor = 'ns-resize'
+      document.body.style.userSelect = 'none'
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizingNotes, staffNotesHeight])
+
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  // Handle file selection for staff notes
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    // Validate file sizes
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File ${file.name} is too large. Maximum size is 10MB.`);
+        e.target.value = '';
+        return;
+      }
+    }
+    setSelectedFiles(prev => [...prev, ...files]);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  // Remove a selected file
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSendReply = () => {
     if (!selectedConversation || !replyMessage.trim()) return;
@@ -520,10 +629,14 @@ export default function ChatDashboardPage() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
-                      <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
-                    </svg>
+                    {currentConversation?.subject?.toLowerCase().includes('callback request') ? (
+                      <Phone className="w-4 h-4 text-red-600 fill-current" />
+                    ) : (
+                      <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+                        <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
+                      </svg>
+                    )}
                     <h1 className="text-base font-semibold text-gray-900">
                       {currentConversation?.ticket_number || 'Chat'}
                     </h1>
@@ -806,6 +919,18 @@ export default function ChatDashboardPage() {
 
             {/* Staff Notes Section - EXACT MATCH to ChatTicketDetailPage */}
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              {/* Resize Handle for Staff Notes */}
+              {showInternalNotes && (
+                <div 
+                  className="h-1 bg-gray-200 hover:bg-yellow-400 cursor-ns-resize transition-colors flex-shrink-0 relative group"
+                  onMouseDown={() => setIsResizingNotes(true)}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-12 h-1 bg-gray-400 rounded-full group-hover:bg-yellow-500 transition-colors"></div>
+                  </div>
+                </div>
+              )}
+              
               {/* Header Bar - Clickable to toggle */}
               <div 
                 className="px-4 py-2.5 bg-gradient-to-r from-yellow-50 to-yellow-100 border-b border-yellow-200 flex items-center gap-2 cursor-pointer hover:from-yellow-100 hover:to-yellow-150 transition-colors"
@@ -820,13 +945,123 @@ export default function ChatDashboardPage() {
               
               {/* Expandable Notes Area */}
               {showInternalNotes && (
-                <div className="flex flex-col bg-yellow-50" style={{ height: '200px' }}>
-                  <div className="p-4 flex-1 flex flex-col min-h-0">
+                <div className="flex flex-col bg-yellow-50" style={{ height: `${staffNotesHeight}px` }}>
+                  {/* Existing Notes - Scrollable */}
+                  {notes && notes.length > 0 && (
+                    <div className="p-4 space-y-2 overflow-y-auto flex-shrink-0" style={{ maxHeight: '60%' }}>
+                      {notes.map((note: any) => (
+                        <div key={note.id} className="bg-yellow-100 rounded-lg p-3 border border-yellow-200">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-medium text-gray-800">{note.first_name || 'Staff'}</span>
+                              <span className="text-xs text-gray-500">
+                                {note.created_at && typeof note.created_at === 'string'
+                                  ? formatDistanceToNow(new Date(note.created_at.includes('Z') ? note.created_at : note.created_at + 'Z'), { addSuffix: true })
+                                  : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                          {/* Attachment Display */}
+                          {note.attachment_url && (
+                            <div className="mt-2">
+                              {note.attachment_type?.startsWith('image/') ? (
+                                <a href={getAttachmentUrl(note.attachment_url)} target="_blank" rel="noopener noreferrer" className="block">
+                                  <img 
+                                    src={getAttachmentUrl(note.attachment_url)} 
+                                    alt={note.attachment_name || 'Attachment'} 
+                                    className="max-w-xs rounded border border-yellow-300 hover:opacity-90 transition-opacity cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-600 mt-1 block">{note.attachment_name}</span>
+                                </a>
+                              ) : (
+                                <a 
+                                  href={getAttachmentUrl(note.attachment_url)} 
+                                  download={note.attachment_name || 'file'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-50 text-sm"
+                                >
+                                  <Paperclip className="w-4 h-4" />
+                                  <span>{note.attachment_name}</span>
+                                  <span className="text-xs text-gray-500">({(note.attachment_size / 1024).toFixed(1)} KB)</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Add Note Input - Fixed at bottom */}
+                  <div className="p-4 flex-1 flex flex-col min-h-0 border-t border-yellow-200">
+                    {/* Selected Files Display */}
+                    {selectedFiles.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {selectedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center gap-1 bg-white border border-yellow-300 rounded px-2 py-1 text-xs">
+                            <Paperclip className="w-3 h-3" />
+                            <span className="max-w-[150px] truncate">{file.name}</span>
+                            <button
+                              onClick={() => removeFile(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <textarea
-                      placeholder="Add internal notes for other staff members... (Press Enter to save)"
+                      value={internalNote}
+                      onChange={(e) => setInternalNote(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          const noteText = e.currentTarget.value.trim()
+                          if (noteText && currentConversation) {
+                            console.log('[DASHBOARD STAFF NOTES] Submitting note:', noteText)
+                            try {
+                              // Convert files to base64 if any
+                              const attachments = await Promise.all(
+                                selectedFiles.map(async (file) => ({
+                                  name: file.name,
+                                  content: await fileToBase64(file),
+                                  type: file.type,
+                                  size: file.size
+                                }))
+                              )
+                              
+                              await ticketsApi.addNote(currentConversation.ticket_id, noteText, undefined, attachments.length > 0 ? attachments : undefined)
+                              setInternalNote('')
+                              setSelectedFiles([])
+                              refetchNotes()
+                              console.log('[DASHBOARD STAFF NOTES] Note saved successfully')
+                            } catch (error: any) {
+                              console.error('Failed to add note:', error)
+                              alert(`Failed to add note: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+                            }
+                          }
+                        }
+                      }}
+                      placeholder="Add internal notes for other staff members... (Press Enter to save, Shift+Enter for new line)"
                       className="w-full flex-1 border border-yellow-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none bg-white min-h-0"
                     />
-                    <button className="mt-2 text-xs px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 self-start flex-shrink-0">
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+                    />
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-2 text-xs px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 self-start flex-shrink-0 flex items-center gap-1"
+                    >
+                      <Paperclip className="w-3 h-3" />
                       Attach File
                     </button>
                   </div>
@@ -857,80 +1092,249 @@ export default function ChatDashboardPage() {
               </button>
             </div>
 
-            {/* Customer Section */}
-            <div className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">CUSTOMER</h3>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{currentConversation.customer_name || 'Customer'}</p>
-                  <p className="text-xs text-gray-500">{currentConversation.customer_email}</p>
-                  <p className="text-xs text-gray-500">+1 (555) 123-4567</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-500">Total Spent:</span>
-                    <span className="font-semibold text-indigo-600">$2,847.00</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Total Orders:</span>
-                    <span className="font-semibold text-gray-900">8</span>
-                  </div>
-                </div>
+            {/* Loading State */}
+            {shopifyLoading && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-gray-500">Loading Shopify data...</div>
               </div>
-            </div>
+            )}
 
-            {/* Order Section */}
-            <div className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ORDER</h3>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Order #5421</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full font-medium">
-                      Fulfilled
-                    </span>
-                    <span className="text-xs text-gray-500">Total: <span className="font-semibold text-gray-900">$342.50</span></span>
+            {/* Customer Data */}
+            {shopifyData && shopifyData.customer && (
+              <>
+                {/* Customer Section */}
+                <div className="mb-6">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">CUSTOMER</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {shopifyData.customer.firstName} {shopifyData.customer.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500">{shopifyData.customer.email}</p>
+                      {shopifyData.customer.phone && (
+                        <p className="text-xs text-gray-500">{shopifyData.customer.phone}</p>
+                      )}
+                      {shopifyData.customer.isVIP && (
+                        <span className="inline-flex items-center mt-1 text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium">
+                          ⭐ VIP Customer
+                        </span>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-500">Total Spent:</span>
+                        <span className="font-semibold text-indigo-600">
+                          ${shopifyData.customer.totalSpent?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">Total Orders:</span>
+                        <span className="font-semibold text-gray-900">{shopifyData.customer.ordersCount || 0}</span>
+                      </div>
+                      {shopifyData.customer.lastOrderDate && (
+                        <div className="flex justify-between text-xs mt-1">
+                          <span className="text-gray-500">Last Order:</span>
+                          <span className="text-gray-900">
+                            {new Date(shopifyData.customer.lastOrderDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-gray-200 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Created:</span>
-                    <span className="text-gray-900">Nov 28, 2024</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Shipped:</span>
-                    <span className="text-gray-900">Nov 29, 2024</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Tracking:</span>
-                    <span className="text-indigo-600 font-medium">1Z999AA10123456784</span>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Items Section */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ITEMS</h3>
-              <div className="space-y-3">
-                <div className="flex items-start space-x-3 p-2 bg-gray-50 rounded-lg">
-                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">IMG</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">DTF Transfer - Custom Design</p>
-                    <p className="text-xs text-gray-500">Size: A3 • Qty: 50</p>
-                    <p className="text-xs font-medium text-gray-900 mt-1">$175.00</p>
+                {/* Order Section with Navigation */}
+                {shopifyData.orders && shopifyData.orders.length > 0 ? (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase">
+                        ORDER {currentOrderIndex + 1} OF {shopifyData.orders.length}
+                      </h3>
+                      {shopifyData.orders.length > 1 && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.max(0, currentOrderIndex - 1))}
+                            disabled={currentOrderIndex === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Previous order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.min(shopifyData.orders.length - 1, currentOrderIndex + 1))}
+                            disabled={currentOrderIndex === shopifyData.orders.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Next order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Order {shopifyData.orders[currentOrderIndex].orderNumber}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'fulfilled' 
+                              ? 'bg-green-100 text-green-800'
+                              : shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'partial'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {shopifyData.orders[currentOrderIndex].fulfillmentStatus || 'Unfulfilled'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Total: <span className="font-semibold text-gray-900">
+                              ${shopifyData.orders[currentOrderIndex].totalPrice?.toFixed(2)} {shopifyData.orders[currentOrderIndex].currency}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200 space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Created:</span>
+                          <span className="text-gray-900">
+                            {new Date(shopifyData.orders[currentOrderIndex].createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Payment:</span>
+                          <span className={`font-medium ${
+                            shopifyData.orders[currentOrderIndex].financialStatus === 'paid' 
+                              ? 'text-green-600' 
+                              : 'text-yellow-600'
+                          }`}>
+                            {shopifyData.orders[currentOrderIndex].financialStatus || 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Line Items - Clickable/Expandable */}
+                      {shopifyData.orders[currentOrderIndex].lineItems && shopifyData.orders[currentOrderIndex].lineItems.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">Items:</p>
+                          <div className="space-y-2">
+                            {shopifyData.orders[currentOrderIndex].lineItems.map((item: any, idx: number) => (
+                              <div key={item.id || idx} className="border border-gray-200 rounded-md overflow-hidden">
+                                <button
+                                  onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 transition-colors flex justify-between items-center"
+                                >
+                                  <span className="text-xs text-gray-700 truncate flex-1">{item.title}</span>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">x{item.quantity}</span>
+                                    <svg 
+                                      className={`w-3 h-3 text-gray-400 transition-transform ${expandedItemId === item.id ? 'rotate-180' : ''}`}
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </button>
+                                
+                                {/* Expanded Details */}
+                                {expandedItemId === item.id && (
+                                  <div className="px-2 py-2 bg-gray-50 border-t border-gray-200 text-xs space-y-1.5">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Price:</span>
+                                      <span className="text-gray-900 font-medium">${item.price?.toFixed(2)}</span>
+                                    </div>
+                                    {item.sku && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">SKU:</span>
+                                        <span className="text-gray-900 font-mono">{item.sku}</span>
+                                      </div>
+                                    )}
+                                    {item.variantTitle && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">Variant:</span>
+                                        <span className="text-gray-900">{item.variantTitle}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Custom Attributes */}
+                                    {item.customAttributes && item.customAttributes.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <p className="text-gray-500 font-medium mb-1.5">Product Details:</p>
+                                        {item.customAttributes.map((attr: any, attrIdx: number) => (
+                                          <div key={attrIdx} className="flex justify-between py-0.5">
+                                            <span className="text-gray-500">{attr.key.replace('_', '')}:</span>
+                                            {attr.key.includes('Link') || attr.key.includes('link') ? (
+                                              <a 
+                                                href={attr.value} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 underline truncate max-w-[180px]"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                View →
+                                              </a>
+                                            ) : (
+                                              <span className="text-gray-900 font-mono text-right truncate max-w-[180px]">
+                                                {attr.value}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start space-x-3 p-2 bg-gray-50 rounded-lg">
-                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">IMG</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">Gang Sheet - Mixed Designs</p>
-                    <p className="text-xs text-gray-500">Size: 22x60" • Qty: 2</p>
-                    <p className="text-xs font-medium text-gray-900 mt-1">$167.50</p>
+                ) : (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ORDERS</h3>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-sm text-gray-500">No orders found</p>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
+
+                {/* Fulfillment & Tracking Section */}
+                {shopifyData.orders && shopifyData.orders[currentOrderIndex]?.trackingNumber && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">FULFILLMENT & TRACKING</h3>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Tracking:</p>
+                        <p className="text-sm font-mono font-semibold text-gray-900">
+                          {shopifyData.orders[currentOrderIndex].trackingNumber}
+                        </p>
+                        {shopifyData.orders[currentOrderIndex].trackingCompany && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Carrier: <span className="text-gray-900">{shopifyData.orders[currentOrderIndex].trackingCompany}</span>
+                          </p>
+                        )}
+                      </div>
+                      {shopifyData.orders[currentOrderIndex].trackingUrl && (
+                        <a 
+                          href={shopifyData.orders[currentOrderIndex].trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-xs text-green-600 hover:text-green-700 font-medium"
+                        >
+                          Track Package →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </>
+            )}
           </div>
         )}
       </div>

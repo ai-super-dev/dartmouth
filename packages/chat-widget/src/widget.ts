@@ -28,6 +28,12 @@ interface ChatMessage {
   timestamp: Date;
   actions?: ActionButton[];
   showCallbackForm?: boolean;
+  attachment?: {
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+  };
 }
 
 interface ChatStatus {
@@ -1829,12 +1835,24 @@ class McCarthyChat {
               senderName = senderName.split(' ')[0]; // Get first name only
             }
             
+            // Parse attachment if present
+            let attachment = undefined;
+            if (msg.attachment_url) {
+              attachment = {
+                url: msg.attachment_url,
+                name: msg.attachment_name || 'file',
+                type: msg.attachment_type || 'application/octet-stream',
+                size: msg.attachment_size || 0
+              };
+            }
+            
             serverMessages.push({
               id: msg.id,
               content: msg.content,
               sender: msg.sender_type === 'staff' ? 'agent' : msg.sender_type,
               senderName: senderName,
-              timestamp: new Date(msg.created_at)
+              timestamp: new Date(msg.created_at),
+              attachment: attachment
             });
           }
           
@@ -2089,10 +2107,35 @@ class McCarthyChat {
         `;
       }
 
+      // Render attachment if present
+      let attachmentHtml = '';
+      if (msg.attachment) {
+        const isImage = msg.attachment.type.startsWith('image/');
+        if (isImage) {
+          attachmentHtml = `
+            <div class="mccarthy-message-attachment">
+              <img src="${msg.attachment.url}" alt="${msg.attachment.name}" onclick="window.open('${msg.attachment.url}', '_blank')" />
+            </div>
+          `;
+        } else {
+          attachmentHtml = `
+            <div class="mccarthy-message-attachment">
+              <a href="${msg.attachment.url}" target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+                ${msg.attachment.name}
+              </a>
+            </div>
+          `;
+        }
+      }
+
       return `
         <div class="mccarthy-chat-message ${msg.sender}">
           ${msg.senderName ? `<div class="mccarthy-chat-message-sender">${senderIcon}${msg.senderName}</div>` : ''}
           ${msg.content}
+          ${attachmentHtml}
           ${actionsHtml}
           <div class="mccarthy-chat-message-time">${time}</div>
         </div>

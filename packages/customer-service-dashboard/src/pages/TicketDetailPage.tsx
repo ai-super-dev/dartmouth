@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { ticketsApi, shopifyApi } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Paperclip, X } from 'lucide-react'
+import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Paperclip, X, Phone } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import StatusModal from '../components/StatusModal'
 import ReassignModal from '../components/ReassignModal'
@@ -58,6 +58,17 @@ const staffNames: Record<string, string> = {
   '00000000-0000-0000-0000-000000000003': 'Sam Johnson',
 }
 
+// Helper function to get full attachment URL
+const getAttachmentUrl = (attachmentUrl: string | null | undefined): string => {
+  if (!attachmentUrl) return '';
+  // If it's already a full URL (data: or http), return as-is
+  if (attachmentUrl.startsWith('data:') || attachmentUrl.startsWith('http')) {
+    return attachmentUrl;
+  }
+  // Otherwise, it's an R2 key - construct the API URL
+  return `https://dartmouth-os-worker.dartmouth.workers.dev/api/attachments/${attachmentUrl}`;
+};
+
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -66,10 +77,13 @@ export default function TicketDetailPage() {
   const [showCustomerDetails, setShowCustomerDetails] = useState(false)
   const [showOrders, setShowOrders] = useState(false)
   const [showShopify, setShowShopify] = useState(false)
+  const [currentOrderIndex, setCurrentOrderIndex] = useState(0)
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [staffResponse, setStaffResponse] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const staffNotesFileInputRef = useRef<HTMLInputElement>(null)
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
   const [showEscalateModal, setShowEscalateModal] = useState(false)
@@ -90,6 +104,7 @@ export default function TicketDetailPage() {
   const [staffNotesHeight, setStaffNotesHeight] = useState(250)
   const [isResizingResponse, setIsResizingResponse] = useState(false)
   const [isResizingNotes, setIsResizingNotes] = useState(false)
+  const [staffNotesFiles, setStaffNotesFiles] = useState<File[]>([])
   
   // Shopify integration state
   const [shopifyData, setShopifyData] = useState<{
@@ -148,7 +163,7 @@ export default function TicketDetailPage() {
   })
 
   const ticket = ticketData?.ticket
-  const messages = ticketData?.messages || []
+  const messages = (ticketData?.messages || []).slice().reverse() // Newest first
   const notes = ticketData?.notes || []
   const scheduledMessages = scheduledMessagesData?.scheduledMessages || []
   let allTickets = allTicketsData?.tickets || []
@@ -208,6 +223,11 @@ export default function TicketDetailPage() {
     }
   }, [ticket, navigate, searchParams])
 
+  // Reset order index when ticket changes or Shopify panel opens
+  useEffect(() => {
+    setCurrentOrderIndex(0);
+  }, [id, showShopify]);
+
   // Fetch Shopify data when the Shopify panel is opened
   useEffect(() => {
     if (showShopify && ticket?.customer_email && !shopifyData) {
@@ -233,9 +253,9 @@ export default function TicketDetailPage() {
     if (!files) return
 
     Array.from(files).forEach(file => {
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} is too large. Maximum size is 5MB.`)
+      // Validate file size (max 10MB with R2 storage)
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File ${file.name} is too large. Maximum size is 10MB.`)
         return
       }
 
@@ -260,6 +280,36 @@ export default function TicketDetailPage() {
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  // Handle file selection for staff notes
+  const handleStaffNotesFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    // Validate file sizes
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File ${file.name} is too large. Maximum size is 10MB.`)
+        e.target.value = ''
+        return
+      }
+    }
+    setStaffNotesFiles(prev => [...prev, ...files])
+    e.target.value = ''
+  }
+
+  // Remove a staff notes file
+  const removeStaffNotesFile = (index: number) => {
+    setStaffNotesFiles(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleSendReply = async () => {
@@ -295,21 +345,6 @@ export default function TicketDetailPage() {
     } catch (error: any) {
       console.error('Failed to delete ticket:', error)
       alert(`Failed to delete ticket: ${error.response?.data?.error || error.message || 'Unknown error'}`)
-    }
-  }
-
-  const handleAddNote = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || !internalNote.trim() || !ticket) return
-    e.preventDefault()
-    
-    try {
-      console.log('Adding note to ticket:', ticket.ticket_id)
-      await ticketsApi.addNote(ticket.ticket_id, internalNote)
-      setInternalNote('')
-      refetch() // Refetch data without reloading page
-    } catch (error: any) {
-      console.error('Failed to add note:', error)
-      alert(`Failed to add note: ${error.response?.data?.error || error.message || 'Unknown error'}`)
     }
   }
 
@@ -603,22 +638,61 @@ export default function TicketDetailPage() {
     if (!ticket) return
     
     let template = ''
+    const latestOrder = shopifyData?.latestOrder
+    const customer = shopifyData?.customer
+    
     switch (action) {
       case 'order-status':
-        template = `Hi ${ticket.customer_name || 'there'},\n\nI'm checking on your order status now. Let me look that up for you.\n\nOrder #: [ORDER_NUMBER]\nStatus: [STATUS]\nExpected delivery: [DATE]\n\nIs there anything else I can help you with?\n\nBest regards,\nJohn`
+        if (latestOrder) {
+          const items = latestOrder.lineItems?.slice(0, 3).map((item: any) => 
+            `- ${item.quantity}x ${item.title}`
+          ).join('\n') || ''
+          
+          template = `Hi ${ticket.customer_name || 'there'},\n\nI can see your order details:\n\nOrder #${latestOrder.orderNumber}\nStatus: ${latestOrder.fulfillmentStatus || 'Unfulfilled'}\nPayment: ${latestOrder.financialStatus || 'Pending'}\nTotal: $${latestOrder.totalPrice?.toFixed(2)} ${latestOrder.currency || 'AUD'}\nOrdered: ${new Date(latestOrder.createdAt).toLocaleDateString()}\n\nItems:\n${items}\n\nIs there anything else I can help you with?\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        } else {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nI'm checking on your order status now. Let me look that up for you.\n\nOrder #: [ORDER_NUMBER]\nStatus: [STATUS]\n\nIs there anything else I can help you with?\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        }
         break
+        
       case 'tracking':
-        template = `Hi ${ticket.customer_name || 'there'},\n\nHere's your tracking information:\n\nTracking #: [TRACKING_NUMBER]\nCarrier: [CARRIER]\nCurrent status: [STATUS]\nExpected delivery: [DATE]\n\nYou can track your package at: [TRACKING_URL]\n\nBest regards,\nJohn`
+        if (latestOrder?.trackingNumber) {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nHere's your tracking information:\n\nOrder #${latestOrder.orderNumber}\nTracking #: ${latestOrder.trackingNumber}\n${latestOrder.trackingCompany ? `Carrier: ${latestOrder.trackingCompany}\n` : ''}${latestOrder.trackingUrl ? `\nTrack your package: ${latestOrder.trackingUrl}` : ''}\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        } else if (latestOrder) {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nI can see your order #${latestOrder.orderNumber} is currently ${latestOrder.fulfillmentStatus || 'unfulfilled'}. Once it ships, I'll send you the tracking information right away.\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        } else {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nLet me look up your tracking information for you.\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        }
         break
+        
       case 'vip-wallet':
-        template = `Hi ${ticket.customer_name || 'there'},\n\nThank you for being a valued VIP customer! Let me check your VIP wallet balance.\n\nCurrent balance: $[AMOUNT]\nVIP tier: [TIER]\nRewards available: [REWARDS]\n\nIs there anything else I can assist you with?\n\nBest regards,\nJohn`
+        if (customer) {
+          const tier = customer.totalSpent >= 1000 ? 'Platinum' : customer.totalSpent >= 500 ? 'Gold' : customer.totalSpent >= 100 ? 'Silver' : 'Bronze'
+          template = `Hi ${ticket.customer_name || 'there'},\n\nThank you for being a valued customer!\n\nCustomer Stats:\n- Total Orders: ${customer.ordersCount || 0}\n- Total Spent: $${customer.totalSpent?.toFixed(2) || '0.00'}\n- VIP Tier: ${tier}\n- Member Since: ${customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}\n\nIs there anything else I can assist you with?\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        } else {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nLet me check your customer account details.\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        }
         break
+        
       case 'artwork':
-        template = `Hi ${ticket.customer_name || 'there'},\n\nI've reviewed your artwork file. Here's what I found:\n\n✓ Resolution: [DPI]\n✓ Color mode: [COLOR_MODE]\n✓ File format: [FORMAT]\n\nRecommendations:\n[RECOMMENDATIONS]\n\nBest regards,\nJohn`
+        template = `Hi ${ticket.customer_name || 'there'},\n\nI've reviewed your artwork file. Here's what I found:\n\n✓ Resolution: [DPI]\n✓ Color mode: [COLOR_MODE]\n✓ File format: [FORMAT]\n\nRecommendations:\n[RECOMMENDATIONS]\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
         break
+        
       case 'quote':
-        template = `Hi ${ticket.customer_name || 'there'},\n\nThank you for your quote request. Here are the details:\n\nProduct: [PRODUCT]\nQuantity: [QUANTITY]\nPrice per unit: $[PRICE]\nTotal: $[TOTAL]\n\nThis quote is valid for 30 days. Would you like to proceed with the order?\n\nBest regards,\nJohn`
+        template = `Hi ${ticket.customer_name || 'there'},\n\nThank you for your quote request. Here are the details:\n\nProduct: [PRODUCT]\nQuantity: [QUANTITY]\nPrice per unit: $[PRICE]\nTotal: $[TOTAL]\n\nThis quote is valid for 30 days. Would you like to proceed with the order?\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
         break
+        
+      case 'products':
+        if (latestOrder?.lineItems && latestOrder.lineItems.length > 0) {
+          const productList = latestOrder.lineItems.map((item: any) => 
+            `- ${item.title}\n  Quantity: ${item.quantity}\n  Price: $${item.price?.toFixed(2) || '0.00'} each`
+          ).join('\n\n')
+          
+          template = `Hi ${ticket.customer_name || 'there'},\n\nHere are the products from your order #${latestOrder.orderNumber}:\n\n${productList}\n\nTotal: $${latestOrder.totalPrice?.toFixed(2)} ${latestOrder.currency || 'AUD'}\n\nIs there anything else you'd like to know about these products?\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        } else {
+          template = `Hi ${ticket.customer_name || 'there'},\n\nLet me look up your product details for you.\n\nBest regards,\n${user ? `${user.firstName} ${user.lastName}` : 'Support Team'}`
+        }
+        break
+        
       default:
         return
     }
@@ -748,9 +822,13 @@ export default function TicketDetailPage() {
                 </svg>
               </Link>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+                {ticket.subject?.toLowerCase().includes('callback request') ? (
+                  <Phone className="w-4 h-4 text-red-600 fill-current" />
+                ) : (
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                )}
                 <h1 className="text-base font-semibold text-gray-900">{ticket.ticket_number}</h1>
               </div>
               {ticket.vip === 1 && (
@@ -1029,6 +1107,33 @@ export default function TicketDetailPage() {
                     )}
                   </div>
                   <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{msg.content}</div>
+                  {/* Attachment Display */}
+                  {msg.attachment_url && (
+                    <div className="mt-2 ml-8">
+                      {msg.attachment_type?.startsWith('image/') ? (
+                        <a href={getAttachmentUrl(msg.attachment_url)} target="_blank" rel="noopener noreferrer" className="block">
+                          <img 
+                            src={getAttachmentUrl(msg.attachment_url)} 
+                            alt={msg.attachment_name || 'Attachment'} 
+                            className="max-w-md rounded border border-gray-300 hover:opacity-90 transition-opacity cursor-pointer"
+                          />
+                          <span className="text-xs text-gray-600 mt-1 block">{msg.attachment_name}</span>
+                        </a>
+                      ) : (
+                        <a 
+                          href={getAttachmentUrl(msg.attachment_url)} 
+                          download={msg.attachment_name || 'file'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                        >
+                          <Paperclip className="w-4 h-4" />
+                          <span>{msg.attachment_name}</span>
+                          <span className="text-xs text-gray-500">({(msg.attachment_size / 1024).toFixed(1)} KB)</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1191,7 +1296,10 @@ export default function TicketDetailPage() {
                     >
                       📊 @quote
                     </button>
-                    <button className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <button 
+                      onClick={() => handleQuickAction('products')}
+                      className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
                       📦 Products
                     </button>
                     <button className="text-xs px-2.5 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
@@ -1396,6 +1504,33 @@ export default function TicketDetailPage() {
                               return content;
                             })()}
                           </p>
+                          {/* Attachment Display */}
+                          {note.attachment_url && (
+                            <div className="mt-2">
+                              {note.attachment_type?.startsWith('image/') ? (
+                                <a href={getAttachmentUrl(note.attachment_url)} target="_blank" rel="noopener noreferrer" className="block">
+                                  <img 
+                                    src={getAttachmentUrl(note.attachment_url)} 
+                                    alt={note.attachment_name || 'Attachment'} 
+                                    className="max-w-xs rounded border border-yellow-300 hover:opacity-90 transition-opacity cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-600 mt-1 block">{note.attachment_name}</span>
+                                </a>
+                              ) : (
+                                <a 
+                                  href={getAttachmentUrl(note.attachment_url)} 
+                                  download={note.attachment_name || 'file'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-50 text-sm"
+                                >
+                                  <Paperclip className="w-4 h-4" />
+                                  <span>{note.attachment_name}</span>
+                                  <span className="text-xs text-gray-500">({(note.attachment_size / 1024).toFixed(1)} KB)</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1403,15 +1538,65 @@ export default function TicketDetailPage() {
                   
                   {/* Add Note Input - Fixed at bottom */}
                   <div className="p-4 flex-1 flex flex-col min-h-0 border-t border-yellow-200">
+                    {/* Selected Files Display */}
+                    {staffNotesFiles.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {staffNotesFiles.map((file, index) => (
+                          <div key={index} className="flex items-center gap-1 bg-white border border-yellow-300 rounded px-2 py-1 text-xs">
+                            <Paperclip className="w-3 h-3" />
+                            <span className="max-w-[150px] truncate">{file.name}</span>
+                            <button
+                              onClick={() => removeStaffNotesFile(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   <textarea
                     value={internalNote}
                     onChange={(e) => setInternalNote(e.target.value)}
-                    onKeyDown={handleAddNote}
-                    placeholder="Add internal notes for other staff members... (Press Enter to save)"
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && internalNote.trim() && ticket) {
+                        e.preventDefault()
+                        console.log('[Staff Notes] Submitting note')
+                        try {
+                          // Convert files to base64 if any
+                          const attachments = await Promise.all(
+                            staffNotesFiles.map(async (file) => ({
+                              name: file.name,
+                              content: await fileToBase64(file),
+                              type: file.type,
+                              size: file.size
+                            }))
+                          )
+                          
+                          await ticketsApi.addNote(ticket.ticket_id, internalNote, undefined, attachments.length > 0 ? attachments : undefined)
+                          setInternalNote('')
+                          setStaffNotesFiles([])
+                          refetch()
+                        } catch (error: any) {
+                          console.error('Failed to add note:', error)
+                          alert(`Failed to add note: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+                        }
+                      }
+                    }}
+                    placeholder="Add internal notes for other staff members... (Press Enter to save, Shift+Enter for new line)"
                     className="w-full flex-1 border border-yellow-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none bg-white min-h-0"
                   />
+                  {/* Hidden file input for Staff Notes */}
+                  <input
+                    type="file"
+                    ref={staffNotesFileInputRef}
+                    onChange={handleStaffNotesFileSelect}
+                    className="hidden"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+                  />
                   <button 
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => staffNotesFileInputRef.current?.click()}
                     className="mt-2 text-xs px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 self-start flex-shrink-0 flex items-center gap-1"
                   >
                     <Paperclip className="w-3 h-3" />
@@ -1527,26 +1712,54 @@ export default function TicketDetailPage() {
                   </div>
                 </div>
 
-                {/* Latest Order Section */}
-                {shopifyData.latestOrder ? (
+                {/* Order Section with Navigation */}
+                {shopifyData.orders && shopifyData.orders.length > 0 ? (
                   <div className="mb-6">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">LATEST ORDER</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase">
+                        ORDER {currentOrderIndex + 1} OF {shopifyData.orders.length}
+                      </h3>
+                      {shopifyData.orders.length > 1 && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.max(0, currentOrderIndex - 1))}
+                            disabled={currentOrderIndex === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Previous order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.min(shopifyData.orders.length - 1, currentOrderIndex + 1))}
+                            disabled={currentOrderIndex === shopifyData.orders.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Next order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">Order {shopifyData.latestOrder.orderNumber}</p>
+                        <p className="text-sm font-semibold text-gray-900">Order {shopifyData.orders[currentOrderIndex].orderNumber}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            shopifyData.latestOrder.fulfillmentStatus === 'fulfilled' 
+                            shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'fulfilled' 
                               ? 'bg-green-100 text-green-800'
-                              : shopifyData.latestOrder.fulfillmentStatus === 'partial'
+                              : shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'partial'
                               ? 'bg-yellow-100 text-yellow-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}>
-                            {shopifyData.latestOrder.fulfillmentStatus || 'Unfulfilled'}
+                            {shopifyData.orders[currentOrderIndex].fulfillmentStatus || 'Unfulfilled'}
                           </span>
                           <span className="text-xs text-gray-500">
                             Total: <span className="font-semibold text-gray-900">
-                              ${shopifyData.latestOrder.totalPrice?.toFixed(2)} {shopifyData.latestOrder.currency}
+                              ${shopifyData.orders[currentOrderIndex].totalPrice?.toFixed(2)} {shopifyData.orders[currentOrderIndex].currency}
                             </span>
                           </span>
                         </div>
@@ -1555,37 +1768,96 @@ export default function TicketDetailPage() {
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-500">Created:</span>
                           <span className="text-gray-900">
-                            {new Date(shopifyData.latestOrder.createdAt).toLocaleDateString()}
+                            {new Date(shopifyData.orders[currentOrderIndex].createdAt).toLocaleDateString()}
                           </span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-500">Payment:</span>
                           <span className={`font-medium ${
-                            shopifyData.latestOrder.financialStatus === 'paid' 
+                            shopifyData.orders[currentOrderIndex].financialStatus === 'paid' 
                               ? 'text-green-600' 
                               : 'text-yellow-600'
                           }`}>
-                            {shopifyData.latestOrder.financialStatus || 'Pending'}
+                            {shopifyData.orders[currentOrderIndex].financialStatus || 'Pending'}
                           </span>
                         </div>
                       </div>
                       
-                      {/* Line Items */}
-                      {shopifyData.latestOrder.lineItems && shopifyData.latestOrder.lineItems.length > 0 && (
+                      {/* Line Items - Clickable/Expandable */}
+                      {shopifyData.orders[currentOrderIndex].lineItems && shopifyData.orders[currentOrderIndex].lineItems.length > 0 && (
                         <div className="pt-2 border-t border-gray-200">
                           <p className="text-xs text-gray-500 mb-2">Items:</p>
-                          <div className="space-y-1">
-                            {shopifyData.latestOrder.lineItems.slice(0, 3).map((item: any, idx: number) => (
-                              <div key={idx} className="text-xs flex justify-between">
-                                <span className="text-gray-700 truncate max-w-[180px]">{item.title}</span>
-                                <span className="text-gray-500">x{item.quantity}</span>
+                          <div className="space-y-2">
+                            {shopifyData.orders[currentOrderIndex].lineItems.map((item: any, idx: number) => (
+                              <div key={item.id || idx} className="border border-gray-200 rounded-md overflow-hidden">
+                                <button
+                                  onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 transition-colors flex justify-between items-center"
+                                >
+                                  <span className="text-xs text-gray-700 truncate flex-1">{item.title}</span>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">x{item.quantity}</span>
+                                    <svg 
+                                      className={`w-3 h-3 text-gray-400 transition-transform ${expandedItemId === item.id ? 'rotate-180' : ''}`}
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </button>
+                                
+                                {/* Expanded Details */}
+                                {expandedItemId === item.id && (
+                                  <div className="px-2 py-2 bg-gray-50 border-t border-gray-200 text-xs space-y-1.5">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Price:</span>
+                                      <span className="text-gray-900 font-medium">${item.price?.toFixed(2)}</span>
+                                    </div>
+                                    {item.sku && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">SKU:</span>
+                                        <span className="text-gray-900 font-mono">{item.sku}</span>
+                                      </div>
+                                    )}
+                                    {item.variantTitle && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">Variant:</span>
+                                        <span className="text-gray-900">{item.variantTitle}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Custom Attributes */}
+                                    {item.customAttributes && item.customAttributes.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <p className="text-gray-500 font-medium mb-1.5">Product Details:</p>
+                                        {item.customAttributes.map((attr: any, attrIdx: number) => (
+                                          <div key={attrIdx} className="flex justify-between py-0.5">
+                                            <span className="text-gray-500">{attr.key.replace('_', '')}:</span>
+                                            {attr.key.includes('Link') || attr.key.includes('link') ? (
+                                              <a 
+                                                href={attr.value} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 underline truncate max-w-[180px]"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                View →
+                                              </a>
+                                            ) : (
+                                              <span className="text-gray-900 font-mono text-right truncate max-w-[180px]">
+                                                {attr.value}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             ))}
-                            {shopifyData.latestOrder.lineItems.length > 3 && (
-                              <p className="text-xs text-gray-400">
-                                +{shopifyData.latestOrder.lineItems.length - 3} more items
-                              </p>
-                            )}
                           </div>
                         </div>
                       )}
@@ -1601,24 +1873,24 @@ export default function TicketDetailPage() {
                 )}
 
                 {/* Fulfillment & Tracking Section */}
-                {shopifyData.latestOrder?.trackingNumber && (
+                {shopifyData.orders && shopifyData.orders[currentOrderIndex]?.trackingNumber && (
                   <div>
                     <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">FULFILLMENT & TRACKING</h3>
                     <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Tracking:</p>
                         <p className="text-sm font-mono font-semibold text-gray-900">
-                          {shopifyData.latestOrder.trackingNumber}
+                          {shopifyData.orders[currentOrderIndex].trackingNumber}
                         </p>
-                        {shopifyData.latestOrder.trackingCompany && (
+                        {shopifyData.orders[currentOrderIndex].trackingCompany && (
                           <p className="text-xs text-gray-500 mt-1">
-                            Carrier: <span className="text-gray-900">{shopifyData.latestOrder.trackingCompany}</span>
+                            Carrier: <span className="text-gray-900">{shopifyData.orders[currentOrderIndex].trackingCompany}</span>
                           </p>
                         )}
                       </div>
-                      {shopifyData.latestOrder.trackingUrl && (
+                      {shopifyData.orders[currentOrderIndex].trackingUrl && (
                         <a 
-                          href={shopifyData.latestOrder.trackingUrl}
+                          href={shopifyData.orders[currentOrderIndex].trackingUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center text-xs text-green-600 hover:text-green-700 font-medium"
@@ -1626,35 +1898,6 @@ export default function TicketDetailPage() {
                           Track Package →
                         </a>
                       )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Order History (if multiple orders) */}
-                {shopifyData.orders && shopifyData.orders.length > 1 && (
-                  <div className="mt-6">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                      ORDER HISTORY ({shopifyData.orders.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {shopifyData.orders.slice(1, 4).map((order: any) => (
-                        <div key={order.id} className="bg-gray-50 rounded-lg p-2 text-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-gray-900">{order.orderNumber}</span>
-                            <span className="text-gray-500">${order.totalPrice?.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="text-gray-500">
-                              {new Date(order.createdAt).toLocaleDateString()}
-                            </span>
-                            <span className={`${
-                              order.fulfillmentStatus === 'fulfilled' ? 'text-green-600' : 'text-gray-500'
-                            }`}>
-                              {order.fulfillmentStatus || 'Unfulfilled'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}

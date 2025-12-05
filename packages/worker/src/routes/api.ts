@@ -25,6 +25,8 @@ import * as aiAgentController from '../controllers/ai-agent';
 import * as tenantSettingsController from '../controllers/tenant-settings';
 import * as autoAssignmentController from '../controllers/auto-assignment';
 import * as shopifyController from '../controllers/shopify';
+import * as attachmentsController from '../controllers/attachments';
+import * as integrationsController from '../controllers/integrations';
 
 /**
  * Create API router
@@ -225,6 +227,15 @@ export function createAPIRouter() {
   app.get('/api/shopify/order', authenticate, shopifyController.searchOrder);
   app.get('/api/shopify/order/:orderId', authenticate, shopifyController.getOrder);
   app.get('/api/shopify/ticket-data', authenticate, shopifyController.getTicketShopifyData);
+
+  // Integrations routes
+  app.get('/api/integrations', authenticate, integrationsController.getIntegrations);
+  app.get('/api/integrations/debug', authenticate, requireAdmin, integrationsController.debugIntegrations);
+  app.post('/api/integrations/:id/test', authenticate, requireAdmin, integrationsController.testIntegration);
+  app.post('/api/integrations/:id/settings', authenticate, requireAdmin, integrationsController.saveIntegrationSettings);
+
+  // Attachments routes (public - no auth required for serving files)
+  app.get('/api/attachments/*', attachmentsController.serveAttachmentWildcard);
 
   return app;
 }

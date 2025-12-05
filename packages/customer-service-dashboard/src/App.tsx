@@ -21,6 +21,8 @@ import AgentRegionalOverridesPage from './pages/AgentRegionalOverridesPage'
 import AutoAssignmentSettingsPage from './pages/AutoAssignmentSettingsPage'
 import SettingsHubPage from './pages/SettingsHubPage'
 import MyAccountPage from './pages/MyAccountPage'
+import IntegrationsPage from './pages/IntegrationsPage'
+import ShopifyIntegrationPage from './pages/ShopifyIntegrationPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -61,6 +63,9 @@ function App() {
           <Route path="staff/performance" element={<StaffPerformancePage />} />
           <Route path="chat" element={<ChatDashboardPage />} />
           <Route path="chat-ticket/:id" element={<ChatTicketDetailPage />} />
+          {/* Integrations */}
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="settings/integrations/shopify" element={<ShopifyIntegrationPage />} />
           {/* Account */}
           <Route path="account" element={<MyAccountPage />} />
         </Route>

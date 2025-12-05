@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { ticketsApi, api } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Send, UserPlus, CheckCircle, XCircle, Paperclip } from 'lucide-react'
+import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Send, UserPlus, CheckCircle, XCircle, Paperclip, X, Phone } from 'lucide-react'
 // import { useAuthStore } from '../store/authStore'
 // Using inline chat reassign modal instead of ReassignModal component
 
@@ -57,6 +57,10 @@ interface ChatMessage {
   sender_name: string | null;
   content: string;
   created_at: string;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  attachment_type?: string | null;
+  attachment_size?: number | null;
 }
 
 interface StaffMember {
@@ -101,6 +105,15 @@ const chatApi = {
   },
 };
 
+// Helper function to get full attachment URL
+const getAttachmentUrl = (attachmentUrl: string | null | undefined): string => {
+  if (!attachmentUrl) return '';
+  if (attachmentUrl.startsWith('data:') || attachmentUrl.startsWith('http')) {
+    return attachmentUrl;
+  }
+  return `https://dartmouth-os-worker.dartmouth.workers.dev/api/attachments/${attachmentUrl}`;
+};
+
 export default function ChatTicketDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -110,12 +123,15 @@ export default function ChatTicketDetailPage() {
   const [showCustomerDetails, setShowCustomerDetails] = useState(false)
   const [showOrders, setShowOrders] = useState(false)
   const [showShopify, setShowShopify] = useState(false)
+  const [currentOrderIndex, setCurrentOrderIndex] = useState(0)
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [staffResponse, setStaffResponse] = useState('')
   const [showInternalNotes, setShowInternalNotes] = useState(false)
   const [internalNote, setInternalNote] = useState('')
   const [staffNotesHeight, setStaffNotesHeight] = useState(250)
   const [isResizingNotes, setIsResizingNotes] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [showChatReassignModal, setShowChatReassignModal] = useState(false)
   const [reassignTo, setReassignTo] = useState('')
   const [reassignReason, setReassignReason] = useState('')
@@ -178,6 +194,17 @@ export default function ChatTicketDetailPage() {
   const conversation = conversationData?.conversation
   const messages: ChatMessage[] = conversationData?.messages || []
   const notes = notesData?.notes || []
+
+  // Fetch Shopify data for the ticket
+  const { data: shopifyData, isLoading: shopifyLoading } = useQuery({
+    queryKey: ['shopify-data', ticket?.customer_email],
+    queryFn: async () => {
+      if (!ticket?.customer_email) return null;
+      const response = await api.get(`/api/shopify/ticket-data?email=${encodeURIComponent(ticket.customer_email)}`);
+      return response.data;
+    },
+    enabled: !!ticket?.customer_email && showShopify,
+  });
   let allTickets = allTicketsData?.tickets || []
 
   // Get the current filter from URL params
@@ -270,22 +297,12 @@ export default function ChatTicketDetailPage() {
     replyMutation.mutate(staffResponse.trim())
   }
 
-  // Handle adding internal notes - Enter key to submit
-  const handleAddNote = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || !internalNote.trim() || !ticket) return
-    e.preventDefault()
-    
-    try {
-      console.log('Adding note to ticket:', ticket.ticket_id)
-      await ticketsApi.addNote(ticket.ticket_id, internalNote)
-      setInternalNote('')
-      refetchNotes()
-    } catch (error: any) {
-      console.error('Failed to add note:', error)
-      alert(`Failed to add note: ${error.response?.data?.error || error.message || 'Unknown error'}`)
-    }
-  }
+  // Reset order index when ticket changes or Shopify panel opens
+  useEffect(() => {
+    setCurrentOrderIndex(0);
+  }, [id, showShopify]);
 
+  // Handle adding internal notes - Enter key to submit
   // Keyboard shortcut: Ctrl+Y for Staff Notes
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -299,6 +316,36 @@ export default function ChatTicketDetailPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  // Handle file selection for staff notes
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    // Validate file sizes
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File ${file.name} is too large. Maximum size is 10MB.`)
+        e.target.value = ''
+        return
+      }
+    }
+    setSelectedFiles(prev => [...prev, ...files])
+    e.target.value = ''
+  }
+
+  // Remove a selected file
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
 
   // Resize handle logic for Staff Notes
   useEffect(() => {
@@ -370,10 +417,14 @@ export default function ChatTicketDetailPage() {
                 </svg>
               </Link>
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
-                  <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
-                </svg>
+                {ticket.subject?.toLowerCase().includes('callback request') ? (
+                  <Phone className="w-4 h-4 text-red-600 fill-current" />
+                ) : (
+                  <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+                    <path d="M7 9h10v2H7zm0-3h10v2H7z"/>
+                  </svg>
+                )}
                 <h1 className="text-base font-semibold text-gray-900">{ticket.ticket_number}</h1>
               </div>
               {ticket.vip === 1 && (
@@ -616,6 +667,33 @@ export default function ChatTicketDetailPage() {
                       </span>
                     </div>
                     <div className="text-sm text-gray-700 whitespace-pre-wrap ml-8">{msg.content}</div>
+                    {/* Attachment Display */}
+                    {msg.attachment_url && (
+                      <div className="mt-2 ml-8">
+                        {msg.attachment_type?.startsWith('image/') ? (
+                          <a href={getAttachmentUrl(msg.attachment_url)} target="_blank" rel="noopener noreferrer" className="block">
+                            <img 
+                              src={getAttachmentUrl(msg.attachment_url)} 
+                              alt={msg.attachment_name || 'Attachment'} 
+                              className="max-w-md rounded border border-gray-300 hover:opacity-90 transition-opacity cursor-pointer"
+                            />
+                            <span className="text-xs text-gray-600 mt-1 block">{msg.attachment_name}</span>
+                          </a>
+                        ) : (
+                          <a 
+                            href={getAttachmentUrl(msg.attachment_url)} 
+                            download={msg.attachment_name || 'file'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                          >
+                            <Paperclip className="w-4 h-4" />
+                            <span>{msg.attachment_name}</span>
+                            <span className="text-xs text-gray-500">({((msg.attachment_size || 0) / 1024).toFixed(1)} KB)</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -717,6 +795,33 @@ export default function ChatTicketDetailPage() {
                         </div>
                       </div>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                      {/* Attachment Display */}
+                      {note.attachment_url && (
+                        <div className="mt-2">
+                          {note.attachment_type?.startsWith('image/') ? (
+                            <a href={getAttachmentUrl(note.attachment_url)} target="_blank" rel="noopener noreferrer" className="block">
+                              <img 
+                                src={getAttachmentUrl(note.attachment_url)} 
+                                alt={note.attachment_name || 'Attachment'} 
+                                className="max-w-xs rounded border border-yellow-300 hover:opacity-90 transition-opacity cursor-pointer"
+                              />
+                              <span className="text-xs text-gray-600 mt-1 block">{note.attachment_name}</span>
+                            </a>
+                          ) : (
+                            <a 
+                              href={getAttachmentUrl(note.attachment_url)} 
+                              download={note.attachment_name || 'file'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-50 text-sm"
+                            >
+                              <Paperclip className="w-4 h-4" />
+                              <span>{note.attachment_name}</span>
+                              <span className="text-xs text-gray-500">({(note.attachment_size / 1024).toFixed(1)} KB)</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -724,17 +829,71 @@ export default function ChatTicketDetailPage() {
               
               {/* Add Note Input - Fixed at bottom */}
               <div className="p-4 flex-1 flex flex-col min-h-0 border-t border-yellow-200">
+                {/* Selected Files Display */}
+                {selectedFiles.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center gap-1 bg-white border border-yellow-300 rounded px-2 py-1 text-xs">
+                        <Paperclip className="w-3 h-3" />
+                        <span className="max-w-[150px] truncate">{file.name}</span>
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <textarea
+                  data-test="chat-staff-notes-textarea"
                   value={internalNote}
-                  onChange={(e) => setInternalNote(e.target.value)}
-                  onKeyDown={handleAddNote}
-                  placeholder="Add internal notes for other staff members... (Press Enter to save)"
+                  onChange={(e) => {
+                    console.log('[CHAT STAFF NOTES] onChange fired:', e.target.value)
+                    setInternalNote(e.target.value)
+                  }}
+                  onKeyDown={async (e) => {
+                    console.log('[CHAT STAFF NOTES] onKeyDown fired - key:', e.key)
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      const noteText = e.currentTarget.value.trim()
+                      if (noteText && ticket) {
+                        console.log('[CHAT STAFF NOTES] Submitting note:', noteText)
+                        try {
+                          // Convert files to base64 if any
+                          const attachments = await Promise.all(
+                            selectedFiles.map(async (file) => ({
+                              name: file.name,
+                              content: await fileToBase64(file),
+                              type: file.type,
+                              size: file.size
+                            }))
+                          )
+                          
+                          await ticketsApi.addNote(ticket.ticket_id, noteText, undefined, attachments.length > 0 ? attachments : undefined)
+                          setInternalNote('')
+                          setSelectedFiles([])
+                          refetchNotes()
+                        } catch (error: any) {
+                          console.error('Failed to add note:', error)
+                          alert(`Failed to add note: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+                        }
+                      } else {
+                        console.log('[CHAT STAFF NOTES] Cannot submit - noteText:', noteText, 'ticket:', !!ticket)
+                      }
+                    }
+                  }}
+                  onFocus={() => console.log('[CHAT STAFF NOTES] onFocus fired')}
+                  onBlur={() => console.log('[CHAT STAFF NOTES] onBlur fired')}
+                  placeholder="Add internal notes for other staff members... (Press Enter to save, Shift+Enter for new line)"
                   className="w-full flex-1 border border-yellow-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 resize-none bg-white min-h-0"
                 />
                 {/* Hidden file input */}
                 <input
                   type="file"
                   ref={fileInputRef}
+                  onChange={handleFileSelect}
                   className="hidden"
                   multiple
                   accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
@@ -774,79 +933,248 @@ export default function ChatTicketDetailPage() {
               </button>
             </div>
 
-            {/* Customer Section */}
-            <div className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">CUSTOMER</h3>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{ticket.customer_name || 'Customer'}</p>
-                  <p className="text-xs text-gray-500">{ticket.customer_email}</p>
-                  <p className="text-xs text-gray-500">+1 (555) 123-4567</p>
-                </div>
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-500">Total Spent:</span>
-                    <span className="font-semibold text-indigo-600">$2,847.00</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Total Orders:</span>
-                    <span className="font-semibold text-gray-900">8</span>
-                  </div>
-                </div>
+            {/* Loading State */}
+            {shopifyLoading && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-gray-500">Loading Shopify data...</div>
               </div>
-            </div>
+            )}
 
-            {/* Order Section */}
-            <div className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ORDER</h3>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Order #5421</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full font-medium">
-                      Fulfilled
-                    </span>
-                    <span className="text-xs text-gray-500">Total: <span className="font-semibold text-gray-900">$342.50</span></span>
+            {/* Customer Data */}
+            {shopifyData && shopifyData.customer && (
+              <>
+                {/* Customer Section */}
+                <div className="mb-6">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">CUSTOMER</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {shopifyData.customer.firstName} {shopifyData.customer.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500">{shopifyData.customer.email}</p>
+                      {shopifyData.customer.phone && (
+                        <p className="text-xs text-gray-500">{shopifyData.customer.phone}</p>
+                      )}
+                      {shopifyData.customer.isVIP && (
+                        <span className="inline-flex items-center mt-1 text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium">
+                          ⭐ VIP Customer
+                        </span>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-500">Total Spent:</span>
+                        <span className="font-semibold text-indigo-600">
+                          ${shopifyData.customer.totalSpent?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">Total Orders:</span>
+                        <span className="font-semibold text-gray-900">{shopifyData.customer.ordersCount || 0}</span>
+                      </div>
+                      {shopifyData.customer.lastOrderDate && (
+                        <div className="flex justify-between text-xs mt-1">
+                          <span className="text-gray-500">Last Order:</span>
+                          <span className="text-gray-900">
+                            {new Date(shopifyData.customer.lastOrderDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-gray-200 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Created:</span>
-                    <span className="text-gray-900">Oct 20, 2024</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Fulfillment:</span>
-                    <span className="text-green-600 font-medium">Fulfilled</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Payment:</span>
-                    <span className="text-green-600 font-medium">Paid</span>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Fulfillment & Tracking Section */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">FULFILLMENT & TRACKING</h3>
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Tracking:</p>
-                  <p className="text-sm font-mono font-semibold text-gray-900">1234567890123</p>
-                  <p className="text-xs text-gray-500 mt-1">Carrier: <span className="text-gray-900">FedEx</span></p>
-                </div>
-                <div className="pt-2 border-t border-gray-200 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Shipped:</span>
-                    <span className="text-gray-900">Oct 25, 2024 10:30 AM</span>
+                {/* Order Section with Navigation */}
+                {shopifyData.orders && shopifyData.orders.length > 0 ? (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase">
+                        ORDER {currentOrderIndex + 1} OF {shopifyData.orders.length}
+                      </h3>
+                      {shopifyData.orders.length > 1 && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.max(0, currentOrderIndex - 1))}
+                            disabled={currentOrderIndex === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Previous order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setCurrentOrderIndex(Math.min(shopifyData.orders.length - 1, currentOrderIndex + 1))}
+                            disabled={currentOrderIndex === shopifyData.orders.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Next order"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Order {shopifyData.orders[currentOrderIndex].orderNumber}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'fulfilled' 
+                              ? 'bg-green-100 text-green-800'
+                              : shopifyData.orders[currentOrderIndex].fulfillmentStatus === 'partial'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {shopifyData.orders[currentOrderIndex].fulfillmentStatus || 'Unfulfilled'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Total: <span className="font-semibold text-gray-900">
+                              ${shopifyData.orders[currentOrderIndex].totalPrice?.toFixed(2)} {shopifyData.orders[currentOrderIndex].currency}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200 space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Created:</span>
+                          <span className="text-gray-900">
+                            {new Date(shopifyData.orders[currentOrderIndex].createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Payment:</span>
+                          <span className={`font-medium ${
+                            shopifyData.orders[currentOrderIndex].financialStatus === 'paid' 
+                              ? 'text-green-600' 
+                              : 'text-yellow-600'
+                          }`}>
+                            {shopifyData.orders[currentOrderIndex].financialStatus || 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Line Items - Clickable/Expandable */}
+                      {shopifyData.orders[currentOrderIndex].lineItems && shopifyData.orders[currentOrderIndex].lineItems.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">Items:</p>
+                          <div className="space-y-2">
+                            {shopifyData.orders[currentOrderIndex].lineItems.map((item: any, idx: number) => (
+                              <div key={item.id || idx} className="border border-gray-200 rounded-md overflow-hidden">
+                                <button
+                                  onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 transition-colors flex justify-between items-center"
+                                >
+                                  <span className="text-xs text-gray-700 truncate flex-1">{item.title}</span>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">x{item.quantity}</span>
+                                    <svg 
+                                      className={`w-3 h-3 text-gray-400 transition-transform ${expandedItemId === item.id ? 'rotate-180' : ''}`}
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </button>
+                                
+                                {/* Expanded Details */}
+                                {expandedItemId === item.id && (
+                                  <div className="px-2 py-2 bg-gray-50 border-t border-gray-200 text-xs space-y-1.5">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Price:</span>
+                                      <span className="text-gray-900 font-medium">${item.price?.toFixed(2)}</span>
+                                    </div>
+                                    {item.sku && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">SKU:</span>
+                                        <span className="text-gray-900 font-mono">{item.sku}</span>
+                                      </div>
+                                    )}
+                                    {item.variantTitle && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">Variant:</span>
+                                        <span className="text-gray-900">{item.variantTitle}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Custom Attributes */}
+                                    {item.customAttributes && item.customAttributes.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <p className="text-gray-500 font-medium mb-1.5">Product Details:</p>
+                                        {item.customAttributes.map((attr: any, attrIdx: number) => (
+                                          <div key={attrIdx} className="flex justify-between py-0.5">
+                                            <span className="text-gray-500">{attr.key.replace('_', '')}:</span>
+                                            {attr.key.includes('Link') || attr.key.includes('link') ? (
+                                              <a 
+                                                href={attr.value} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 underline truncate max-w-[180px]"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                View →
+                                              </a>
+                                            ) : (
+                                              <span className="text-gray-900 font-mono text-right truncate max-w-[180px]">
+                                                {attr.value}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Est. Delivery:</span>
-                    <span className="font-semibold text-gray-900">Oct 28, 2024</span>
+                ) : (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">ORDERS</h3>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-sm text-gray-500">No orders found</p>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
+
+                {/* Fulfillment & Tracking Section */}
+                {shopifyData.orders && shopifyData.orders[currentOrderIndex]?.trackingNumber && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">FULFILLMENT & TRACKING</h3>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Tracking:</p>
+                        <p className="text-sm font-mono font-semibold text-gray-900">
+                          {shopifyData.orders[currentOrderIndex].trackingNumber}
+                        </p>
+                        {shopifyData.orders[currentOrderIndex].trackingCompany && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Carrier: <span className="text-gray-900">{shopifyData.orders[currentOrderIndex].trackingCompany}</span>
+                          </p>
+                        )}
+                      </div>
+                      {shopifyData.orders[currentOrderIndex].trackingUrl && (
+                        <a 
+                          href={shopifyData.orders[currentOrderIndex].trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-xs text-green-600 hover:text-green-700 font-medium"
+                        >
+                          Track Package →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

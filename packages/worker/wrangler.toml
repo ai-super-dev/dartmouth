@@ -20,10 +20,10 @@ binding = "CACHE"
 id = "4dde59b47cc34c9495aba50d7312df1d"
 preview_id = "ddbe6a75fde34a9daac1f58b217bfc61"
 
-# R2 Buckets (disabled for initial deployment - enable R2 in Cloudflare Dashboard first)
-# [[r2_buckets]]
-# binding = "FILES"
-# bucket_name = "dartmouth-os-files"
+# R2 Buckets for file attachments
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "dartmouth-attachments"
 # preview_bucket_name = "dartmouth-os-files-preview"
 
 # Workers AI

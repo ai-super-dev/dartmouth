@@ -253,7 +253,21 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
     const ticketId = c.req.param('id');
     const { content, attachments } = await c.req.json();
 
-    if (!content && (!attachments || attachments.length === 0)) {
+    console.log('[Tickets] Reply request:', { 
+      ticketId, 
+      contentLength: content?.length || 0, 
+      attachmentsCount: attachments?.length || 0,
+      hasContent: !!content?.trim(),
+      firstAttachment: attachments?.[0] ? {
+        name: attachments[0].name,
+        type: attachments[0].type,
+        size: attachments[0].size,
+        contentLength: attachments[0].content?.length || 0
+      } : null
+    });
+
+    if (!content?.trim() && (!attachments || attachments.length === 0)) {
+      console.error('[Tickets] Reply validation failed: no content and no attachments');
       return c.json({ error: 'content or attachments required' }, 400);
     }
 
@@ -314,6 +328,8 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
         type: att.type
       }));
 
+      const emailBody = content?.trim() || (attachments && attachments.length > 0 ? '[See attachment]' : 'No content');
+      
       await sendEmailThroughResend(c.env, {
         tenantId: 'test-tenant-dtf', // TODO: Get from ticket/mailbox
         conversationId,
@@ -323,8 +339,8 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
         fromEmail: mailbox.email_address,
         fromName: staffName,
         subject: replySubject,
-        bodyHtml: textToHtml(content || ''),
-        bodyText: content || '',
+        bodyHtml: textToHtml(emailBody),
+        bodyText: emailBody,
         attachments: emailAttachments,
       });
 
@@ -334,20 +350,60 @@ export async function replyToTicket(c: Context<{ Bindings: Env }>) {
       // Don't fail the entire request if email fails - still save the message
     }
 
+    // Handle single attachment - upload to R2 if present
+    let attachmentUrl = null;
+    let attachmentName = null;
+    let attachmentType = null;
+    let attachmentSize = null;
+
+    if (attachments && attachments.length > 0) {
+      const attachment = attachments[0];
+      try {
+        const { uploadAttachmentToR2 } = await import('../utils/r2-upload');
+        const uploaded = await uploadAttachmentToR2(c.env.ATTACHMENTS, attachment, ticketId);
+        attachmentUrl = uploaded.url; // Store R2 key
+        attachmentName = uploaded.name;
+        attachmentType = uploaded.type;
+        attachmentSize = uploaded.size;
+        console.log(`[Tickets] Uploaded attachment to R2: ${uploaded.url}`);
+      } catch (uploadError) {
+        console.error('[Tickets] Failed to upload attachment to R2:', uploadError);
+        // Fall back to storing base64 in database if R2 upload fails
+        attachmentUrl = attachment.content;
+        attachmentName = attachment.name;
+        attachmentType = attachment.type;
+        attachmentSize = attachment.size;
+      }
+    }
+
     await c.env.DB.prepare(`
-      INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, sender_name, content, created_at)
-      VALUES (?, ?, 'agent', ?, ?, ?, ?)
-    `).bind(messageId, ticketId, user.id, senderName, content, now).run();
+      INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, sender_name, content, attachment_url, attachment_name, attachment_type, attachment_size, created_at)
+      VALUES (?, ?, 'agent', ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      messageId, 
+      ticketId, 
+      user.id, 
+      senderName, 
+      content?.trim() || '[Attachment]', 
+      attachmentUrl,
+      attachmentName,
+      attachmentType,
+      attachmentSize,
+      now
+    ).run();
 
     // Update ticket
     await c.env.DB.prepare(`
       UPDATE tickets SET updated_at = ? WHERE ticket_id = ?
     `).bind(now, ticketId).run();
 
+    console.log('[Tickets] Reply added successfully:', messageId);
     return c.json({ message: 'Reply added', messageId });
   } catch (error) {
     console.error('[Tickets] Reply error:', error);
-    return c.json({ error: 'Internal server error' }, 500);
+    console.error('[Tickets] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[Tickets] Error message:', error instanceof Error ? error.message : String(error));
+    return c.json({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }, 500);
   }
 }
 
@@ -358,7 +414,7 @@ export async function addNote(c: Context<{ Bindings: Env }>) {
   try {
     const user = c.get('user') as AuthUser;
     const ticketId = c.req.param('id');
-    const { content, noteType } = await c.req.json();
+    const { content, noteType, attachments } = await c.req.json();
 
     if (!content) {
       return c.json({ error: 'content required' }, 400);
@@ -367,10 +423,48 @@ export async function addNote(c: Context<{ Bindings: Env }>) {
     const noteId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Handle single attachment - upload to R2 if present
+    let attachmentUrl = null;
+    let attachmentName = null;
+    let attachmentType = null;
+    let attachmentSize = null;
+
+    if (attachments && attachments.length > 0) {
+      const attachment = attachments[0];
+      try {
+        const { uploadAttachmentToR2 } = await import('../utils/r2-upload');
+        const uploaded = await uploadAttachmentToR2(c.env.ATTACHMENTS, attachment, ticketId);
+        attachmentUrl = uploaded.url; // Store R2 key
+        attachmentName = uploaded.name;
+        attachmentType = uploaded.type;
+        attachmentSize = uploaded.size;
+        console.log(`[Tickets] Uploaded note attachment to R2: ${uploaded.url}`);
+      } catch (uploadError) {
+        console.error('[Tickets] Failed to upload note attachment to R2:', uploadError);
+        // Fall back to storing base64 in database if R2 upload fails
+        attachmentUrl = attachment.content;
+        attachmentName = attachment.name;
+        attachmentType = attachment.type;
+        attachmentSize = attachment.size;
+      }
+    }
+
     await c.env.DB.prepare(`
-      INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(noteId, ticketId, user.id, noteType || 'general', content, now, now).run();
+      INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, attachment_url, attachment_name, attachment_type, attachment_size, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      noteId, 
+      ticketId, 
+      user.id, 
+      noteType || 'general', 
+      content, 
+      attachmentUrl,
+      attachmentName,
+      attachmentType,
+      attachmentSize,
+      now, 
+      now
+    ).run();
 
     return c.json({ message: 'Note added', noteId });
   } catch (error) {

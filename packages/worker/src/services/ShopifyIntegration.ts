@@ -65,6 +65,10 @@ export interface ShopifyOrder {
     price: number;
     sku?: string;
     imageUrl?: string;
+    customAttributes?: Array<{
+      key: string;
+      value: string;
+    }>;
   }>;
   shippingAddress?: {
     name: string;
@@ -351,6 +355,10 @@ export class ShopifyIntegration {
                             url
                           }
                         }
+                        customAttributes {
+                          key
+                          value
+                        }
                       }
                     }
                   }
@@ -471,6 +479,10 @@ export class ShopifyIntegration {
                       url
                     }
                   }
+                  customAttributes {
+                    key
+                    value
+                  }
                 }
               }
             }
@@ -582,6 +594,10 @@ export class ShopifyIntegration {
                         image {
                           url
                         }
+                      }
+                      customAttributes {
+                        key
+                        value
                       }
                     }
                   }
@@ -754,7 +770,8 @@ export class ShopifyIntegration {
         quantity: edge.node.quantity,
         price: parseFloat(edge.node.originalUnitPriceSet.shopMoney.amount),
         sku: edge.node.sku,
-        imageUrl: edge.node.variant?.image?.url
+        imageUrl: edge.node.variant?.image?.url,
+        customAttributes: edge.node.customAttributes || []
       })),
       shippingAddress: node.shippingAddress ? {
         name: node.shippingAddress.name,
