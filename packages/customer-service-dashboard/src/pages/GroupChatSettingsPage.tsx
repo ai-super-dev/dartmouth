@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { groupChatApi, staffApi } from '../lib/api';
-import { Hash, Users, Settings, Trash2, Edit2, UserPlus, X } from 'lucide-react';
+import { Hash, Users, Settings, Trash2, Edit2, UserPlus, X, Plus } from 'lucide-react';
 
 interface Channel {
   id: string;
@@ -34,11 +34,15 @@ export default function GroupChatSettingsPage() {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelDescription, setNewChannelDescription] = useState('');
   const [allowMessageEditing, setAllowMessageEditing] = useState(true);
   const [allowMessageDeletion, setAllowMessageDeletion] = useState(true);
   const [allowFileDeletion, setAllowFileDeletion] = useState(true);
+  const [globalTimeLimit, setGlobalTimeLimit] = useState<number>(10);
 
   // Fetch all channels
   const { data: channelsData } = useQuery({
@@ -50,6 +54,30 @@ export default function GroupChatSettingsPage() {
   });
 
   const channels: Channel[] = channelsData?.channels || [];
+
+  // Fetch global time limit
+  const { data: timeLimitData } = useQuery({
+    queryKey: ['group-chat-time-limit'],
+    queryFn: async () => {
+      const response = await groupChatApi.getTimeLimit();
+      return response.data;
+    },
+  });
+
+  // Update globalTimeLimit when data is fetched
+  useState(() => {
+    if (timeLimitData?.timeLimit !== undefined) {
+      setGlobalTimeLimit(timeLimitData.timeLimit);
+    }
+  });
+
+  // Update time limit mutation
+  const updateTimeLimitMutation = useMutation({
+    mutationFn: (timeLimit: number) => groupChatApi.setTimeLimit(timeLimit),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-chat-time-limit'] });
+    },
+  });
 
   // Fetch members for selected channel
   const { data: membersData } = useQuery({
@@ -126,6 +154,18 @@ export default function GroupChatSettingsPage() {
     },
   });
 
+  // Create channel mutation
+  const createChannelMutation = useMutation({
+    mutationFn: (data: { name: string; description?: string; channelType?: string }) =>
+      groupChatApi.createChannel(data),
+    onSuccess: () => {
+      setShowCreateModal(false);
+      setNewChannelName('');
+      setNewChannelDescription('');
+      queryClient.invalidateQueries({ queryKey: ['group-chat-channels-settings'] });
+    },
+  });
+
   const handleEditChannel = (channel: Channel) => {
     setSelectedChannel(channel);
     setEditName(channel.name);
@@ -175,6 +215,15 @@ export default function GroupChatSettingsPage() {
     (staff) => !members.some((member) => member.staff_id === staff.id)
   );
 
+  const handleCreateChannel = () => {
+    if (!newChannelName.trim()) return;
+    createChannelMutation.mutate({
+      name: newChannelName,
+      description: newChannelDescription || undefined,
+      channelType: 'public',
+    });
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -183,6 +232,46 @@ export default function GroupChatSettingsPage() {
         <p className="text-gray-600 mt-1">
           Manage channels, members, and group chat configuration
         </p>
+      </div>
+
+      {/* Global Settings Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Settings className="w-5 h-5" />
+          Global Settings
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Edit/Delete Time Limit
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              How long staff members can edit or delete their messages. Admins can always edit/delete.
+            </p>
+            <select
+              value={globalTimeLimit}
+              onChange={(e) => {
+                const newLimit = parseInt(e.target.value, 10);
+                setGlobalTimeLimit(newLimit);
+                updateTimeLimitMutation.mutate(newLimit);
+              }}
+              className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={5}>5 minutes</option>
+              <option value={10}>10 minutes (default)</option>
+              <option value={15}>15 minutes</option>
+              <option value={30}>30 minutes</option>
+              <option value={60}>1 hour</option>
+              <option value={0}>No limit (always allow)</option>
+            </select>
+            {updateTimeLimitMutation.isPending && (
+              <p className="text-xs text-gray-500 mt-2">Saving...</p>
+            )}
+            {updateTimeLimitMutation.isSuccess && (
+              <p className="text-xs text-green-600 mt-2">✓ Saved successfully</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* How It Works Section */}
@@ -217,11 +306,20 @@ export default function GroupChatSettingsPage() {
 
       {/* Channels List */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {channels.length} active channel{channels.length !== 1 ? 's' : ''}
-          </p>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {channels.length} active channel{channels.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Channel</span>
+          </button>
         </div>
 
         <div className="divide-y divide-gray-200">
@@ -372,6 +470,60 @@ export default function GroupChatSettingsPage() {
                 className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Channel Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Channel</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Channel Name
+                </label>
+                <input
+                  type="text"
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
+                  placeholder="e.g., general, support, sales"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={newChannelDescription}
+                  onChange={(e) => setNewChannelDescription(e.target.value)}
+                  placeholder="What is this channel for?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewChannelName('');
+                  setNewChannelDescription('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateChannel}
+                disabled={!newChannelName.trim() || createChannelMutation.isPending}
+                className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createChannelMutation.isPending ? 'Creating...' : 'Create Channel'}
               </button>
             </div>
           </div>

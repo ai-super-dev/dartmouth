@@ -5,6 +5,7 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import TicketsPage from './pages/TicketsPage'
 import TicketDetailPage from './pages/TicketDetailPage'
 import MentionsPage from './pages/MentionsPage'
+import MemoPage from './pages/MemoPage'
 import AIAgentAnalyticsPage from './pages/AIAgentAnalyticsPage'
 import BusinessHoursPage from './pages/BusinessHoursPage'
 import ChatWidgetSettingsPage from './pages/ChatWidgetSettingsPage'
@@ -48,6 +49,7 @@ function App() {
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/:id" element={<TicketDetailPage />} />
           <Route path="mentions" element={<MentionsPage />} />
+          <Route path="memo" element={<MemoPage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
           <Route path="settings" element={<SettingsHubPage />} />
           <Route path="settings/business-hours" element={<BusinessHoursPage />} />

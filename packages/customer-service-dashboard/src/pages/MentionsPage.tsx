@@ -38,6 +38,10 @@ export default function MentionsPage() {
   const [selectedMention, setSelectedMention] = useState<Mention | null>(null);
   const [showFilters, setShowFilters] = useState(false); // Collapsed by default
 
+  // Multi-select state for Shift+Click
+  const [selectedMentionIds, setSelectedMentionIds] = useState<string[]>([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+
   // Filter state
   const isAdmin = user?.role === 'admin' || user?.role === 'manager';
   const [viewMode, setViewMode] = useState<'my-mentions' | 'all-mentions' | 'by-staff' | 'by-ticket'>(
@@ -336,9 +340,71 @@ export default function MentionsPage() {
     },
   });
 
-  const handleMentionClick = (mention: Mention) => {
+  // Batch update mutation for multi-select
+  const batchUpdateMutation = useMutation({
+    mutationFn: async (data: { mentionIds: string[]; isRead: boolean }) => {
+      // Call API for each mention (could be optimized with a batch endpoint)
+      const promises = data.mentionIds.map(id => 
+        data.isRead 
+          ? mentionsApi.markAsRead(id)
+          : mentionsApi.markAsUnread(id)
+      );
+      return Promise.all(promises);
+    },
+    onMutate: async (data) => {
+      const currentQueryKey = ['mentions', viewMode, selectedStaffId, ticketNumberFilter, channelFilter, timeFilter, statusFilter, dateFrom, dateTo];
+      await queryClient.cancelQueries({ queryKey: currentQueryKey });
+      const previousMentions = queryClient.getQueryData(currentQueryKey);
+      
+      queryClient.setQueryData(currentQueryKey, (old: any) => {
+        if (!old?.mentions) return old;
+        return {
+          ...old,
+          mentions: old.mentions.map((m: Mention) =>
+            data.mentionIds.includes(m.id) 
+              ? { ...m, is_read: data.isRead ? 1 : 0, read_at: data.isRead ? new Date().toISOString() : null } 
+              : m
+          ),
+        };
+      });
+      
+      return { previousMentions, currentQueryKey };
+    },
+    onError: (_err, _data, context: any) => {
+      queryClient.setQueryData(context.currentQueryKey, context.previousMentions);
+      queryClient.invalidateQueries({ queryKey: context.currentQueryKey });
+      queryClient.invalidateQueries({ queryKey: ['mentions-unread-count'] });
+    },
+    onSuccess: () => {
+      setSelectedMentionIds([]); // Clear selection after batch update
+      queryClient.invalidateQueries({ queryKey: ['mentions-unread-count'] });
+    },
+  });
+
+  const handleMentionClick = (mention: Mention, event?: React.MouseEvent) => {
     console.log('[MentionsPage] Clicking mention:', mention.id);
-    setSelectedMention(mention);
+    
+    // Handle Shift+Click for multi-select
+    if (event?.shiftKey && lastClickedIndex !== null) {
+      const currentIndex = filteredMentions.findIndex(m => m.id === mention.id);
+      const start = Math.min(lastClickedIndex, currentIndex);
+      const end = Math.max(lastClickedIndex, currentIndex);
+      const rangeIds = filteredMentions.slice(start, end + 1).map(m => m.id);
+      setSelectedMentionIds(rangeIds);
+    } else if (event?.ctrlKey || event?.metaKey) {
+      // Ctrl/Cmd+Click to toggle individual selection
+      setSelectedMentionIds(prev => 
+        prev.includes(mention.id) 
+          ? prev.filter(id => id !== mention.id)
+          : [...prev, mention.id]
+      );
+      setLastClickedIndex(filteredMentions.findIndex(m => m.id === mention.id));
+    } else {
+      // Normal click - clear selection and select this mention
+      setSelectedMentionIds([]);
+      setLastClickedIndex(filteredMentions.findIndex(m => m.id === mention.id));
+      setSelectedMention(mention);
+    }
     // DO NOT auto-mark as read - user must click the "Mark as Read" button
   };
 
@@ -504,6 +570,74 @@ export default function MentionsPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Quick Filter Pills */}
+        <div className="px-4 py-3 border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (selectedMentionIds.length > 0) {
+                    batchUpdateMutation.mutate({ mentionIds: selectedMentionIds, isRead: false });
+                  } else {
+                    setStatusFilter('unread');
+                  }
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                  statusFilter === 'unread'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                title={selectedMentionIds.length > 0 ? `Mark ${selectedMentionIds.length} as unread` : 'Show unread only'}
+              >
+                Unread ({mentions.filter(m => m.is_read === 0).length})
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedMentionIds.length > 0) {
+                    batchUpdateMutation.mutate({ mentionIds: selectedMentionIds, isRead: true });
+                  } else {
+                    setStatusFilter('read');
+                  }
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                  statusFilter === 'read'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                title={selectedMentionIds.length > 0 ? `Mark ${selectedMentionIds.length} as read` : 'Show read only'}
+              >
+                Read ({mentions.filter(m => m.is_read === 1).length})
+              </button>
+              {statusFilter !== 'all' && (
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className="px-3 py-1.5 text-sm font-medium rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  All
+                </button>
+              )}
+            </div>
+            {selectedMentionIds.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium">
+                  {selectedMentionIds.length} selected
+                </span>
+                <button
+                  onClick={() => setSelectedMentionIds([])}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+          {selectedMentionIds.length > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              💡 Tip: Click a pill to toggle read/unread status for selected mentions
+            </p>
+          )}
         </div>
 
         {/* Filters */}
@@ -725,13 +859,18 @@ export default function MentionsPage() {
             <div className="divide-y divide-gray-200">
               {filteredMentions.map((mention) => {
                 const isSelected = selectedMention?.id === mention.id;
+                const isMultiSelected = selectedMentionIds.includes(mention.id);
                 const isUnread = mention.is_read === 0;
                 
                 // Background: lighter for non-selected, slightly darker for selected
                 let bgClass = '';
                 let borderClass = '';
                 
-                if (isSelected) {
+                if (isMultiSelected) {
+                  // Multi-selected items: purple/indigo highlight
+                  bgClass = 'bg-indigo-100';
+                  borderClass = 'border-indigo-500';
+                } else if (isSelected) {
                   // Selected items: show colored border and distinct background
                   bgClass = isUnread ? 'bg-blue-100' : 'bg-gray-100';
                   borderClass = isUnread ? 'border-blue-500' : 'border-gray-500';
@@ -745,12 +884,24 @@ export default function MentionsPage() {
                 return (
                 <button
                   key={mention.id}
-                  onClick={() => handleMentionClick(mention)}
+                  onClick={(e) => handleMentionClick(mention, e)}
                   style={{
-                    borderLeft: isSelected ? (isUnread ? '6px solid #3b82f6' : '6px solid #6b7280') : '6px solid transparent'
+                    borderLeft: isMultiSelected 
+                      ? '6px solid #6366f1' 
+                      : isSelected 
+                        ? (isUnread ? '6px solid #3b82f6' : '6px solid #6b7280') 
+                        : '6px solid transparent'
                   }}
-                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${bgClass}`}
+                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${bgClass} relative`}
                 >
+                  {/* Multi-select checkbox indicator */}
+                  {isMultiSelected && (
+                    <div className="absolute top-2 right-2 w-5 h-5 bg-indigo-600 rounded flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
                   <div className="flex flex-col gap-2">
                     {/* Pills row */}
                     <div className="flex items-center gap-2 flex-wrap">

@@ -549,12 +549,21 @@ export async function editMessage(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Message editing is disabled in this channel' }, 403);
     }
 
-    // Check if message is within 10-minute edit window
-    const messageTime = new Date(message.created_at).getTime();
-    const now = Date.now();
-    const tenMinutesInMs = 10 * 60 * 1000;
-    if (now - messageTime > tenMinutesInMs) {
-      return c.json({ error: 'Messages can only be edited within 10 minutes of posting' }, 403);
+    // Check if message is within the global edit time window (unless admin)
+    if (user.role !== 'admin') {
+      // Get global time limit from KV storage (default 10 minutes)
+      const timeLimitStr = await c.env.APP_CONFIG?.get('group_chat_edit_delete_time_limit');
+      const timeLimitMinutes = timeLimitStr ? parseInt(timeLimitStr, 10) : 10;
+      
+      // 0 means no limit
+      if (timeLimitMinutes > 0) {
+        const messageTime = new Date(message.created_at).getTime();
+        const now = Date.now();
+        const timeLimitMs = timeLimitMinutes * 60 * 1000;
+        if (now - messageTime > timeLimitMs) {
+          return c.json({ error: `Messages can only be edited within ${timeLimitMinutes} minutes of posting` }, 403);
+        }
+      }
     }
 
     const nowISO = new Date().toISOString();
@@ -630,13 +639,20 @@ export async function deleteMessage(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'You can only delete your own messages or be a channel admin' }, 403);
     }
 
-    // Check if message is within 10-minute delete window (only for non-admins)
-    if (message.sender_id === user.id && message.role !== 'admin') {
-      const messageTime = new Date(message.created_at).getTime();
-      const now = Date.now();
-      const tenMinutesInMs = 10 * 60 * 1000;
-      if (now - messageTime > tenMinutesInMs) {
-        return c.json({ error: 'Messages can only be deleted within 10 minutes of posting' }, 403);
+    // Check if message is within the global delete time window (only for non-admins)
+    if (message.sender_id === user.id && user.role !== 'admin' && message.role !== 'admin') {
+      // Get global time limit from KV storage (default 10 minutes)
+      const timeLimitStr = await c.env.APP_CONFIG?.get('group_chat_edit_delete_time_limit');
+      const timeLimitMinutes = timeLimitStr ? parseInt(timeLimitStr, 10) : 10;
+      
+      // 0 means no limit
+      if (timeLimitMinutes > 0) {
+        const messageTime = new Date(message.created_at).getTime();
+        const now = Date.now();
+        const timeLimitMs = timeLimitMinutes * 60 * 1000;
+        if (now - messageTime > timeLimitMs) {
+          return c.json({ error: `Messages can only be deleted within ${timeLimitMinutes} minutes of posting` }, 403);
+        }
       }
     }
 
@@ -956,6 +972,65 @@ export async function getUnreadCounts(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     console.error('[Group Chat] Error getting unread counts:', error);
     return c.json({ error: 'Failed to get unread counts' }, 500);
+  }
+}
+
+// ============================================================================
+// GLOBAL SETTINGS
+// ============================================================================
+
+/**
+ * GET /api/group-chat/settings/time-limit
+ * Get the global edit/delete time limit setting
+ */
+export async function getTimeLimit(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user');
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Get from KV storage, default to 10 minutes
+    const timeLimitStr = await c.env.APP_CONFIG?.get('group_chat_edit_delete_time_limit');
+    const timeLimit = timeLimitStr ? parseInt(timeLimitStr, 10) : 10;
+
+    return c.json({ timeLimit });
+  } catch (error) {
+    console.error('[Group Chat] Error getting time limit:', error);
+    return c.json({ error: 'Failed to get time limit' }, 500);
+  }
+}
+
+/**
+ * PUT /api/group-chat/settings/time-limit
+ * Set the global edit/delete time limit setting (admin only)
+ */
+export async function setTimeLimit(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user');
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Only admins can change this setting
+    if (user.role !== 'admin') {
+      return c.json({ error: 'Only admins can change this setting' }, 403);
+    }
+
+    const { timeLimit } = await c.req.json();
+
+    // Validate timeLimit (must be a number, 0 means no limit)
+    if (typeof timeLimit !== 'number' || timeLimit < 0) {
+      return c.json({ error: 'Invalid time limit. Must be a non-negative number.' }, 400);
+    }
+
+    // Store in KV
+    await c.env.APP_CONFIG?.put('group_chat_edit_delete_time_limit', timeLimit.toString());
+
+    return c.json({ success: true, timeLimit });
+  } catch (error) {
+    console.error('[Group Chat] Error setting time limit:', error);
+    return c.json({ error: 'Failed to set time limit' }, 500);
   }
 }
 

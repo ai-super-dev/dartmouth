@@ -295,6 +295,19 @@ export const groupChatApi = {
   markAsRead: (channelId: string, messageId: string) =>
     api.post(`/api/group-chat/channels/${channelId}/read`, { messageId }),
   getUnreadCounts: () => api.get('/api/group-chat/unread'),
+
+  // Global Settings
+  getTimeLimit: () => api.get('/api/group-chat/settings/time-limit'),
+  setTimeLimit: (timeLimit: number) => api.put('/api/group-chat/settings/time-limit', { timeLimit }),
+};
+
+// Memos API
+export const memosApi = {
+  getMemos: () => api.get('/api/memos'),
+  createMemo: (data: { content: string; attachment?: any }) => api.post('/api/memos', data),
+  editMemo: (memoId: string, data: { content: string; deleteAttachment?: boolean }) => 
+    api.patch(`/api/memos/${memoId}`, data),
+  deleteMemo: (memoId: string) => api.delete(`/api/memos/${memoId}`),
 };
 
 // Mentions API

@@ -28,6 +28,7 @@ import * as shopifyController from '../controllers/shopify';
 import * as attachmentsController from '../controllers/attachments';
 import * as integrationsController from '../controllers/integrations';
 import * as groupChatController from '../controllers/group-chat';
+import * as memosController from '../controllers/memos';
 
 /**
  * Create API router
@@ -261,6 +262,18 @@ export function createAPIRouter() {
   // Read Receipts
   app.post('/api/group-chat/channels/:id/read', authenticate, groupChatController.markAsRead);
   app.get('/api/group-chat/unread', authenticate, groupChatController.getUnreadCounts);
+
+  // Global Settings
+  app.get('/api/group-chat/settings/time-limit', authenticate, groupChatController.getTimeLimit);
+  app.put('/api/group-chat/settings/time-limit', authenticate, groupChatController.setTimeLimit);
+
+  // ========================================================================
+  // MEMOS
+  // ========================================================================
+  app.get('/api/memos', authenticate, memosController.getMemos);
+  app.post('/api/memos', authenticate, memosController.createMemo);
+  app.patch('/api/memos/:id', authenticate, memosController.editMemo);
+  app.delete('/api/memos/:id', authenticate, memosController.deleteMemo);
 
   // ========================================================================
   // @MENTIONS ROUTES

@@ -399,6 +399,7 @@ export default function Sidebar({
           >
             <SubNavLink to="/group-chat">All Chats</SubNavLink>
             <SubNavLink to="/mentions">@Mentions</SubNavLink>
+            <SubNavLink to="/memo">@Memo</SubNavLink>
           </CollapsibleSection>
 
           {/* Staff Section */}

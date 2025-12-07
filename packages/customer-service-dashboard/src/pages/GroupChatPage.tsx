@@ -47,13 +47,6 @@ interface Member {
 }
 
 // Helper function to check if message can be edited/deleted (within 10 minutes)
-const canEditOrDeleteMessage = (createdAt: string): boolean => {
-  const messageTime = new Date(createdAt).getTime();
-  const now = Date.now();
-  const tenMinutesInMs = 10 * 60 * 1000;
-  return (now - messageTime) <= tenMinutesInMs;
-};
-
 export default function GroupChatPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -97,6 +90,30 @@ export default function GroupChatPage() {
   });
 
   const channels: Channel[] = channelsData?.channels || [];
+
+  // Fetch global time limit
+  const { data: timeLimitData } = useQuery({
+    queryKey: ['group-chat-time-limit'],
+    queryFn: async () => {
+      const response = await groupChatApi.getTimeLimit();
+      return response.data;
+    },
+  });
+
+  const globalTimeLimit = timeLimitData?.timeLimit ?? 10; // Default to 10 minutes
+
+  // Helper function to check if a message can be edited/deleted
+  const canEditOrDelete = (message: Message): boolean => {
+    if (user?.role === 'admin') return true; // Admins can always edit/delete
+    
+    // If time limit is 0, always allow
+    if (globalTimeLimit === 0) return true;
+    
+    const messageTime = new Date(message.created_at).getTime();
+    const now = Date.now();
+    const timeLimitMs = globalTimeLimit * 60 * 1000;
+    return message.sender_id === user?.id && (now - messageTime) <= timeLimitMs;
+  };
 
   // Set first channel as active if none selected
   useEffect(() => {
@@ -539,7 +556,7 @@ export default function GroupChatPage() {
                         )}
                         
                         {/* Action buttons (show on hover) */}
-                        {isOwnMessage && !isEditing && canEditOrDeleteMessage(message.created_at) && (
+                        {isOwnMessage && !isEditing && canEditOrDelete(message) && (
                           <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                             <button
                               onClick={() => {

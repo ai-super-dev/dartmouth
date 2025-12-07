@@ -20,3 +20,4 @@ ALTER TABLE group_chat_channels ADD COLUMN allow_file_deletion INTEGER DEFAULT 1
 
 
 
+
