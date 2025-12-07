@@ -397,7 +397,25 @@ export default function GroupChatPage() {
                           {message.first_name} {message.last_name}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {(() => {
+                            const messageDate = new Date(message.created_at);
+                            const today = new Date();
+                            const isToday = messageDate.toDateString() === today.toDateString();
+                            
+                            if (isToday) {
+                              // Today: show only time
+                              return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            } else {
+                              // Previous days: show full date and time
+                              return messageDate.toLocaleString([], { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric',
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              });
+                            }
+                          })()}
                         </span>
                         {message.edited_at && (
                           <span className="text-xs text-gray-400 italic">(edited)</span>
