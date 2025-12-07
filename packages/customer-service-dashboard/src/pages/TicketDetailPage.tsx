@@ -354,10 +354,14 @@ export default function TicketDetailPage() {
     refetch()
   }
 
-  const handleReassign = async (staffId: string | null, _staffName: string) => {
+  const handleReassign = async (staffId: string | null, _staffName: string, reason?: string) => {
     if (!ticket) return
     try {
       await ticketsApi.assign(ticket.ticket_id, staffId || '')
+      // TODO: Save reason to ticket notes if provided
+      if (reason) {
+        console.log('Reassignment reason:', reason)
+      }
       setShowReassignModal(false)
       refetch()
     } catch (error: any) {

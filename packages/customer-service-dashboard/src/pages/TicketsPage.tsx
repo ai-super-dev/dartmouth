@@ -225,10 +225,15 @@ export default function TicketsPage() {
       // If exactly one ticket found and it has a valid ID, auto-navigate
       if (matchingTickets.length === 1 && matchingTickets[0].id) {
         const ticket = matchingTickets[0]
+        console.log('[TicketsPage] Auto-navigating to ticket:', ticket.ticket_number, ticket.id)
         // Use setTimeout to avoid navigation during render
         setTimeout(() => {
           window.location.href = `/tickets/${ticket.id}`
-        }, 500)
+        }, 1000)
+      } else if (matchingTickets.length === 0) {
+        console.log('[TicketsPage] No tickets found for search:', query)
+      } else if (matchingTickets.length > 1) {
+        console.log('[TicketsPage] Multiple tickets found:', matchingTickets.length, '- showing list')
       }
     }
   }, [searchQuery, data])
@@ -955,9 +960,13 @@ export default function TicketsPage() {
       <ReassignModal
         isOpen={showReassignModal}
         onClose={() => setShowReassignModal(false)}
-        onReassign={async (staffId, _staffName) => {
+        onReassign={async (staffId, _staffName, reason) => {
           try {
             await ticketsApi.bulkAssign(selectedTickets, staffId)
+            // TODO: Save reason to ticket notes if provided
+            if (reason) {
+              console.log('Bulk reassignment reason:', reason)
+            }
             setShowReassignModal(false)
             setSelectedTickets([])
             // Refresh the ticket list

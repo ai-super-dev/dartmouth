@@ -1,26 +1,41 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ticketsApi } from '../lib/api'
+import { ticketsApi, api } from '../lib/api'
+import { Sparkles } from 'lucide-react'
 
 interface ReassignModalProps {
   isOpen: boolean
   onClose: () => void
-  onReassign: (staffId: string | null, staffName: string) => void
+  onReassign: (staffId: string | null, staffName: string, reason?: string) => void
   currentAssignment?: string
   // For bulk mode
   bulkMode?: boolean
   selectedTickets?: Array<{ ticket_id: string; ticket_number: string; subject: string }>
 }
 
-const staffMembersBase = [
-  { id: '00000000-0000-0000-0000-000000000001', name: 'John Hutchison', role: 'Admin', online: true },
-  { id: '00000000-0000-0000-0000-000000000002', name: 'Ted Smith', role: 'Agent', online: false },
-  { id: '00000000-0000-0000-0000-000000000003', name: 'Sam Johnson', role: 'Agent', online: false },
-]
+interface StaffMember {
+  id: string
+  name: string
+  role: string
+  online: boolean
+  openTickets: number
+  availability_status: string
+}
 
 export default function ReassignModal({ isOpen, onClose, onReassign, currentAssignment, bulkMode, selectedTickets }: ReassignModalProps) {
   const [selectedStaff, setSelectedStaff] = useState<string>('')
-  const [staffMembers, setStaffMembers] = useState(staffMembersBase.map(s => ({ ...s, openTickets: 0 })))
+  const [reassignReason, setReassignReason] = useState<string>('')
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
+
+  // Fetch staff list with real online status
+  const { data: staffData } = useQuery({
+    queryKey: ['staff-list'],
+    queryFn: async () => {
+      const response = await api.get('/api/staff')
+      return response.data?.staff || []
+    },
+    enabled: isOpen
+  })
 
   // Fetch all tickets to calculate open counts
   const { data: tickets } = useQuery({
@@ -33,23 +48,33 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
   })
 
   useEffect(() => {
-    if (tickets) {
-      // Calculate open ticket counts for each staff member
-      const staffWithCounts = staffMembersBase.map(staff => {
-        const openCount = tickets.filter((t: any) => 
-          t.assigned_to === staff.id && 
-          (t.status === 'open' || t.status === 'in-progress')
-        ).length
-        return { ...staff, openTickets: openCount }
-      })
+    if (staffData && tickets) {
+      // Include all staff including McCarthy AI
+      const staffWithCounts = staffData
+        .map((staff: any) => {
+          const openCount = tickets.filter((t: any) => 
+            t.assigned_to === staff.id && 
+            (t.status === 'open' || t.status === 'in-progress')
+          ).length
+          
+          return {
+            id: staff.id,
+            name: `${staff.first_name} ${staff.last_name}`,
+            role: staff.title || 'Staff',
+            online: staff.availability_status === 'online',
+            availability_status: staff.availability_status || 'offline',
+            openTickets: openCount
+          }
+        })
       setStaffMembers(staffWithCounts)
     }
-  }, [tickets])
+  }, [staffData, tickets])
 
   // Reset selection when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedStaff('')
+      setReassignReason('')
     }
   }, [isOpen])
 
@@ -62,11 +87,11 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
     if (!selectedStaff) return
     
     if (selectedStaff === 'unassigned') {
-      onReassign(null, 'Unassigned')
+      onReassign(null, 'Unassigned', reassignReason || undefined)
     } else {
       const staff = staffMembers.find(s => s.id === selectedStaff)
       if (staff) {
-        onReassign(staff.id, staff.name)
+        onReassign(staff.id, staff.name, reassignReason || undefined)
       }
     }
     onClose()
@@ -117,7 +142,8 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
           )}
 
           <div className="space-y-2">
-            {staffMembers.map((staff) => (
+            {/* McCarthy AI option - shown first */}
+            {staffMembers.filter(s => s.id === 'ai-agent-001').map((staff) => (
               <label
                 key={staff.id}
                 className={`flex items-center p-3 border rounded-lg transition-colors cursor-pointer hover:bg-gray-50 ${
@@ -134,10 +160,13 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
                   onChange={(e) => setSelectedStaff(e.target.value)}
                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 flex-shrink-0 mr-3"
                 />
-                <div className={`w-2 h-2 rounded-full mr-3 ${staff.online ? 'bg-green-500' : 'bg-gray-400'}`} />
+                <div className="w-2 h-2 rounded-full mr-3 bg-green-500" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{staff.name}</p>
-                  <p className="text-xs text-gray-500">{staff.online ? 'Online' : 'Offline'}</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    McCarthy AI
+                  </p>
+                  <p className="text-xs text-gray-500">Return to AI handling</p>
                 </div>
                 <div className="text-right min-w-[60px]">
                   <p className="text-xs text-gray-500">{staff.openTickets} open</p>
@@ -145,11 +174,46 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
               </label>
             ))}
 
-            {/* Unassigned option */}
+            {/* Staff members - excluding McCarthy AI */}
+            {staffMembers.filter(s => s.id !== 'ai-agent-001').map((staff) => (
+              <label
+                key={staff.id}
+                className={`flex items-center p-3 border rounded-lg transition-colors cursor-pointer hover:bg-gray-50 ${
+                  selectedStaff === staff.id
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="staff"
+                  value={staff.id}
+                  checked={selectedStaff === staff.id}
+                  onChange={(e) => setSelectedStaff(e.target.value)}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 flex-shrink-0 mr-3"
+                />
+                <div className={`w-2 h-2 rounded-full mr-3 ${
+                  staff.availability_status === 'online' ? 'bg-green-500' : 
+                  staff.availability_status === 'away' ? 'bg-yellow-500' : 'bg-gray-400'
+                }`} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">{staff.name}</p>
+                  <p className="text-xs text-gray-500 capitalize">{staff.availability_status || 'Offline'}</p>
+                </div>
+                <div className="text-right min-w-[60px]">
+                  <p className="text-xs text-gray-500">{staff.openTickets} open</p>
+                </div>
+              </label>
+            ))}
+
+          </div>
+
+          {/* Unassigned option */}
+          <div className="mt-2">
             <label
               className={`flex items-center p-3 border rounded-lg transition-colors cursor-pointer hover:bg-gray-50 ${
                 selectedStaff === 'unassigned'
-                  ? 'border-indigo-500 bg-indigo-50'
+                  ? 'border-amber-500 bg-amber-50'
                   : 'border-gray-300'
               }`}
             >
@@ -159,14 +223,26 @@ export default function ReassignModal({ isOpen, onClose, onReassign, currentAssi
                 value="unassigned"
                 checked={selectedStaff === 'unassigned'}
                 onChange={(e) => setSelectedStaff(e.target.value)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 flex-shrink-0 mr-3"
+                className="h-4 w-4 text-amber-600 focus:ring-amber-500 flex-shrink-0 mr-3"
               />
-              <div className="w-2 h-2 rounded-full mr-3 bg-gray-300" />
+              <div className="w-2 h-2 rounded-full mr-3 bg-gray-400" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Unassigned</p>
-                <p className="text-xs text-gray-500">Remove assignment</p>
+                <p className="text-sm font-medium text-gray-900">Remove Assignment</p>
+                <p className="text-xs text-gray-500">Ticket will be unassigned</p>
               </div>
             </label>
+          </div>
+
+          {/* Reason field - at the bottom */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+            <textarea
+              value={reassignReason}
+              onChange={(e) => setReassignReason(e.target.value)}
+              placeholder="e.g., Sales inquiry, needs technical support..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            />
           </div>
         </div>
 
