@@ -550,10 +550,10 @@ McCarthy AI Dartmouth OS is now a fully functional customer service platform wit
 
 | Backup | Date | Time |
 |--------|------|------|
-| **DARTMOUTH_OS_PROJECT_2025-12-05_1430** | Dec 5, 2025 | 2:30 PM AEST |
+| **DARTMOUTH_OS_BACKUP_2025-12-07_11-51-05** | Dec 7, 2025 | 11:51 AM AEST |
+| `DARTMOUTH_OS_PROJECT_2025-12-05_1430` | Dec 5, 2025 | 2:30 PM AEST |
 | `DARTMOUTH_OS_2025-12-05_092318` | Dec 5, 2025 | 9:23 AM |
 | `DARTMOUTH_OS_2025-12-05_085548` | Dec 5, 2025 | 8:55 AM |
-| `DARTMOUTH_OS_2025-12-05_2350` | Dec 5, 2025 | 6:50 AM |
 
 ### 🌐 GitHub Repository
 
@@ -561,7 +561,7 @@ McCarthy AI Dartmouth OS is now a fully functional customer service platform wit
 |------|-------|
 | **Repository** | `https://github.com/hutchisonjohn/dartmouth.git` |
 | **Branch** | `master` |
-| **Latest Commit** | `a7a2600` - CustomerServiceAgent Vector RAG fix |
+| **Latest Commit** | `36529f0` - Mentions & Group Chat UI Overhaul |
 
 ### 📄 Documentation Files
 
