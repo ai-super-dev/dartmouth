@@ -1,33 +1,34 @@
 # 📋 Dartmouth OS - TODO List
 
-**Last Updated:** December 6, 2025, 8:30 AM AEST  
+**Last Updated:** December 7, 2025, 12:00 PM AEST  
 **Status:** Active Development
 
 ---
 
-## 🔴 HIGH PRIORITY - UX Issues (5 items)
+## 🔴 CRITICAL FIXES - Broken Features (5 items)
 
-### 1. ⏳ Left Menu Navigation
-**Issue:** Clicking on links causes page to jump/scroll  
-**Impact:** Poor UX, disorienting  
+### 1. ❌ Ticket Links in Group Chat - BROKEN
+**Issue:** Clicking #254 in group chat says "ticket does not exist"  
+**Root Cause:** Search/navigation broken  
+**Impact:** Critical - can't navigate to tickets from chat  
 **Effort:** 1 hour  
 **Status:** Not Started
 
-### 2. ⏳ Live Chat Callback Text
-**Issue:** `__SHOW_CALLBACK_FORM__` displayed in chat history  
-**Fix:** Replace with "CALL BACK REQUEST"  
-**Impact:** Looks unprofessional  
-**Effort:** 30 minutes  
+### 2. ❌ Ticket Links in Mentions - BROKEN
+**Issue:** Clicking @254 goes to all tickets instead of opening specific ticket  
+**Root Cause:** Navigation logic incorrect  
+**Impact:** High - defeats purpose of ticket links  
+**Effort:** 1 hour  
 **Status:** Not Started
 
-### 3. ⏳ AI Handling Label
-**Issue:** Shows "AI Handling" in Live Chat  
-**Fix:** Change to "McCarthy AI"  
-**Impact:** Branding consistency  
-**Effort:** 30 minutes  
+### 3. ❌ Ticket Reassignment - Shows Wrong Status
+**Issue:** Shows Gaille/Sam/Ted as offline when they're online, shows "unassigned" as a user  
+**Root Cause:** Status detection or user list filtering  
+**Impact:** High - can't reassign tickets properly  
+**Effort:** 2 hours  
 **Status:** Not Started
 
-### 4. ⏳ Attachments Fix
+### 4. ❌ Attachments Fix
 **Issue:** Not working correctly in ticket/livechat/widget  
 **Details:**
 - Files upload but not always clickable/downloadable
@@ -37,39 +38,59 @@
 **Effort:** 3-4 hours  
 **Status:** In Progress (Backend done, UI needs fixes)
 
-### 5. ⏳ Live Chat Default View
+### 5. ❌ Left Menu Navigation
+**Issue:** Clicking on links causes page to jump/scroll  
+**Impact:** Poor UX, disorienting  
+**Effort:** 1 hour  
+**Status:** Not Started
+
+---
+
+## 🟡 HIGH PRIORITY - UX Improvements (7 items)
+
+### 6. ⏳ Live Chat AI Label
+**Issue:** Shows "AI Handling" in Live Chat  
+**Fix:** Change to "McCarthy AI"  
+**Impact:** Branding consistency  
+**Effort:** 30 minutes  
+**Status:** Not Started
+
+### 7. ⏳ Live Chat Callback Text
+**Issue:** `__SHOW_CALLBACK_FORM__` displayed in chat history  
+**Fix:** Replace with "CALL BACK REQUEST"  
+**Impact:** Looks unprofessional  
+**Effort:** 30 minutes  
+**Status:** Not Started
+
+### 8. ⏳ Live Chat Default View
 **Issue:** Doesn't default to newest ticket with chat messages visible  
 **Fix:** Auto-select newest ticket and show messages on page load  
 **Impact:** Extra clicks for staff  
 **Effort:** 1 hour  
 **Status:** Not Started
 
----
-
-## 🟡 MEDIUM PRIORITY - Icons/Consistency (4 items)
-
-### 6. ⏳ Platform Dropdown Icons
+### 9. ⏳ Platform Dropdown Icons
 **Issue:** Icons are inconsistent in the Platforms dropdown  
 **Fix:** Standardize all platform icons  
 **Impact:** Visual consistency  
 **Effort:** 1 hour  
 **Status:** Not Started
 
-### 7. ⏳ Phone Icon Fix
+### 10. ⏳ Phone Icon Fix
 **Issue:** Green phone icon on main ticket/queue for callbacks (should be red)  
 **Fix:** Use solid red phone icon consistently  
 **Impact:** Visual consistency, callback identification  
 **Effort:** 30 minutes  
 **Status:** Not Started
 
-### 8. ⏳ Email Icon
+### 11. ⏳ Email Icon Consistency
 **Issue:** Different envelope icons used across the app  
 **Fix:** Use same envelope icon everywhere  
 **Impact:** Visual consistency  
 **Effort:** 30 minutes  
 **Status:** Not Started
 
-### 9. ⏳ Live Chat Icon
+### 12. ⏳ Live Chat Icon Consistency
 **Issue:** Different chat icons used across the app  
 **Fix:** Use same chat icon everywhere  
 **Impact:** Visual consistency  
@@ -78,69 +99,175 @@
 
 ---
 
-## 🟢 LOW PRIORITY - Shopify Enhancements (3 items)
+## 🟢 MEDIUM PRIORITY - Feature Enhancements (5 items)
 
-### 10. ⏳ Shopify Data Formatting
+### 13. ⏳ Mentions Quick Filter Pills
+**Issue:** No quick filter for read/unread in mentions page  
+**Fix:** Add read/unread pill filter buttons  
+**Impact:** Faster filtering  
+**Effort:** 1 hour  
+**Status:** Not Started
+
+### 14. ⏳ Group Chat Edit Time Limit
+**Issue:** No time limit on message editing  
+**Fix:** Only allow editing within 10 minutes of posting  
+**Details:** Show edit timestamp with date/time  
+**Impact:** Prevent abuse, maintain message integrity  
+**Effort:** 1 hour  
+**Status:** Not Started
+
+### 15. ⏳ Group Chat Delete Time Limit
+**Issue:** No time limit on message deletion  
+**Fix:** Only allow deletion within 10 minutes of posting  
+**Details:** No reference needed after deletion  
+**Impact:** Prevent abuse, maintain chat history  
+**Effort:** 1 hour  
+**Status:** Not Started
+
+### 16. ⏳ Shopify Data Formatting
 **Issue:** Preview/edit links display could be better formatted  
 **Fix:** Reformat how Shopify preview/edit links are displayed  
 **Impact:** Better UX for staff  
 **Effort:** 2 hours  
 **Status:** Not Started
 
-### 11. ⏳ Shopify URL Shortener
+### 17. ⏳ Shopify URL Shortener
 **Issue:** Long Shopify URLs in responses  
 **Fix:** Add URL shortener + hyperlinks for response area  
 **Impact:** Cleaner customer communications  
 **Effort:** 3 hours  
 **Status:** Not Started
 
-### 12. ⏳ Shopify Config Page
-**Issue:** No way to configure what Shopify data to show/hide  
-**Fix:** Create UI to configure display and formatting  
-**Impact:** Customization for staff workflow  
+---
+
+## 🎯 NEW FEATURES - To Build (8 major features)
+
+### 18. 📋 Shopify Config Page
+**Description:** Create UI to configure what Shopify data to show/hide and formatting  
+**Features:**
+- Toggle visibility of order fields
+- Configure link formatting
+- Set default display preferences
+**Effort:** 4 hours  
+**Status:** Not Started
+
+### 19. 🤖 @McCarthy AI Commands
+**Description:** Allow staff to give McCarthy AI instructions via @mentions  
+**Commands:**
+- Send message to customer via ticket
+- Draft email for review
+- Schedule callback
+- Update customer on order status
+- Fetch Shopify data
+**Features:**
+- Command parsing
+- Task execution
+- Notification when complete
+- Error handling
+**Effort:** 8 hours  
+**Status:** Not Started
+
+### 20. 📋 Task Management System (MAJOR FEATURE)
+**Description:** Complete task management system for team collaboration  
+**Features:**
+- Create tasks with deadlines and priority
+- Assign to staff members or McCarthy AI
+- Task mentions/notifications
+- Mark tasks as completed (with timestamp)
+- Re-open tasks if needed
+- Stakeholder notifications
+- Task list view with filters
+- Link tasks to tickets
+**Database:**
+- New `tasks` table
+- Task assignments
+- Task comments/updates
+**Effort:** 15-20 hours  
+**Status:** Not Started
+
+### 21. 💬 Group Chat - Reply to Message
+**Description:** Right-click menu with reply feature  
+**Features:**
+- Right-click shows context menu
+- Select "Reply" option
+- Shows original message above input
+- Displays threaded reply in chat
+- Click original message to jump to it
+**Effort:** 4 hours  
+**Status:** Not Started
+
+### 22. 📤 Group Chat - Share Message
+**Description:** Share messages to other channels  
+**Features:**
+- Right-click menu option
+- Select target channel(s)
+- Preserves original context
+**Effort:** 3 hours  
+**Status:** Not Started
+
+### 23. 📋 Group Chat - Copy Message
+**Description:** Copy message text to clipboard  
+**Features:**
+- Right-click menu option
+- Copies plain text
+**Effort:** 30 minutes  
+**Status:** Not Started
+
+### 24. 📝 Memo Feature
+**Description:** Personal messages to yourself for later  
+**Features:**
+- Works like chat messages
+- Supports attachments/photos
+- Private to user
+- Direct link under channels (@Memo)
+**Effort:** 3 hours  
+**Status:** Not Started
+
+### 25. 🔗 Direct Links for @Mention and @Memo
+**Description:** Add quick access links under channels section  
+**Features:**
+- @Mention link (goes to mentions page)
+- @Memo link (opens memo view)
+- Unread count badges
+**Effort:** 1 hour  
+**Status:** Not Started
+
+### 26. 🔐 Group Chat Permissions System
+**Description:** Configure who can edit/delete messages  
+**Features:**
+- Admin can always edit/delete
+- Configure per-channel permissions
+- Staff privilege levels
+- Settings UI for permissions
+**Database:**
+- Channel permissions table
+- Staff privilege levels
+**Effort:** 5 hours  
+**Status:** Not Started
+
+### 27. 🔗 Ticket Staff Notes → Group Chat Auto-Post
+**Description:** Mentions in ticket notes auto-post to group chat  
+**Example:** `@cs @gaille customer package damaged, organize reprint`  
+**Features:**
+- Parse mentions in ticket staff notes
+- Auto-post to relevant group channel
+- Preserve ticket context
+- Link back to ticket
 **Effort:** 4 hours  
 **Status:** Not Started
 
 ---
 
-## 🎯 FUTURE FEATURES - @Mentions System
+## 🔴 CRITICAL SECURITY ISSUE
 
-**Status:** 📋 Fully Documented (Dec 6, 2025)  
-**Documentation:** `GROUP_CHAT_ARCHITECTURE.md`  
-**Total Estimated Time:** 25 hours
-
-### Phase 1: Basic @mentions in Group Chat (4 hours)
-- [ ] Parse @mentions in messages (`@all`, `@staffname`)
-- [ ] Create `mentions` database table
-- [ ] Display highlighted @mentions in messages
-- [ ] Basic autocomplete dropdown when typing `@`
-
-### Phase 2: @Mentions Page (6 hours)
-- [ ] Build dual-pane UI (list + details)
-- [ ] Implement filters (channel, staff, time, status)
-- [ ] Mark as read/unread functionality
-- [ ] Link to tickets/channels from mentions
-
-### Phase 3: Cross-System Mentions (4 hours)
-- [ ] Ticket Staff Notes → Group chat auto-posting
-- [ ] Context preservation (ticket info, customer name)
-- [ ] Direct ticket linking from mentions
-
-### Phase 4: McCarthy AI Integration (8 hours)
-- [ ] Parse `@mccarthy` commands
-- [ ] Implement AI actions:
-  - [ ] Send message to customer via ticket
-  - [ ] Draft email for review
-  - [ ] Schedule callback
-  - [ ] Update customer on order status
-  - [ ] Fetch Shopify data
-- [ ] Notification system when AI completes tasks
-- [ ] Error handling and fallbacks
-
-### Phase 5: Notifications (3 hours)
-- [ ] In-app badges (unread count)
-- [ ] Desktop notifications
-- [ ] Email digests (optional)
+### 28. 🔐 Password Security - MUST FIX BEFORE PRODUCTION
+**Issue:** Plain text password comparison in authentication  
+**Location:** `packages/worker/src/controllers/auth.ts` lines 12-16  
+**Risk:** HIGH - All staff passwords vulnerable  
+**Fix Required:** Implement bcrypt/argon2 hashing with Web Crypto API  
+**Impact:** All staff accounts need password reset after fix  
+**Effort:** 4-6 hours  
+**Status:** ⚠️ DOCUMENTED - Not Started
 
 ---
 
@@ -148,67 +275,68 @@
 
 | Priority | Total Items | Estimated Time |
 |----------|-------------|----------------|
-| 🔴 High | 5 | ~7 hours |
-| 🟡 Medium | 4 | ~2.5 hours |
-| 🟢 Low | 3 | ~9 hours |
-| 🎯 Future (@Mentions) | 5 phases | ~25 hours |
-| **TOTAL** | **12 + Future** | **~43.5 hours** |
+| 🔴 Critical Fixes | 5 | ~9 hours |
+| 🟡 High Priority UX | 7 | ~5 hours |
+| 🟢 Medium Priority | 5 | ~8 hours |
+| 🎯 New Features | 10 | ~47.5 hours |
+| 🔐 Security | 1 | ~5 hours |
+| **TOTAL** | **28 items** | **~74.5 hours** |
 
 ---
 
-## ✅ Recently Completed
+## ✅ Recently Completed (Dec 7, 2025)
 
-1. ✅ **Main tickets - newest message first** (Dec 5, 2025)
-2. ✅ **Group Chat System** (Dec 6, 2025, 2:00 AM)
-3. ✅ **Group Chat Settings Page** (Dec 6, 2025, 7:00 AM)
-4. ✅ **Group Chat Column Heights Fixed** (Dec 6, 2025, 8:00 AM)
-5. ✅ **Shopify Integration** (Dec 5, 2025)
-6. ✅ **Shopify Order Navigation** (Dec 5, 2025)
-7. ✅ **Shopify Product Metadata** (Dec 5, 2025)
-8. ✅ **Callback Feature** (Dec 5, 2025)
-9. ✅ **File Attachments Backend** (Dec 5, 2025)
-10. ✅ **R2 Storage Integration** (Dec 5, 2025)
-
----
-
-## 🎯 Key @Mentions Use Cases (For Reference)
-
-### Example 1: Staff to Staff in Ticket
-```
-In Ticket TKT-000261 Staff Notes:
-"@cs @gaille the customers package arrived damaged, can someone organise a reprint please"
-```
-**Result:** Both @cs channel and @gaille are notified, message auto-posts to #customer-service group chat
-
-### Example 2: McCarthy AI - Send Message
-```
-"@mccarthy please get back to the customer via TKT-000261 and give her the tracking link"
-```
-**Result:** AI fetches tracking, sends message to customer, notifies staff when complete
-
-### Example 3: McCarthy AI - Draft Email
-```
-"@mccarthy draft an email response for TKT-000261 and notify me when ready for review"
-```
-**Result:** AI drafts email, saves as draft, sends notification to staff
-
-### Example 4: McCarthy AI - Schedule Callback
-```
-"@mccarthy schedule a callback for me with Jane and TKT-000261"
-```
-**Result:** AI creates callback task, adds to staff calendar, sends confirmation
-
-### Example 5: Notify All
-```
-"@all team meeting in 5 minutes in the conference room"
-```
-**Result:** Everyone in the channel receives a notification
+1. ✅ **Mentions Page UI Overhaul** - Pill-based layout
+2. ✅ **Mentions "Go to Chat"** - Navigates to exact message with highlight
+3. ✅ **Group Chat Channel Highlighting** - Selected channel shows clearly
+4. ✅ **Group Chat Message Highlighting** - Yellow highlight for linked messages
+5. ✅ **Ticket Search Auto-Navigate** - Single result auto-opens
+6. ✅ **Ticket Search Multiple Formats** - Supports 254, TKT-254, TKT-000254
+7. ✅ **Mentions Column Alignment** - No gaps between columns
+8. ✅ **Mentions Read/Unread Backgrounds** - Blue for unread, grey for read
+9. ✅ **Group Chat Date Formatting** - Full date for old messages
+10. ✅ **@ticket Links Open in New Tab** - Both mentions and group chat
 
 ---
 
-**Next Steps:** Tackle High Priority UX issues first, then Medium Priority consistency fixes, then Low Priority Shopify enhancements. @Mentions system to be implemented after current TODO list is complete.
+## 🎯 Recommended Implementation Order
+
+### **Sprint 1: Fix Broken Things (1 week)**
+1. Ticket links in Group Chat (#254 navigation)
+2. Ticket links in Mentions (@254 navigation)
+3. Ticket reassignment status
+4. Attachments fixes
+5. Left menu navigation scrolling
+
+### **Sprint 2: Quick UX Wins (3 days)**
+6. Live Chat AI label → "McCarthy AI"
+7. Live Chat callback text
+8. Live Chat default view
+9. Platform icons consistency
+10. Phone/email/chat icon fixes
+
+### **Sprint 3: Feature Enhancements (1 week)**
+11. Mentions quick filter pills
+12. Group Chat edit/delete time limits
+13. Shopify data formatting
+14. Shopify URL shortener
+15. Shopify config page
+
+### **Sprint 4: Major Features (3-4 weeks)**
+16. @McCarthy AI commands
+17. Task Management System (biggest feature)
+18. Group Chat reply/share/copy
+19. Memo feature
+20. Group Chat permissions
+21. Ticket notes → Group chat auto-post
+
+### **Sprint 5: Security (1 week)**
+22. Password hashing implementation
 
 ---
 
-*Last Updated: December 6, 2025, 8:30 AM AEST*
+**Next Steps:** Start with Sprint 1 - Fix all broken features first before adding new ones.
 
+---
+
+*Last Updated: December 7, 2025, 12:00 PM AEST*
