@@ -93,23 +93,6 @@ export const ticketsApi = {
     api.post('/api/tickets/bulk-assign', { ticketIds, assignedTo }),
 }
 
-// Mentions API
-export const mentionsApi = {
-  list: (unreadOnly?: boolean) =>
-    api.get('/api/mentions', { params: { unreadOnly } }),
-  get: (id: string) => api.get(`/api/mentions/${id}`),
-  create: (data: {
-    ticketId: string
-    toStaffId: string
-    message: string
-    priority?: string
-    type?: string
-  }) => api.post('/api/mentions', data),
-  reply: (id: string, message: string) =>
-    api.post(`/api/mentions/${id}/reply`, { message }),
-  markAsRead: (id: string) => api.put(`/api/mentions/${id}/read`),
-}
-
 // Staff API
 export const staffApi = {
   list: () => api.get('/api/staff'),
@@ -284,7 +267,7 @@ export const groupChatApi = {
   createChannel: (data: { name: string; description?: string; channelType?: string; memberIds?: string[] }) =>
     api.post('/api/group-chat/channels', data),
   getChannel: (channelId: string) => api.get(`/api/group-chat/channels/${channelId}`),
-  updateChannel: (channelId: string, data: { name: string; description?: string }) =>
+  updateChannel: (channelId: string, data: { name: string; description?: string; allow_message_editing?: boolean; allow_message_deletion?: boolean; allow_file_deletion?: boolean }) =>
     api.patch(`/api/group-chat/channels/${channelId}`, data),
   archiveChannel: (channelId: string) => api.delete(`/api/group-chat/channels/${channelId}`),
 
@@ -298,6 +281,8 @@ export const groupChatApi = {
   editMessage: (messageId: string, content: string) =>
     api.patch(`/api/group-chat/messages/${messageId}`, { content }),
   deleteMessage: (messageId: string) => api.delete(`/api/group-chat/messages/${messageId}`),
+  addReaction: (messageId: string, emoji: string) =>
+    api.post(`/api/group-chat/messages/${messageId}/react`, { emoji }),
 
   // Members
   getMembers: (channelId: string) => api.get(`/api/group-chat/channels/${channelId}/members`),
@@ -310,5 +295,36 @@ export const groupChatApi = {
   markAsRead: (channelId: string, messageId: string) =>
     api.post(`/api/group-chat/channels/${channelId}/read`, { messageId }),
   getUnreadCounts: () => api.get('/api/group-chat/unread'),
-}
+};
+
+// Mentions API
+export const mentionsApi = {
+  getMentions: (params?: { 
+    channel_id?: string; 
+    mentioning_staff_id?: string;
+    mentioned_staff_id?: string;
+    ticket_number?: string;
+    view_all?: boolean;
+    is_read?: boolean;
+    time_filter?: 'hour' | '12hours' | '24hours';
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get('/api/mentions', { params }),
+  getMention: (mentionId: string) => api.get(`/api/mentions/${mentionId}`),
+  markAsRead: (mentionId: string) => api.patch(`/api/mentions/${mentionId}/read`),
+  markAsUnread: (mentionId: string) => api.patch(`/api/mentions/${mentionId}/unread`),
+  getUnreadCount: () => api.get('/api/mentions/unread-count'),
+  updateMention: (id: string, data: {
+    ticket_id?: string;
+    ticket_number?: string;
+    customer_name?: string;
+    is_read?: boolean;
+    ai_action?: string;
+    ai_status?: string;
+    ai_result?: string;
+  }) => api.patch(`/api/mentions/${id}`, data),
+  deleteMention: (id: string) => api.delete(`/api/mentions/${id}`),
+};
 

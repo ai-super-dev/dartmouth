@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import { Env } from '../types/shared';
 import { uploadAttachmentToR2 } from '../utils/r2-upload';
+import { parseMentions, createMentions } from './mentions';
 
 // ============================================================================
 // GROUP CHAT CONTROLLER
@@ -170,7 +171,7 @@ export async function getChannel(c: Context<{ Bindings: Env }>) {
 
 /**
  * PATCH /api/group-chat/channels/:id
- * Update channel details
+ * Update channel details and settings
  */
 export async function updateChannel(c: Context<{ Bindings: Env }>) {
   try {
@@ -180,7 +181,7 @@ export async function updateChannel(c: Context<{ Bindings: Env }>) {
     }
 
     const channelId = c.req.param('id');
-    const { name, description } = await c.req.json();
+    const { name, description, allow_message_editing, allow_message_deletion, allow_file_deletion } = await c.req.json();
 
     // Check if user is an admin of the channel
     const membership = await c.env.DB.prepare(`
@@ -194,11 +195,42 @@ export async function updateChannel(c: Context<{ Bindings: Env }>) {
 
     const now = new Date().toISOString();
 
+    // Build update query dynamically based on what's provided
+    const updates: string[] = ['updated_at = ?'];
+    const params: any[] = [now];
+
+    if (name !== undefined) {
+      updates.push('name = ?');
+      params.push(name);
+    }
+
+    if (description !== undefined) {
+      updates.push('description = ?');
+      params.push(description || null);
+    }
+
+    if (allow_message_editing !== undefined) {
+      updates.push('allow_message_editing = ?');
+      params.push(allow_message_editing ? 1 : 0);
+    }
+
+    if (allow_message_deletion !== undefined) {
+      updates.push('allow_message_deletion = ?');
+      params.push(allow_message_deletion ? 1 : 0);
+    }
+
+    if (allow_file_deletion !== undefined) {
+      updates.push('allow_file_deletion = ?');
+      params.push(allow_file_deletion ? 1 : 0);
+    }
+
+    params.push(channelId);
+
     await c.env.DB.prepare(`
       UPDATE group_chat_channels 
-      SET name = ?, description = ?, updated_at = ?
+      SET ${updates.join(', ')}
       WHERE id = ?
-    `).bind(name, description || null, now, channelId).run();
+    `).bind(...params).run();
 
     const channel = await c.env.DB.prepare(`
       SELECT * FROM group_chat_channels WHERE id = ?
@@ -383,6 +415,26 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
       now
     ).run();
 
+    // Parse and create mentions
+    const mentions = parseMentions(content?.trim() || '');
+    if (mentions.length > 0) {
+      await createMentions(
+        c.env.DB,
+        messageId,
+        user.id,
+        mentions,
+        'group_chat',
+        channelId
+      );
+
+      // Update message mention count
+      await c.env.DB.prepare(`
+        UPDATE group_chat_messages
+        SET mention_count = ?, has_mentions = 1
+        WHERE id = ?
+      `).bind(mentions.length, messageId).run();
+    }
+
     // Get the created message with sender info
     const message = await c.env.DB.prepare(`
       SELECT 
@@ -473,22 +525,30 @@ export async function editMessage(c: Context<{ Bindings: Env }>) {
       return c.json({ error: 'Message content is required' }, 400);
     }
 
-    // Check if user is the sender
-    const message = await c.env.DB.prepare(`
-      SELECT * FROM group_chat_messages WHERE id = ? AND sender_id = ? AND is_deleted = 0
+    // Get message and check if user is the sender
+    const message: any = await c.env.DB.prepare(`
+      SELECT m.*, gc.allow_message_editing
+      FROM group_chat_messages m
+      LEFT JOIN group_chat_channels gc ON gc.id = m.channel_id
+      WHERE m.id = ? AND m.sender_id = ? AND m.is_deleted = 0
     `).bind(messageId, user.id).first();
 
     if (!message) {
       return c.json({ error: 'Message not found or you are not the sender' }, 403);
     }
 
+    // Check if editing is allowed in this channel
+    if (message.allow_message_editing === 0) {
+      return c.json({ error: 'Message editing is disabled in this channel' }, 403);
+    }
+
     const now = new Date().toISOString();
 
     await c.env.DB.prepare(`
       UPDATE group_chat_messages 
-      SET content = ?, edited_at = ?, updated_at = ?
+      SET content = ?, edited_at = ?, edited_by = ?, updated_at = ?
       WHERE id = ?
-    `).bind(content.trim(), now, now, messageId).run();
+    `).bind(content.trim(), now, user.id, now, messageId).run();
 
     const updatedMessage = await c.env.DB.prepare(`
       SELECT 
@@ -522,15 +582,21 @@ export async function deleteMessage(c: Context<{ Bindings: Env }>) {
     const messageId = c.req.param('id');
 
     // Check if user is the sender or a channel admin
-    const message = await c.env.DB.prepare(`
-      SELECT m.*, mem.role
+    const message: any = await c.env.DB.prepare(`
+      SELECT m.*, mem.role, gc.allow_message_deletion
       FROM group_chat_messages m
       LEFT JOIN group_chat_members mem ON mem.channel_id = m.channel_id AND mem.staff_id = ?
+      LEFT JOIN group_chat_channels gc ON gc.id = m.channel_id
       WHERE m.id = ? AND m.is_deleted = 0
     `).bind(user.id, messageId).first();
 
     if (!message) {
       return c.json({ error: 'Message not found' }, 404);
+    }
+
+    // Check if deletion is allowed in this channel
+    if (message.allow_message_deletion === 0 && message.role !== 'admin') {
+      return c.json({ error: 'Message deletion is disabled in this channel' }, 403);
     }
 
     // Allow deletion if user is sender or channel admin
@@ -550,6 +616,72 @@ export async function deleteMessage(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     console.error('[Group Chat] Error deleting message:', error);
     return c.json({ error: 'Failed to delete message' }, 500);
+  }
+}
+
+/**
+ * POST /api/group-chat/messages/:id/react
+ * Add emoji reaction to a message
+ */
+export async function addReaction(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user');
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const messageId = c.req.param('id');
+    const { emoji } = await c.req.json();
+
+    // Validate emoji (only allow specific ones)
+    const allowedEmojis = ['👍', '👎', '😊', '😢', '❤️', '😠', '💯'];
+    if (!allowedEmojis.includes(emoji)) {
+      return c.json({ error: 'Invalid emoji' }, 400);
+    }
+
+    // Get current reactions
+    const message: any = await c.env.DB.prepare(`
+      SELECT reactions FROM group_chat_messages WHERE id = ? AND is_deleted = 0
+    `).bind(messageId).first();
+
+    if (!message) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+
+    let reactions = [];
+    try {
+      reactions = JSON.parse(message.reactions || '[]');
+    } catch (e) {
+      reactions = [];
+    }
+
+    // Check if user already reacted with this emoji
+    const existingReaction = reactions.find((r: any) => r.emoji === emoji && r.staff_id === user.id);
+    
+    if (existingReaction) {
+      // Remove reaction (toggle off)
+      reactions = reactions.filter((r: any) => !(r.emoji === emoji && r.staff_id === user.id));
+    } else {
+      // Add reaction
+      reactions.push({
+        emoji,
+        staff_id: user.id,
+        staff_name: `${user.firstName} ${user.lastName}`,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // Update message
+    await c.env.DB.prepare(`
+      UPDATE group_chat_messages 
+      SET reactions = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(JSON.stringify(reactions), messageId).run();
+
+    return c.json({ success: true, reactions });
+  } catch (error) {
+    console.error('[Group Chat] Error adding reaction:', error);
+    return c.json({ error: 'Failed to add reaction' }, 500);
   }
 }
 

@@ -86,11 +86,7 @@ export function createAPIRouter() {
   // MENTIONS ROUTES
   // ========================================================================
 
-  app.get('/api/mentions', authenticate, mentionsController.listMentions);
-  app.get('/api/mentions/:id', authenticate, mentionsController.getMention);
-  app.post('/api/mentions', authenticate, mentionsController.createMention);
-  app.post('/api/mentions/:id/reply', authenticate, mentionsController.replyToMention);
-  app.put('/api/mentions/:id/read', authenticate, mentionsController.markAsRead);
+  // Mentions routes moved to end of file to avoid conflicts
 
   // ========================================================================
   // SETTINGS ROUTES
@@ -255,6 +251,7 @@ export function createAPIRouter() {
   app.get('/api/group-chat/channels/:id/poll', authenticate, groupChatController.pollMessages);
   app.patch('/api/group-chat/messages/:id', authenticate, groupChatController.editMessage);
   app.delete('/api/group-chat/messages/:id', authenticate, groupChatController.deleteMessage);
+  app.post('/api/group-chat/messages/:id/react', authenticate, groupChatController.addReaction);
 
   // Members
   app.get('/api/group-chat/channels/:id/members', authenticate, groupChatController.getMembers);
@@ -264,6 +261,18 @@ export function createAPIRouter() {
   // Read Receipts
   app.post('/api/group-chat/channels/:id/read', authenticate, groupChatController.markAsRead);
   app.get('/api/group-chat/unread', authenticate, groupChatController.getUnreadCounts);
+
+  // ========================================================================
+  // @MENTIONS ROUTES
+  // ========================================================================
+  
+  app.get('/api/mentions', authenticate, mentionsController.getMentions);
+  app.get('/api/mentions/unread-count', authenticate, mentionsController.getUnreadCount);
+  app.get('/api/mentions/:id', authenticate, mentionsController.getMention);
+  app.patch('/api/mentions/:id', authenticate, mentionsController.updateMention);
+  app.patch('/api/mentions/:id/read', authenticate, mentionsController.markMentionAsRead);
+  app.patch('/api/mentions/:id/unread', authenticate, mentionsController.markMentionAsUnread);
+  app.delete('/api/mentions/:id', authenticate, mentionsController.deleteMention);
 
   return app;
 }

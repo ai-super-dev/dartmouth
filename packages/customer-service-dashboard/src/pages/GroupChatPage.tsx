@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { groupChatApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File } from 'lucide-react';
+import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File, Pencil, Trash2, Smile } from 'lucide-react';
 
 interface Channel {
   id: string;
@@ -26,6 +26,8 @@ interface Message {
   attachment_size: number | null;
   created_at: string;
   edited_at: string | null;
+  edited_by: string | null;
+  reactions: string | null;
   first_name: string;
   last_name: string;
   email: string;
@@ -55,6 +57,14 @@ export default function GroupChatPage() {
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelDescription, setNewChannelDescription] = useState('');
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
+  const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionCursorPosition, setMentionCursorPosition] = useState(0);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch channels
   const { data: channelsData } = useQuery({
@@ -115,6 +125,10 @@ export default function GroupChatPage() {
   });
 
   const members: Member[] = membersData?.members || [];
+  
+  // Check if current user is admin of the active channel
+  const currentUserMember = members.find(m => m.staff_id === user?.id);
+  const isChannelAdmin = currentUserMember?.role === 'admin';
 
   // Fetch all staff for adding members (future feature)
   // const { data: staffData } = useQuery({
@@ -154,6 +168,35 @@ export default function GroupChatPage() {
       setNewChannelName('');
       setNewChannelDescription('');
       queryClient.invalidateQueries({ queryKey: ['group-chat-channels'] });
+    },
+  });
+
+  // Edit message mutation
+  const editMessageMutation = useMutation({
+    mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
+      groupChatApi.editMessage(messageId, content),
+    onSuccess: () => {
+      setEditingMessageId(null);
+      setEditingContent('');
+      queryClient.invalidateQueries({ queryKey: ['group-chat-messages', activeChannelId] });
+    },
+  });
+
+  // Delete message mutation
+  const deleteMessageMutation = useMutation({
+    mutationFn: (messageId: string) => groupChatApi.deleteMessage(messageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-chat-messages', activeChannelId] });
+    },
+  });
+
+  // Add reaction mutation
+  const addReactionMutation = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      groupChatApi.addReaction(messageId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-chat-messages', activeChannelId] });
+      setShowEmojiPicker(null);
     },
   });
 
@@ -215,14 +258,53 @@ export default function GroupChatPage() {
     return `https://dartmouth-os-worker.dartmouth.workers.dev/api/attachments/${url}`;
   };
 
+  // Highlight @mentions and linkify ticket numbers
+  const highlightMentions = (text: string) => {
+    // Split by both @mentions and ticket patterns
+    const parts = text.split(/(@\w+|@\d+|#\d+|TKT-\d+|ticket\s+\d+)/gi);
+    
+    return parts.map((part, index) => {
+      // Check if it's an @mention (staff)
+      if (part.match(/^@\w+$/) && !part.match(/^@\d+$/)) {
+        return (
+          <span key={index} className="bg-blue-100 text-blue-700 font-semibold px-1 rounded">
+            {part}
+          </span>
+        );
+      }
+      
+      // Check if it's a ticket reference
+      const ticketMatch = part.match(/^@(\d+)$|^#(\d+)$|^TKT-(\d+)$|^ticket\s+(\d+)$/i);
+      if (ticketMatch) {
+        const ticketNum = ticketMatch[1] || ticketMatch[2] || ticketMatch[3] || ticketMatch[4];
+        return (
+          <a
+            key={index}
+            href={`/tickets/${ticketNum}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            {part}
+          </a>
+        );
+      }
+      
+      return part;
+    });
+  };
+
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="w-full flex bg-gray-50" style={{ height: 'calc(100vh - 3.5rem)' }}>
       {/* Left Sidebar - Channels */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 h-full overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0" style={{ height: '73px' }}>
           <h1 className="text-xl font-bold text-gray-900">Team Chat</h1>
           <p className="text-sm text-gray-500">Internal Communication</p>
         </div>
@@ -232,12 +314,15 @@ export default function GroupChatPage() {
           <div className="p-2">
             <div className="flex items-center justify-between mb-2 px-2">
               <span className="text-xs font-semibold text-gray-500 uppercase">Channels</span>
-              <button
-                onClick={() => setShowNewChannelModal(true)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              {isChannelAdmin && (
+                <button
+                  onClick={() => setShowNewChannelModal(true)}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                  title="Create new channel (Admin only)"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
             </div>
             {channels.map((channel) => (
               <button
@@ -245,8 +330,8 @@ export default function GroupChatPage() {
                 onClick={() => setActiveChannelId(channel.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeChannelId === channel.id
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gray-100 text-gray-900 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 <Hash className="w-4 h-4 flex-shrink-0" />
@@ -263,100 +348,209 @@ export default function GroupChatPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {activeChannel ? (
           <>
             {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Hash className="w-5 h-5 text-gray-400" />
-                  <h2 className="text-lg font-semibold text-gray-900">{activeChannel.name}</h2>
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ height: '73px' }}>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Hash className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 truncate">{activeChannel.name}</h2>
+                    {activeChannel.description && (
+                      <p className="text-sm text-gray-500 truncate">{activeChannel.description}</p>
+                    )}
+                  </div>
                 </div>
-                {activeChannel.description && (
-                  <p className="text-sm text-gray-500 mt-1">{activeChannel.description}</p>
-                )}
+                <button
+                  onClick={() => setShowMembersPanel(!showMembersPanel)}
+                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg flex-shrink-0"
+                >
+                  <Users className="w-5 h-5" />
+                  <span className="text-sm font-medium">{members.length} members</span>
+                </button>
               </div>
-              <button
-                onClick={() => setShowMembersPanel(!showMembersPanel)}
-                className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <Users className="w-5 h-5" />
-                <span className="text-sm font-medium">{members.length} members</span>
-              </button>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {messages.map((message) => {
                 const isOwnMessage = message.sender_id === user?.id;
+                const reactions = message.reactions ? JSON.parse(message.reactions) : [];
+                const isEditing = editingMessageId === message.id;
+
                 return (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : ''}`}
-                  >
+                  <div key={message.id} className="group flex gap-3 hover:bg-gray-50 -mx-2 px-2 py-1 rounded">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                      <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-semibold">
                         {message.first_name?.[0]}{message.last_name?.[0]}
                       </div>
                     </div>
 
                     {/* Message Content */}
-                    <div className={`flex-1 max-w-2xl ${isOwnMessage ? 'text-right' : ''}`}>
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 min-w-0">
+                      {/* Header: Name + Timestamp + Actions */}
+                      <div className="flex items-baseline gap-2 mb-1">
                         <span className="font-semibold text-gray-900 text-sm">
                           {message.first_name} {message.last_name}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(message.created_at).toLocaleTimeString()}
+                          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {message.edited_at && (
                           <span className="text-xs text-gray-400 italic">(edited)</span>
                         )}
-                      </div>
-                      <div
-                        className={`inline-block px-4 py-2 rounded-lg ${
-                          isOwnMessage
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white border border-gray-200 text-gray-900'
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                        {message.attachment_url && (
-                          <div className="mt-2">
-                            {message.attachment_type?.startsWith('image/') ? (
-                              <a
-                                href={getAttachmentUrl(message.attachment_url)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block"
-                              >
-                                <img
-                                  src={getAttachmentUrl(message.attachment_url)}
-                                  alt={message.attachment_name || 'Attachment'}
-                                  className="max-w-sm rounded-lg border border-gray-300"
-                                />
-                              </a>
-                            ) : (
-                              <a
-                                href={getAttachmentUrl(message.attachment_url)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-sm hover:underline"
-                              >
-                                <File className="w-4 h-4" />
-                                <span>{message.attachment_name}</span>
-                                {message.attachment_size && (
-                                  <span className="text-xs opacity-75">
-                                    ({(message.attachment_size / 1024).toFixed(1)} KB)
-                                  </span>
-                                )}
-                              </a>
-                            )}
+                        
+                        {/* Action buttons (show on hover) */}
+                        {isOwnMessage && !isEditing && (
+                          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(message.id);
+                                setEditingContent(message.content);
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded"
+                              title="Edit message"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmMessageId(message.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Delete message"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )}
                       </div>
+
+                      {/* Message bubble or edit form */}
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                editMessageMutation.mutate({ messageId: message.id, content: editingContent });
+                              }}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(null);
+                                setEditingContent('');
+                              }}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="bg-gray-50 rounded-lg px-4 py-2.5 border border-gray-200">
+                            <p className="text-gray-900 text-sm whitespace-pre-wrap break-words">
+                              {highlightMentions(message.content)}
+                            </p>
+                            
+                            {/* Attachment */}
+                            {message.attachment_url && (
+                              <div className="mt-2">
+                                {message.attachment_type?.startsWith('image/') ? (
+                                  <a
+                                    href={getAttachmentUrl(message.attachment_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    <img
+                                      src={getAttachmentUrl(message.attachment_url)}
+                                      alt={message.attachment_name || 'Attachment'}
+                                      className="max-w-md rounded border border-gray-300"
+                                    />
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={getAttachmentUrl(message.attachment_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                                  >
+                                    <File className="w-4 h-4" />
+                                    <span>{message.attachment_name}</span>
+                                    {message.attachment_size && (
+                                      <span className="text-xs text-gray-500">
+                                        ({(message.attachment_size / 1024).toFixed(1)} KB)
+                                      </span>
+                                    )}
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Emoji Reactions */}
+                          <div className="flex items-center gap-2 mt-1">
+                            {/* Show existing reactions */}
+                            {reactions.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {Object.entries(
+                                  reactions.reduce((acc: any, r: any) => {
+                                    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                                    return acc;
+                                  }, {})
+                                ).map(([emoji, count]) => (
+                                  <button
+                                    key={emoji}
+                                    onClick={() => addReactionMutation.mutate({ messageId: message.id, emoji })}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-full text-xs"
+                                  >
+                                    <span>{emoji}</span>
+                                    <span className="text-blue-600 font-medium">{count as number}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Add reaction button */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded"
+                                title="Add reaction"
+                              >
+                                <Smile className="w-4 h-4" />
+                              </button>
+
+                              {/* Emoji picker */}
+                              {showEmojiPicker === message.id && (
+                                <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-1 z-10">
+                                  {['👍', '👎', '😊', '😢', '❤️', '😠', '💯'].map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => addReactionMutation.mutate({ messageId: message.id, emoji })}
+                                      className="text-2xl hover:bg-gray-100 rounded p-1"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -405,23 +599,100 @@ export default function GroupChatPage() {
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
-                <textarea
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={1}
-                />
+                <div className="flex-1 relative">
+                  <textarea
+                    ref={messageInputRef}
+                    value={messageInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setMessageInput(value);
+                      
+                      // Detect @ mentions
+                      const cursorPos = e.target.selectionStart;
+                      const textBeforeCursor = value.substring(0, cursorPos);
+                      const atMatch = textBeforeCursor.match(/@(\w*)$/);
+                      
+                      if (atMatch) {
+                        setMentionSearch(atMatch[1].toLowerCase());
+                        setMentionCursorPosition(cursorPos);
+                        setShowMentionSuggestions(true);
+                      } else {
+                        setShowMentionSuggestions(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !showMentionSuggestions) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      } else if (e.key === 'Escape' && showMentionSuggestions) {
+                        setShowMentionSuggestions(false);
+                      }
+                    }}
+                    placeholder="Type a message... (use @ to mention someone)"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    rows={1}
+                  />
+                  
+                  {/* Mention Suggestions Dropdown */}
+                  {showMentionSuggestions && members.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                      {members
+                        .filter(member => {
+                          const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+                          const firstName = member.first_name.toLowerCase();
+                          return fullName.includes(mentionSearch) || firstName.includes(mentionSearch);
+                        })
+                        .map(member => (
+                          <button
+                            key={member.staff_id}
+                            onClick={() => {
+                              const textBefore = messageInput.substring(0, mentionCursorPosition).replace(/@\w*$/, '');
+                              const textAfter = messageInput.substring(mentionCursorPosition);
+                              const newText = `${textBefore}@${member.first_name.toLowerCase()} ${textAfter}`;
+                              setMessageInput(newText);
+                              setShowMentionSuggestions(false);
+                              messageInputRef.current?.focus();
+                            }}
+                            className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-semibold">
+                              {member.first_name[0]}{member.last_name[0]}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{member.first_name} {member.last_name}</div>
+                              <div className="text-xs text-gray-500">@{member.first_name.toLowerCase()}</div>
+                            </div>
+                          </button>
+                        ))}
+                      {/* McCarthy AI Option */}
+                      {('mccarthy'.includes(mentionSearch) || 'mc'.includes(mentionSearch)) && (
+                        <button
+                          onClick={() => {
+                            const textBefore = messageInput.substring(0, mentionCursorPosition).replace(/@\w*$/, '');
+                            const textAfter = messageInput.substring(mentionCursorPosition);
+                            const newText = `${textBefore}@mccarthy ${textAfter}`;
+                            setMessageInput(newText);
+                            setShowMentionSuggestions(false);
+                            messageInputRef.current?.focus();
+                          }}
+                          className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2 border-t border-gray-200"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-sm font-semibold">
+                            AI
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">McCarthy AI</div>
+                            <div className="text-xs text-gray-500">@mccarthy</div>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageInput.trim() && selectedFiles.length === 0}
-                  className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <Send className="w-5 h-5" />
                   <span>Send</span>
@@ -442,8 +713,8 @@ export default function GroupChatPage() {
 
       {/* Right Sidebar - Members */}
       {showMembersPanel && activeChannel && (
-        <div className="w-64 bg-white border-l border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
+        <div className="w-64 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 h-full overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0" style={{ height: '73px' }}>
             <h3 className="font-semibold text-gray-900">Members</h3>
             <p className="text-sm text-gray-500">{members.length} in this channel</p>
           </div>
@@ -451,7 +722,7 @@ export default function GroupChatPage() {
             {members.map((member) => (
               <div key={member.id} className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+                  <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm font-semibold">
                     {member.first_name?.[0]}{member.last_name?.[0]}
                   </div>
                   {member.availability_status === 'available' && (
@@ -517,9 +788,38 @@ export default function GroupChatPage() {
               <button
                 onClick={handleCreateChannel}
                 disabled={!newChannelName.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Channel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmMessageId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Message</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this message? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirmMessageId(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteMessageMutation.mutate(deleteConfirmMessageId);
+                  setDeleteConfirmMessageId(null);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
               </button>
             </div>
           </div>

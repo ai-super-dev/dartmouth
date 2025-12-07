@@ -1,10 +1,10 @@
 # 🏗️ DARTMOUTH OS - MASTER BUILD PLAN
 
 **Date:** December 2, 2025  
-**Last Updated:** December 6, 2025 (2:00 AM AEST)  
-**Version:** 4.3  
+**Last Updated:** December 6, 2025 (10:00 AM AEST)  
+**Version:** 5.0  
 **Status:** Active Development - 99% Complete  
-**Priority:** CUSTOMER SERVICE PLATFORM FIRST, then Advanced Features
+**Priority:** TASK MANAGEMENT SYSTEM (SUPER IMPORTANT!) 🚨
 
 ---
 
@@ -37,6 +37,9 @@
 | **Analytics Dashboard** | ✅ Complete | 100% |
 | **Staff Management** | ✅ Complete | 100% |
 | **Business Hours** | ✅ Complete | 100% |
+| **Group Chat System** | ✅ Complete | 100% |
+| **@Mentions System** | ✅ Complete | 95% |
+| **Task Management** | 🚧 In Progress | 0% |
 
 ---
 
@@ -194,32 +197,122 @@
 
 ---
 
+### **9. Group Chat System (100% Complete)**
+
+**Status:** ✅ **PRODUCTION READY**
+
+- ✅ Channel management (create, edit, archive)
+- ✅ Real-time messaging with polling
+- ✅ File attachments (R2 storage)
+- ✅ Member management
+- ✅ Read receipts & unread counts
+- ✅ Message editing (with pencil icon)
+- ✅ Message deletion
+- ✅ Emoji reactions (👍👎😊😢❤️😠💯)
+- ✅ Admin-only channel creation
+- ✅ Configurable edit/delete permissions
+- ✅ Group Chat Settings page
+
+---
+
+### **10. @Mentions System (95% Complete)**
+
+**Status:** ✅ **PRODUCTION READY**
+
+- ✅ @all, @staffmembername mentions
+- ✅ Mention parsing in Group Chat
+- ✅ Mentions database table
+- ✅ @Mentions page with dual-pane UI
+- ✅ Filters (status, time, channel, staff)
+- ✅ Mark as read/unread
+- ✅ Mention highlighting in messages
+- ✅ Autocomplete for staff names
+- ⏳ Cross-system mentions (ticket notes → group chat)
+- ⏳ @mccarthy AI command parsing
+- ⏳ Notification system (badges, desktop)
+
+---
+
+### **11. Task Management System (0% Complete) 🚨 SUPER IMPORTANT**
+
+**Status:** 🚧 **IN DEVELOPMENT**
+
+**Architecture:** See `TASK_MANAGEMENT_ARCHITECTURE.md`
+
+**Core Features:**
+- ⏳ Task creation, assignment, completion
+- ⏳ Priority levels (low, medium, high, urgent)
+- ⏳ Deadline management
+- ⏳ Task creation from tickets & group chat
+- ⏳ Task linking to tickets
+- ⏳ Task comments & history
+- ⏳ Task reassignment & reopening
+
+**McCarthy AI - Task Manager:**
+- ⏳ Deadline monitoring (every 5 mins)
+- ⏳ Reminder notifications (1hr, 30min warnings)
+- ⏳ Overdue task escalation
+- ⏳ Daily task digest (8am daily)
+- ⏳ Smart task prioritization
+- ⏳ AI task execution (when assigned to McCarthy)
+
+**Integration Points:**
+- ⏳ @Mentions system (task assignments)
+- ⏳ Group Chat (quick task creation)
+- ⏳ Tickets (task creation from staff notes)
+- ⏳ Notifications (desktop + email)
+
+**Estimated Time:** 38 hours (4-5 days)
+
+---
+
 ## ❌ **WHAT'S OUTSTANDING**
 
-### **🔴 PHASE 8: ADVANCED FEATURES (20% Remaining)**
+### **🚨 PHASE 8: TASK MANAGEMENT SYSTEM (SUPER IMPORTANT!)**
 
 | # | Task | Time | Status | Notes |
 |---|------|------|--------|-------|
-| ~~8.1~~ | ~~Callback Feature (Form-Based)~~ | ~~4h~~ | ✅ **DONE** | **Completed Dec 6, 2025** |
-| 8.2 | Post-Chat Survey | 2h | ⏳ Ready | Thumbs up/down in widget |
-| 8.3 | Typing Indicators | 2h | ⏳ Ready | 3 dancing balls |
-| ~~8.4~~ | ~~Vector Embeddings for RAG~~ | ~~6h~~ | ✅ **DONE** | **Completed Dec 5, 2025** |
-| 8.5 | Mobile Responsiveness | 4h | ⏳ Ready | Dashboard optimization |
-| 8.6 | File Attachments UI | 3h | ⏳ Ready | Backend done |
+| 8.1 | Database Schema & Migration | 2h | ⏳ Ready | 4 tables: tasks, task_comments, task_history, task_reminders |
+| 8.2 | Backend API (CRUD) | 6h | ⏳ Ready | All task endpoints |
+| 8.3 | Tasks Page UI | 8h | ⏳ Ready | List + detail views, filters |
+| 8.4 | Task Creation Integration | 4h | ⏳ Ready | From tickets, group chat, standalone |
+| 8.5 | McCarthy AI - Deadline Monitor | 4h | ⏳ Ready | Cron job (every 5 mins) |
+| 8.6 | McCarthy AI - Reminders | 3h | ⏳ Ready | 1hr, 30min, overdue alerts |
+| 8.7 | McCarthy AI - Daily Digest | 2h | ⏳ Ready | 8am daily summary |
+| 8.8 | McCarthy AI - Task Executor | 6h | ⏳ Ready | Execute assigned tasks |
+| 8.9 | Task Comments & History | 2h | ⏳ Ready | Collaboration features |
+| 8.10 | Analytics & Reporting | 1h | ⏳ Ready | Performance metrics |
+
+**Total:** 38 hours (4-5 days)
+
+**Priority:** 🚨 **HIGHEST - BUILD NOW!**
+
+---
+
+### **🔴 PHASE 9: ADVANCED FEATURES (20% Remaining)**
+
+| # | Task | Time | Status | Notes |
+|---|------|------|--------|-------|
+| ~~9.1~~ | ~~Callback Feature (Form-Based)~~ | ~~4h~~ | ✅ **DONE** | **Completed Dec 6, 2025** |
+| 9.2 | Post-Chat Survey | 2h | ⏳ Ready | Thumbs up/down in widget |
+| 9.3 | Typing Indicators | 2h | ⏳ Ready | 3 dancing balls |
+| ~~9.4~~ | ~~Vector Embeddings for RAG~~ | ~~6h~~ | ✅ **DONE** | **Completed Dec 5, 2025** |
+| 9.5 | Mobile Responsiveness | 4h | ⏳ Ready | Dashboard optimization |
+| 9.6 | File Attachments UI | 3h | ⏳ Ready | Backend done |
 
 **Total:** 11 hours (1-2 days)
 
 ---
 
-### **🟡 PHASE 9: INTEGRATIONS (Not Started)**
+### **🟡 PHASE 10: INTEGRATIONS (Not Started)**
 
 | # | Task | Time | Status | Notes |
 |---|------|------|--------|-------|
-| 9.1 | Shopify Integration | 15h | ✅ Complete | Order lookups, navigation, product metadata |
-| 9.2 | PERP Integration | 10h | ⏳ Ready | Production status |
-| 9.3 | WhatsApp Integration | 8h | ⏳ Ready | Twilio |
-| 9.4 | Instagram DM Integration | 8h | ⏳ Ready | Meta Graph API |
-| 9.5 | Facebook Messenger | 8h | ⏳ Ready | Meta Platform |
+| 10.1 | Shopify Integration | 15h | ✅ Complete | Order lookups, navigation, product metadata |
+| 10.2 | PERP Integration | 10h | ⏳ Ready | Production status |
+| 10.3 | WhatsApp Integration | 8h | ⏳ Ready | Twilio |
+| 10.4 | Instagram DM Integration | 8h | ⏳ Ready | Meta Graph API |
+| 10.5 | Facebook Messenger | 8h | ⏳ Ready | Meta Platform |
 
 **Total:** 49 hours (1-2 weeks)
 

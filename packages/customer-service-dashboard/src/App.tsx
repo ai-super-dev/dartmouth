@@ -24,6 +24,7 @@ import MyAccountPage from './pages/MyAccountPage'
 import IntegrationsPage from './pages/IntegrationsPage'
 import ShopifyIntegrationPage from './pages/ShopifyIntegrationPage'
 import GroupChatPage from './pages/GroupChatPage'
+import GroupChatSettingsPage from './pages/GroupChatSettingsPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -66,6 +67,7 @@ function App() {
           <Route path="chat-ticket/:id" element={<ChatTicketDetailPage />} />
           {/* Group Chat */}
           <Route path="group-chat" element={<GroupChatPage />} />
+          <Route path="settings/group-chat" element={<GroupChatSettingsPage />} />
           {/* Integrations */}
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings/integrations/shopify" element={<ShopifyIntegrationPage />} />

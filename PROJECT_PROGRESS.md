@@ -1,9 +1,9 @@
 # Dartmouth OS - Customer Service System
 ## Project Progress Tracker
 
-**Last Updated**: December 6, 2025, 2:00 AM AEST  
+**Last Updated**: December 6, 2025, 10:50 PM AEST  
 **Overall Progress**: 99% Complete  
-**Status**: ✅ Group Chat System COMPLETE!
+**Status**: ✅ Mentions Mark as Read/Unread Fixed! ⚠️ Security Issue Identified!
 
 ---
 
@@ -377,19 +377,27 @@ McCarthy AI Dartmouth OS is now a fully functional customer service platform wit
 
 ## Known Issues
 
-### Critical
-None! 🎉
+### 🔴 Critical - SECURITY
+1. **PASSWORD SECURITY - MUST FIX BEFORE PRODUCTION** ⚠️
+   - **Issue**: Plain text password comparison in authentication
+   - **Location**: `packages/worker/src/controllers/auth.ts` lines 12-16
+   - **Risk**: HIGH - All staff passwords stored/compared as plain text
+   - **Fix Required**: Implement bcrypt/argon2 hashing with Web Crypto API
+   - **Impact**: All staff accounts need password reset after fix
+   - **Current Workaround**: Password must match `password_hash` field exactly
 
 ### High Priority
 1. **Mobile Responsiveness**: Dashboard needs mobile optimization
+2. **Mentions Mark as Read**: Admins can't mark other staff's mentions (security by design, may want to allow)
 
 ### Medium Priority
-1. **Typing Indicators**: Not implemented for chat
+1. **Typing Indicators**: Not implemented for regular chat messages
 2. **Post-Chat Survey**: Not implemented
+3. **Mentions Notifications**: No push/email notifications when mentioned
 
 ### Low Priority
 1. **File Attachments UI**: Backend done, UI pending
-2. **Group Chat**: Internal team chat not started
+2. ✅ ~~**Group Chat**~~ - COMPLETE! Internal team chat with file attachments
 3. ✅ ~~**Shopify Integration**~~ - COMPLETE! (Connected, order navigation, product metadata)
 
 ---
@@ -444,6 +452,47 @@ None! 🎉
 11. ⏳ **Shopify data formatting** - Reformat preview/edit links display
 12. ⏳ **Shopify URL shortener** - Add URL shortener + hyperlinks for response area
 13. ⏳ **Shopify config page** - Create UI to configure what to show/hide and formatting
+
+---
+
+## 🎯 FUTURE FEATURES - @MENTIONS SYSTEM (Documented Dec 6, 2025)
+
+### **Phase 1: Basic @mentions in Group Chat** (4 hours)
+- ⏳ Parse @mentions in messages (`@all`, `@staffname`)
+- ⏳ Create `mentions` database table
+- ⏳ Display highlighted @mentions in messages
+- ⏳ Basic autocomplete dropdown when typing `@`
+
+### **Phase 2: @Mentions Page** (6 hours)
+- ⏳ Build dual-pane UI (list + details)
+- ⏳ Implement filters (channel, staff, time, status)
+- ⏳ Mark as read/unread functionality
+- ⏳ Link to tickets/channels from mentions
+
+### **Phase 3: Cross-System Mentions** (4 hours)
+- ⏳ Ticket Staff Notes → Group chat auto-posting
+- ⏳ Context preservation (ticket info, customer name)
+- ⏳ Direct ticket linking from mentions
+
+### **Phase 4: McCarthy AI Integration** (8 hours)
+- ⏳ Parse `@mccarthy` commands
+- ⏳ Implement AI actions:
+  - Send message to customer via ticket
+  - Draft email for review
+  - Schedule callback
+  - Update customer on order status
+  - Fetch Shopify data
+- ⏳ Notification system when AI completes tasks
+- ⏳ Error handling and fallbacks
+
+### **Phase 5: Notifications** (3 hours)
+- ⏳ In-app badges (unread count)
+- ⏳ Desktop notifications
+- ⏳ Email digests (optional)
+
+**Total Estimated Time:** 25 hours  
+**Status:** 📋 Fully documented, ready for implementation  
+**Documentation:** See `GROUP_CHAT_ARCHITECTURE.md` for complete specification
 
 ---
 
@@ -542,4 +591,74 @@ Then open: http://localhost:5173/
 
 ---
 
-*Last Updated: December 6, 2025, 12:45 AM AEST*
+---
+
+## December 6, 2025 (10:50 PM AEST) - MENTIONS MARK AS READ/UNREAD FIXED! ⚠️
+
+### **Bug Fixes & Security Issues**
+
+**✅ Mentions Mark as Read/Unread - FIXED:**
+- Fixed optimistic update using wrong queryKey (wasn't including filter parameters)
+- Removed auto-mark-as-read behavior when clicking mentions in list
+- Both left column (list) and right column (detail) now update correctly
+- Changes persist after page refresh (when marking own mentions)
+- Issue: Admins viewing "All Mentions" can't mark other staff's mentions as read (security restriction)
+
+**⚠️ CRITICAL SECURITY ISSUE IDENTIFIED:**
+- **Password Storage:** Currently using PLAIN TEXT password comparison
+- **Location:** `packages/worker/src/controllers/auth.ts` line 12-16
+- **Risk:** HIGH - Passwords stored as plain text in database
+- **Impact:** All staff accounts vulnerable
+- **Fix Required:** Implement proper bcrypt/argon2 hashing
+- **Temporary Workaround:** Password must match `password_hash` field exactly
+- **Status:** ⚠️ MUST FIX BEFORE PRODUCTION
+
+**Files Modified:**
+- `packages/customer-service-dashboard/src/pages/MentionsPage.tsx` - Fixed queryKey in mutations
+
+**Deployment:**
+- ✅ Dashboard deployed: https://master.dartmouth-os-dashboard.pages.dev
+
+**Testing Notes:**
+- Tested as admin viewing all mentions (can't mark others' mentions)
+- Need to test as regular user (Gaille) to verify full functionality
+- Gaille's test password: `test123`
+
+---
+
+## December 6, 2025 (8:30 AM AEST) - @MENTIONS SYSTEM DOCUMENTED! 🎯
+
+### **Major Planning Session**
+
+**@Mentions System Specification Complete:**
+- ✅ Comprehensive architecture documented in `GROUP_CHAT_ARCHITECTURE.md`
+- ✅ Three mention types defined: `@all`, `@staffmembername`, `@mccarthy`
+- ✅ Cross-system mentions (Ticket Notes → Group Chat)
+- ✅ Dual-pane @Mentions page designed
+- ✅ McCarthy AI integration planned (send messages, draft emails, schedule callbacks)
+- ✅ Database schema designed (`mentions` table)
+- ✅ API endpoints specified
+- ✅ Frontend components planned
+- ✅ Notification system designed
+- ✅ 5-phase implementation plan (25 hours estimated)
+
+**Key Features:**
+1. **@all** - Notify everyone in channel
+2. **@gaille** - Notify specific staff member
+3. **@mccarthy** - AI agent instructions
+4. **Ticket Staff Notes** - Mentions auto-post to group chat
+5. **@Mentions Page** - Dual-pane interface with filters
+6. **Smart Filtering** - By channel, staff, time, status
+7. **AI Actions** - McCarthy can send messages, draft emails, schedule callbacks
+
+**Example Use Cases:**
+- `@cs @gaille the customers package arrived damaged, can someone organise a reprint please`
+- `@mccarthy please get back to the customer via TKT-000261 and give her the tracking link`
+- `@mccarthy draft an email and notify me when ready for review`
+- `@mccarthy schedule a callback for me with Jane and TKT-000261`
+
+**Status:** 📋 Fully documented and ready for implementation
+
+---
+
+*Last Updated: December 6, 2025, 8:30 AM AEST*

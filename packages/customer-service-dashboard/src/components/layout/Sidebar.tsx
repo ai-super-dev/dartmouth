@@ -396,7 +396,6 @@ export default function Sidebar({
             onToggle={() => setIsGroupChatExpanded(!isGroupChatExpanded)}
           >
             <SubNavLink to="/group-chat">All Chats</SubNavLink>
-            <SubNavLink to="/notifications">Notifications</SubNavLink>
             <SubNavLink to="/mentions">@Mentions</SubNavLink>
           </CollapsibleSection>
 
@@ -502,6 +501,9 @@ export default function Sidebar({
               )}
             </div>
             
+            {/* Group Chat Settings */}
+            <SubNavLink to="/settings/group-chat">Group Chat</SubNavLink>
+
             {/* Integrations submenu */}
             <div className="mb-1">
               <button
