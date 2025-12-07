@@ -1,9 +1,9 @@
 # Dartmouth OS - Customer Service System
 ## Project Progress Tracker
 
-**Last Updated**: December 6, 2025, 10:50 PM AEST  
+**Last Updated**: December 7, 2025, 11:15 AM AEST  
 **Overall Progress**: 99% Complete  
-**Status**: ✅ Mentions Mark as Read/Unread Fixed! ⚠️ Security Issue Identified!
+**Status**: ✅ Mentions Page UI Overhaul Complete! 🎨 Group Chat Enhancements! ⚠️ Security Issue Documented!
 
 ---
 
@@ -240,6 +240,46 @@ McCarthy AI Dartmouth OS is now a fully functional customer service platform wit
 ---
 
 ## Recent Achievements
+
+### December 7, 2025 (11:15 AM) - MENTIONS PAGE UI OVERHAUL & GROUP CHAT ENHANCEMENTS! 🎨
+
+**MENTIONS PAGE - COMPLETE REDESIGN:**
+- ✅ **Pill-based layout** - Modern pill design for all metadata
+  - #Channel pill (indigo) - Shows group chat channel or ticket number
+  - @Mention by {Name} pill (soft orange) - Shows who mentioned you
+  - Date/Time pill (slate grey) - Full date/time format
+  - Read/Unread pill (blue/emerald) - Clear status indicator
+- ✅ **Two-row header layout** - Pills on top row, buttons on bottom row
+- ✅ **List view redesign** - Same pill layout in left column
+- ✅ **Visual status indicators** - Blue background for unread, grey for read
+- ✅ **Selected mention highlighting** - Border shows which mention is selected
+- ✅ **No spacing issues** - Columns perfectly aligned with no gaps
+- ✅ **@ticket links** - Open in new tab with auto-search and auto-navigate
+- ✅ **"Go to Chat" feature** - Navigates to exact message with yellow highlight
+- ✅ **Auto-scroll** - Scrolls to highlighted message in group chat
+- ✅ **Timed highlight** - Yellow highlight fades after 5 seconds
+
+**GROUP CHAT ENHANCEMENTS:**
+- ✅ **Selected channel highlighting** - Indigo background + border for active channel
+- ✅ **Message highlighting** - Yellow background for linked messages from mentions
+- ✅ **Auto-scroll to message** - Smooth scroll to center highlighted message
+- ✅ **Date formatting** - Full date/time for old messages, time only for today
+- ✅ **@ticket links** - Clickable ticket references that open in new tab
+
+**TICKET SEARCH IMPROVEMENTS:**
+- ✅ **Auto-navigate** - Single search result auto-opens ticket detail page
+- ✅ **Multiple format support** - Works with "254", "TKT-254", "TKT-000254"
+- ✅ **URL parameter handling** - Populates search from URL query string
+- ✅ **Smart matching** - Strips leading zeros and TKT- prefix for matching
+
+**FILES MODIFIED:**
+- `packages/customer-service-dashboard/src/pages/MentionsPage.tsx` - Complete UI redesign
+- `packages/customer-service-dashboard/src/pages/GroupChatPage.tsx` - Message highlighting + channel selection
+- `packages/customer-service-dashboard/src/pages/TicketsPage.tsx` - Auto-navigate + search improvements
+
+**DEPLOYMENT:**
+- ✅ Dashboard deployed: https://master.dartmouth-os-dashboard.pages.dev
+- ✅ All features tested and working in production
 
 ### December 6, 2025 (2:00 AM) - GROUP CHAT SYSTEM COMPLETE! 💬
 - ✅ **GROUP CHAT ARCHITECTURE**: Comprehensive planning document created

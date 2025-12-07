@@ -177,6 +177,15 @@ export default function TicketsPage() {
     }
   }, [searchParams, user?.id])
 
+  // Handle search parameter from URL (e.g., from @ticket links)
+  useEffect(() => {
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+      setSearchOpen(true)
+    }
+  }, [searchParams])
+
   const { data, isLoading } = useQuery({
     queryKey: ['tickets-all'], // Fetch all tickets once, filter client-side
     queryFn: async () => {
@@ -186,6 +195,43 @@ export default function TicketsPage() {
     },
     refetchInterval: 30000,
   })
+
+  // Auto-navigate to ticket if search yields exactly one result
+  useEffect(() => {
+    if (searchQuery.trim() && data && data.length > 0) {
+      const query = searchQuery.trim()
+      
+      // Try to match ticket number - handle both "TKT-254" and "254" formats
+      let matchingTickets = data.filter((t: any) => {
+        if (!t.ticket_number) return false
+        
+        const ticketNum = t.ticket_number.toLowerCase()
+        const searchLower = query.toLowerCase()
+        
+        // Direct match
+        if (ticketNum === searchLower) return true
+        
+        // Match just the number part (e.g., "254" matches "TKT-000254")
+        const numOnly = t.ticket_number.replace(/\D/g, '').replace(/^0+/, '')
+        const searchNumOnly = query.replace(/\D/g, '').replace(/^0+/, '')
+        if (numOnly === searchNumOnly && searchNumOnly.length > 0) return true
+        
+        // Partial match
+        if (ticketNum.includes(searchLower)) return true
+        
+        return false
+      })
+      
+      // If exactly one ticket found and it has a valid ID, auto-navigate
+      if (matchingTickets.length === 1 && matchingTickets[0].id) {
+        const ticket = matchingTickets[0]
+        // Use setTimeout to avoid navigation during render
+        setTimeout(() => {
+          window.location.href = `/tickets/${ticket.id}`
+        }, 500)
+      }
+    }
+  }, [searchQuery, data])
 
   // Fetch staff list for dropdown
   const { data: staffData } = useQuery({
@@ -288,24 +334,26 @@ export default function TicketsPage() {
   if (searchQuery.trim()) {
     const query = searchQuery.trim()
     
-    // Check if it's a comma-separated list of ticket numbers (e.g., "112, 119, 122")
-    const isTicketNumberList = /^[\d,\s]+$/.test(query)
+    // Check if it's a ticket number search (e.g., "254", "TKT-254", "112, 119, 122")
+    const isTicketNumberSearch = /^(TKT-)?[\d,\s-]+$/.test(query)
     
-    if (isTicketNumberList) {
-      // Parse comma-separated ticket numbers
+    if (isTicketNumberSearch) {
+      // Parse ticket numbers (handle comma-separated and single tickets)
       const ticketNumbers = query
+        .replace(/TKT-/gi, '') // Remove TKT- prefix
         .split(',')
-        .map(n => n.trim())
+        .map(n => n.trim().replace(/\D/g, '')) // Remove non-digits
         .filter(n => n.length > 0)
       
       tickets = tickets.filter((t: any) => {
         // Extract just the number part from ticket_number (e.g., "TKT-000112" -> "112")
         const ticketNum = t.ticket_number?.replace(/\D/g, '').replace(/^0+/, '') || ''
-        return ticketNumbers.some(searchNum => 
-          ticketNum === searchNum || 
-          ticketNum.endsWith(searchNum) ||
-          t.ticket_number?.includes(searchNum)
-        )
+        return ticketNumbers.some(searchNum => {
+          const cleanSearchNum = searchNum.replace(/^0+/, '')
+          return ticketNum === cleanSearchNum || 
+                 ticketNum.endsWith(cleanSearchNum) ||
+                 t.ticket_number?.toLowerCase().includes(searchNum.toLowerCase())
+        })
       })
     } else {
       // Regular text search

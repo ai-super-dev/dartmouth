@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { groupChatApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File, Pencil, Trash2, Smile } from 'lucide-react';
@@ -46,10 +47,12 @@ interface Member {
 export default function GroupChatPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showNewChannelModal, setShowNewChannelModal] = useState(false);
@@ -84,6 +87,32 @@ export default function GroupChatPage() {
       setActiveChannelId(channels[0].id);
     }
   }, [channels, activeChannelId]);
+
+  // Handle URL parameters for channel and message highlighting
+  useEffect(() => {
+    const channelParam = searchParams.get('channel');
+    const messageParam = searchParams.get('message');
+    
+    if (channelParam) {
+      setActiveChannelId(channelParam);
+    }
+    
+    if (messageParam) {
+      setHighlightedMessageId(messageParam);
+      // Scroll to the message after a short delay to ensure it's rendered
+      setTimeout(() => {
+        const messageElement = document.getElementById(`message-${messageParam}`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+      
+      // Clear highlight after 5 seconds
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 5000);
+    }
+  }, [searchParams]);
 
   // Fetch messages for active channel
   const { data: messagesData } = useQuery({
@@ -280,7 +309,7 @@ export default function GroupChatPage() {
         return (
           <a
             key={index}
-            href={`/tickets/${ticketNum}`}
+            href={`/tickets?search=TKT-${ticketNum}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
@@ -328,10 +357,10 @@ export default function GroupChatPage() {
               <button
                 key={channel.id}
                 onClick={() => setActiveChannelId(channel.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors border ${
                   activeChannelId === channel.id
-                    ? 'bg-gray-100 text-gray-900 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-indigo-50 text-indigo-900 font-semibold border-indigo-300'
+                    : 'text-gray-700 hover:bg-gray-50 border-transparent'
                 }`}
               >
                 <Hash className="w-4 h-4 flex-shrink-0" />
@@ -379,9 +408,18 @@ export default function GroupChatPage() {
                 const isOwnMessage = message.sender_id === user?.id;
                 const reactions = message.reactions ? JSON.parse(message.reactions) : [];
                 const isEditing = editingMessageId === message.id;
+                const isHighlighted = highlightedMessageId === message.id;
 
                 return (
-                  <div key={message.id} className="group flex gap-3 hover:bg-gray-50 -mx-2 px-2 py-1 rounded">
+                  <div 
+                    key={message.id} 
+                    id={`message-${message.id}`}
+                    className={`group flex gap-3 -mx-2 px-2 py-1 rounded transition-all duration-300 ${
+                      isHighlighted 
+                        ? 'bg-yellow-100 border-l-4 border-yellow-500 pl-1' 
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-semibold">
