@@ -149,6 +149,154 @@ export async function chat(c: Context<{ Bindings: Env }>) {
 }
 
 /**
+ * Get Chat History
+ * GET /api/pa-ai/chat/history
+ * 
+ * Retrieves chat history for the authenticated user
+ */
+export async function getChatHistory(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as { id: string; email: string; role: string };
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
+
+    // Get chat history from database
+    try {
+      const result = await c.env.DB.prepare(`
+        SELECT id, session_id, question, answer, created_at, metadata
+        FROM pa_ai_chat_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(user.id, limit, offset).all();
+
+      const totalResult = await c.env.DB.prepare(`
+        SELECT COUNT(*) as total
+        FROM pa_ai_chat_history
+        WHERE user_id = ?
+      `).bind(user.id).first();
+
+      const total = (totalResult?.total as number) || 0;
+
+      // Parse metadata JSON strings
+      const history = result.results.map((row: any) => ({
+        id: row.id,
+        sessionId: row.session_id,
+        question: row.question,
+        answer: row.answer,
+        createdAt: row.created_at,
+        metadata: row.metadata ? JSON.parse(row.metadata) : null,
+      }));
+
+      console.log('[PA_AI Chat History] Retrieved chat history:', {
+        userId: user.id,
+        count: history.length,
+        total,
+      });
+
+      return c.json({
+        success: true,
+        history,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + limit < total,
+        },
+      });
+    } catch (dbError) {
+      console.error('[PA_AI Chat History] Database error:', dbError);
+      // Check if table doesn't exist
+      if (dbError instanceof Error && dbError.message.includes('no such table')) {
+        return c.json({
+          error: 'Chat history table does not exist. Please run the migration SQL first.',
+          details: 'See migration-pa-ai-chat-history.sql'
+        }, 500);
+      }
+      throw dbError;
+    }
+  } catch (error) {
+    console.error('[PA_AI Chat History] Error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+}
+
+/**
+ * Save Chat History
+ * POST /api/pa-ai/chat/history
+ * 
+ * Saves a Q&A pair to chat history (called when TTS starts speaking)
+ */
+export async function saveChatHistory(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as { id: string; email: string; role: string };
+    const body = await c.req.json();
+    const { question, answer, sessionId, metadata } = body;
+
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      return c.json({ error: 'Question is required' }, 400);
+    }
+
+    if (!answer || typeof answer !== 'string' || answer.trim().length === 0) {
+      return c.json({ error: 'Answer is required' }, 400);
+    }
+
+    // Generate unique ID for this chat history entry
+    const id = `chat-${user.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    // Save to database
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO pa_ai_chat_history (
+          id, user_id, session_id, question, answer, created_at, updated_at, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        user.id,
+        sessionId || null,
+        question.trim(),
+        answer.trim(),
+        now,
+        now,
+        metadata ? JSON.stringify(metadata) : null
+      ).run();
+
+      console.log('[PA_AI Chat History] Saved chat history:', {
+        id,
+        userId: user.id,
+        sessionId,
+        questionLength: question.length,
+        answerLength: answer.length,
+      });
+
+      return c.json({
+        success: true,
+        id,
+        message: 'Chat history saved successfully',
+      });
+    } catch (dbError) {
+      console.error('[PA_AI Chat History] Database error:', dbError);
+      // Check if table doesn't exist
+      if (dbError instanceof Error && dbError.message.includes('no such table')) {
+        return c.json({
+          error: 'Chat history table does not exist. Please run the migration SQL first.',
+          details: 'See migration-pa-ai-chat-history.sql'
+        }, 500);
+      }
+      throw dbError;
+    }
+  } catch (error) {
+    console.error('[PA_AI Chat History] Error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+}
+
+/**
  * Voice Chat (audio file upload)
  * POST /api/pa-ai/chat/voice
  * 

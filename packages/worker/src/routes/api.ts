@@ -65,6 +65,8 @@ export function createAPIRouter() {
   // Chat (text and voice)
   app.post('/api/pa-ai/chat', authenticate, paAiChatController.chat);
   app.post('/api/pa-ai/chat/voice', authenticate, paAiChatController.voiceChat);
+  app.get('/api/pa-ai/chat/history', authenticate, paAiChatController.getChatHistory);
+  app.post('/api/pa-ai/chat/history', authenticate, paAiChatController.saveChatHistory);
 
   // ========================================================================
   // TICKETS ROUTES
