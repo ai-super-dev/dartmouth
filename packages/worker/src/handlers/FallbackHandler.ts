@@ -74,18 +74,20 @@ export class FallbackHandler implements Handler {
       };
     }
 
-    // First message - use generic fallback
-    const responseText = this.getFallbackResponse(message, intent);
+    // First message - request LLM fallback for intelligent response
+    console.log('[FallbackHandler] Unknown intent - requesting LLM fallback');
 
     return {
-      content: responseText,
+      content: '', // Empty content triggers LLM fallback
       metadata: {
         handlerName: this.name,
         handlerVersion: this.version,
         processingTime: Date.now() - startTime,
         cached: false,
         confidence: 0.5,
-        contextAware: false
+        contextAware: false,
+        useLLMFallback: true, // Explicitly request LLM to handle this
+        intentType: intent.type
       },
       suggestions: [
         {

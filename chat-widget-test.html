@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Widget Test - Direct to Film Australia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            color: #667eea;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Welcome to Direct to Film Australia</h1>
+        <p>This is a test page for the McCarthy AI Chat Widget.</p>
+        
+        <div class="test-section">
+            <h2>Test Instructions:</h2>
+            <ol>
+                <li>Look for the chat widget in the bottom-right corner</li>
+                <li>Click to open the chat</li>
+                <li>Try asking: "What printing services do you offer?"</li>
+                <li>Test the callback request feature</li>
+                <li>Check if "__SHOW_CALLBACK_FORM__" is replaced with "CALL BACK REQUEST"</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h2>About Our Services:</h2>
+            <p>Direct to Film Australia specializes in high-quality DTF printing services for custom apparel and merchandise. Our advanced printing technology ensures vibrant colors and long-lasting results.</p>
+        </div>
+    </div>
+
+    <!-- McCarthy AI Chat Widget -->
+    <script src="https://dartmouth-os-worker.dartmouth.workers.dev/api/chat-widget/widget.js" data-api-url="https://dartmouth-os-worker.dartmouth.workers.dev"></script>
+</body>
+</html>
+

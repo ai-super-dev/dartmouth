@@ -6,7 +6,7 @@
 // For now, we'll define the types locally until we set up proper workspace linking
 // TODO: Import from @agent-army/shared once workspace is configured
 
-import type { D1Database, KVNamespace, R2Bucket, Ai } from '@cloudflare/workers-types';
+import type { D1Database, KVNamespace, R2Bucket, Ai, VectorizeIndex } from '@cloudflare/workers-types';
 
 /**
  * Environment bindings for Cloudflare Worker
@@ -19,11 +19,15 @@ export interface Env {
   APP_CONFIG: KVNamespace;
   CACHE: KVNamespace;
   
-  // R2 Bucket
+  // R2 Buckets
   FILES: R2Bucket;
+  ATTACHMENTS: R2Bucket;
   
   // Workers AI
   WORKERS_AI: Ai;
+  
+  // Vectorize (RAG Vector Database)
+  VECTORIZE: VectorizeIndex;
   
   // Environment Variables
   ENVIRONMENT?: string;

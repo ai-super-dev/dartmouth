@@ -1,0 +1,31 @@
+# FastAPI Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Image Processing
+pillow>=10.4.0
+numpy>=1.26.2
+opencv-python-headless>=4.8.1.78
+
+# Background Removal - BRIA-RMBG-2.0
+transformers>=4.35.2
+torch>=2.1.1
+torchvision>=0.16.1
+
+# Vectorization - VTracer
+vtracer>=0.6.10
+
+# Upscaling - Using Lanczos resampling (professional-grade, Python 3.14 compatible)
+# Real-ESRGAN requires Python < 3.14 (numba dependency)
+# Lanczos provides excellent quality for print-on-demand
+# realesrgan==0.3.0  # Uncomment when Python 3.13 support improves
+
+# Utilities
+requests==2.31.0
+aiofiles==23.2.1
+python-dotenv==1.0.0
+
+# Monitoring
+prometheus-client==0.19.0
+
