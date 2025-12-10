@@ -29,6 +29,9 @@ import GroupChatSettingsPage from './pages/GroupChatSettingsPage'
 import TagsPage from './pages/TagsPage'
 import TasksDashboardPage from './pages/TasksDashboardPage'
 import TaskManagerSettingsPage from './pages/TaskManagerSettingsPage'
+import TaskManagerDashboardPage from './pages/TaskManagerDashboardPage'
+import TaskAgentStatusPage from './pages/TaskAgentStatusPage'
+import TaskDigestPage from './pages/TaskDigestPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -55,6 +58,9 @@ function App() {
           <Route path="memo" element={<MemoPage />} />
           <Route path="tags" element={<TagsPage />} />
           <Route path="tasks" element={<TasksDashboardPage />} />
+          <Route path="task-manager/dashboard" element={<TaskManagerDashboardPage />} />
+          <Route path="task-manager/agent-status" element={<TaskAgentStatusPage />} />
+          <Route path="task-manager/digest" element={<TaskDigestPage />} />
           <Route path="settings/task-manager" element={<TaskManagerSettingsPage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
           <Route path="settings" element={<SettingsHubPage />} />
