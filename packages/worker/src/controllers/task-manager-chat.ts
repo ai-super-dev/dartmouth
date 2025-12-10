@@ -5,7 +5,7 @@
 
 import type { Context } from 'hono';
 import type { Env } from '../types/shared';
-import { TaskManagerAIService } from '../services/TaskManagerAIService';
+import { TaskManagerAIServiceV2 } from '../services/TaskManagerAIServiceV2';
 
 /**
  * Send a message to Task Manager AI
@@ -32,8 +32,8 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
 
     const staffName = `${staff.first_name} ${staff.last_name}`;
 
-    // Initialize Task Manager AI service
-    const taskManagerAI = new TaskManagerAIService(c.env);
+    // Initialize Task Manager AI service V2 (with VectorRAG)
+    const taskManagerAI = new TaskManagerAIServiceV2(c.env);
 
     // Process the message
     const response = await taskManagerAI.processMessage(
@@ -50,7 +50,11 @@ export async function sendMessage(c: Context<{ Bindings: Env }>) {
 
     return c.json({
       success: true,
-      response,
+      response: {
+        message: response.message,
+        sessionId: response.sessionId,
+        metadata: response.metadata,
+      },
     });
   } catch (error: any) {
     console.error('Error sending message to Task Manager AI:', error);
@@ -228,11 +232,12 @@ export async function executeAction(c: Context<{ Bindings: Env }>) {
 
     const { confirmed } = body;
 
-    // Initialize Task Manager AI service
-    const taskManagerAI = new TaskManagerAIService(c.env);
-
-    // Execute the action
-    const result = await taskManagerAI.executeAction(actionId, user.id, confirmed);
+    // TODO: Implement action execution with new agent architecture
+    // For now, return not implemented
+    return c.json({
+      success: false,
+      error: 'Action execution not yet implemented in V2',
+    }, 501);
 
     return c.json({
       success: true,

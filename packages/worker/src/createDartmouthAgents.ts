@@ -6,6 +6,7 @@ import type { Agent } from '../../dartmouth-core/src/types';
 import { DartmouthAgentAdapter } from './DartmouthAgentAdapter';
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { McCarthyArtworkAgent } from '../../mccarthy-artwork/src/McCarthyArtworkAgent';
+import { TaskManagerAIAgent } from './agents/TaskManagerAIAgent';
 import type { AgentConfig } from './types/shared';
 
 /**
@@ -66,6 +67,47 @@ export function createArtworkAnalyzerAgent(config: BaseAgentConfig): Agent {
 }
 
 /**
+ * Create McCarthy Task Manager AI Agent
+ */
+export function createTaskManagerAIAgent(config: BaseAgentConfig): Agent {
+  // Create specialized BaseAgentConfig for TaskManagerAIAgent
+  const taskManagerConfig: BaseAgentConfig = {
+    ...config,
+    agentId: 'mccarthy-task-manager',
+    agentConfig: {
+      ...config.agentConfig,
+      agentId: 'mccarthy-task-manager',
+      name: 'McCarthy Task Manager AI',
+      description: 'Intelligent AI coordinator for task management and team coordination',
+      version: '2.0.0',
+      systemPrompt: '', // TaskManagerAIAgent sets its own system prompt
+    },
+  };
+
+  // Create TaskManagerAIAgent instance (extends BaseAgent with VectorRAG)
+  const taskManagerAgent = new TaskManagerAIAgent(taskManagerConfig);
+
+  // Wrap with Dartmouth adapter
+  return new DartmouthAgentAdapter(taskManagerAgent, {
+    id: 'mccarthy-task-manager',
+    name: 'McCarthy Task Manager AI',
+    version: '2.0.0',
+    description: 'Intelligent AI coordinator for task management and team coordination',
+    capabilities: [
+      { name: 'conversation', description: 'Natural conversation with context and memory', enabled: true },
+      { name: 'sentiment', description: 'Sentiment analysis and emotion detection', enabled: true },
+      { name: 'memory', description: 'Long-term conversation memory', enabled: true },
+      { name: 'intent', description: 'Intent detection and classification', enabled: true },
+      { name: 'task-creation', description: 'Natural language task creation', enabled: true },
+      { name: 'task-query', description: 'Task status and progress queries', enabled: true },
+      { name: 'workload-analysis', description: 'Team workload analysis', enabled: true },
+      { name: 'rlhf', description: 'Learning from staff feedback', enabled: true },
+      { name: 'vector-rag', description: 'Task management knowledge base', enabled: true },
+    ],
+  });
+}
+
+/**
  * Create a test agent (for development/testing)
  */
 export function createTestAgent(config: BaseAgentConfig): Agent {
@@ -87,6 +129,7 @@ export function getAgentFactory(agentId: string): ((config: BaseAgentConfig) => 
   const factories: Record<string, (config: BaseAgentConfig) => Agent> = {
     'fam': createFAMAgent,
     'mccarthy-artwork': createArtworkAnalyzerAgent,
+    'mccarthy-task-manager': createTaskManagerAIAgent,
     'test-agent': createTestAgent,
   };
 

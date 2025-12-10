@@ -10,3 +10,4 @@ ALTER TABLE chat_messages ADD COLUMN tags TEXT;
 
 
 
+

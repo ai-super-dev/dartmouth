@@ -41,7 +41,13 @@ const createMockEnv = (): BaseAgentEnv => {
       run: vi.fn().mockResolvedValue({
         data: [[0.1, 0.2, 0.3]] // Mock embedding
       })
-    } as any
+    } as any,
+    VECTORIZE: {
+      upsert: vi.fn().mockResolvedValue({ success: true }),
+      query: vi.fn().mockResolvedValue({ matches: [] }),
+      deleteByIds: vi.fn().mockResolvedValue({ success: true })
+    } as any,
+    OPENAI_API_KEY: 'test-openai-key'
   };
 };
 
@@ -200,7 +206,13 @@ describe('BaseAgent', () => {
       await agent.processMessage('What is DPI?');
       await agent.processMessage('What is DPI?');
       
+      const state = agent.getState();
       const stats = agent.getStats();
+      
+      // Debug: Check if state has repetitionCount
+      console.log('State repetitionCount:', state?.repetitionCount);
+      console.log('Stats repetitionCount:', stats.repetitionCount);
+      
       expect(stats.repetitionCount).toBeGreaterThan(0);
     });
   });
@@ -242,19 +254,39 @@ describe('BaseAgent', () => {
     });
   });
 
-  describe('Knowledge Base', () => {
-    it('should ingest documents', async () => {
+  describe('Knowledge Base (VectorRAG)', () => {
+    it('should ingest documents using VectorRAG', async () => {
+      // Mock OpenAI embedding API
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: new Array(1536).fill(0.1) }]
+        })
+      }) as any;
+
       await expect(
-        agent.ingestDocument('Test Doc', 'This is test content')
+        agent.ingestDocument('Test Doc', 'This is test content about DPI and printing quality', 'general')
       ).resolves.not.toThrow();
     });
 
-    it('should search knowledge base', async () => {
-      await agent.ingestDocument('Test Doc', 'This is about DPI and printing');
-      
+    it('should search knowledge base using VectorRAG', async () => {
+      // Mock OpenAI embedding API
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: new Array(1536).fill(0.1) }]
+        })
+      }) as any;
+
       const results = await agent.searchKnowledge('DPI');
       expect(results).toBeDefined();
-      expect(Array.isArray(results)).toBe(true);
+      expect(results.chunks).toBeDefined();
+      expect(results.sourcesUsed).toBeDefined();
+    });
+
+    it('should provide access to VectorRAG service', () => {
+      const vectorRAG = agent.getVectorRAG();
+      expect(vectorRAG).toBeDefined();
     });
   });
 

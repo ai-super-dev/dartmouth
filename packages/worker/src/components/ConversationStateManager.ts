@@ -48,6 +48,7 @@ export class ConversationStateManager {
       intentsDetected: [],
       isRepeatDetected: false,
       isFrustrationDetected: false,
+      repetitionCount: 0,
       isGoalAchieved: false,
       needsEscalation: false,
       isMultiTurn: false,
