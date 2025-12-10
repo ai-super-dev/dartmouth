@@ -23,7 +23,7 @@ export default function TaskDigestPage() {
     queryKey: ['my-tasks'],
     queryFn: async () => {
       const response = await api.get('/api/tickets', {
-        params: { channel: 'task', assigned_to: user?.id, limit: 100 }
+        params: { channel: 'task', assignedTo: user?.id, limit: 100 }
       })
       return response.data.tickets as Task[]
     },
