@@ -247,7 +247,8 @@ export interface HandlerContext {
   env: any
   stateManager: any
   memorySystem: any
-  ragEngine: any
+  ragEngine: any // ⚠️ DEPRECATED - Use vectorRAG instead
+  vectorRAG?: any // ✅ NEW - Vector-based semantic search (optional for backwards compatibility)
   frustrationHandler: any
 }
 

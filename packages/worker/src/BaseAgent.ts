@@ -32,6 +32,7 @@ import { EmpathyInjector } from './components/EmpathyInjector';
 import { ResponseVariator } from './components/ResponseVariator';
 import { ConstraintValidator } from './components/ConstraintValidator';
 import { AgentRegistry, AgentRouter, AgentOrchestrator, LLMService } from './services';
+import { VectorRAGService } from './services/VectorRAGService';
 import { 
   GreetingHandler, 
   FallbackHandler, 
@@ -49,6 +50,7 @@ export interface BaseAgentEnv {
   CACHE: KVNamespace;
   FILES: R2Bucket;
   WORKERS_AI: Ai;
+  VECTORIZE: any; // VectorizeIndex from @cloudflare/workers-types
   OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
   GOOGLE_API_KEY?: string;
@@ -75,7 +77,8 @@ export class BaseAgent {
   private responseRouter: ResponseRouter;
   private responseValidator: ResponseValidator;
   private memorySystem: MemorySystem;
-  private ragEngine: RAGEngine;
+  private ragEngine: RAGEngine; // ⚠️ DEPRECATED - Use vectorRAG instead
+  private vectorRAG: VectorRAGService; // ✅ NEW - Vector-based semantic search
   private repetitionDetector: RepetitionDetector;
   private frustrationHandler: FrustrationHandler;
   
@@ -122,7 +125,15 @@ export class BaseAgent {
     this.responseRouter = new ResponseRouter();
     this.responseValidator = new ResponseValidator();
     this.memorySystem = new MemorySystem(config.env.APP_CONFIG, config.env.DB);
-    this.ragEngine = new RAGEngine(config.env.DB, config.env.WORKERS_AI, config.env.CACHE);
+    
+    // Initialize RAG systems
+    this.ragEngine = new RAGEngine(config.env.DB, config.env.WORKERS_AI, config.env.CACHE); // ⚠️ DEPRECATED - Kept for backwards compatibility
+    this.vectorRAG = new VectorRAGService(
+      config.env.DB,
+      config.env.VECTORIZE,
+      config.env.OPENAI_API_KEY || ''
+    ); // ✅ NEW - Vector-based semantic search
+    
     this.repetitionDetector = new RepetitionDetector();
     this.frustrationHandler = new FrustrationHandler();
     
@@ -263,6 +274,14 @@ export class BaseAgent {
   }
 
   /**
+   * Get VectorRAG service (for external RAG operations)
+   * ✅ NEW: Provides access to upgraded vector-based semantic search
+   */
+  getVectorRAG(): VectorRAGService {
+    return this.vectorRAG;
+  }
+
+  /**
    * Process a user message and return an intelligent response
    * 
    * This is the main entry point for all conversations.
@@ -345,7 +364,8 @@ export class BaseAgent {
         env: this.env,
         stateManager: this.stateManager,
         memorySystem: this.memorySystem,
-        ragEngine: this.ragEngine,
+        ragEngine: this.ragEngine, // ⚠️ DEPRECATED - Kept for backwards compatibility
+        vectorRAG: this.vectorRAG, // ✅ NEW - Vector-based semantic search
         frustrationHandler: this.frustrationHandler
       };
 
@@ -641,31 +661,35 @@ export class BaseAgent {
 
   /**
    * Ingest a document into the RAG knowledge base
+   * ✅ UPGRADED: Now uses VectorRAGService for semantic search
    */
   async ingestDocument(
     title: string,
-    content: string
+    content: string,
+    category: string = 'general'
   ): Promise<void> {
     console.log(`[BaseAgent] Ingesting document: ${title}`);
-    await this.ragEngine.ingestDocument(
-      this.agentId,
-      {
-        id: crypto.randomUUID(),
-        title,
-        content,
-        type: 'txt'
-      }
+    const documentId = crypto.randomUUID();
+    
+    // Use new VectorRAG service
+    const result = await this.vectorRAG.processDocument(
+      documentId,
+      title,
+      category,
+      content
     );
-    console.log(`[BaseAgent] Document ingested successfully`);
+    
+    console.log(`[BaseAgent] Document ingested successfully: ${result.chunksCreated} chunks, ${result.vectorsStored} vectors`);
   }
 
   /**
    * Search the knowledge base
+   * ✅ UPGRADED: Now uses VectorRAGService for semantic search
    */
   async searchKnowledge(query: string, limit: number = 5): Promise<any> {
     console.log(`[BaseAgent] Searching knowledge base: "${query}"`);
-    const results = await this.ragEngine.retrieve(query, this.agentId, limit);
-    console.log(`[BaseAgent] Found results`);
+    const results = await this.vectorRAG.search(query, limit);
+    console.log(`[BaseAgent] Found ${results.chunks.length} results from ${results.sourcesUsed.length} sources`);
     return results;
   }
 
