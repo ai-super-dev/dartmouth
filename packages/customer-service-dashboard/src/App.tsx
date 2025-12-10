@@ -29,6 +29,7 @@ import GroupChatSettingsPage from './pages/GroupChatSettingsPage'
 import TagsPage from './pages/TagsPage'
 import TasksDashboardPage from './pages/TasksDashboardPage'
 import TaskManagerSettingsPage from './pages/TaskManagerSettingsPage'
+// Task Manager imports - rebuild trigger
 import TaskManagerDashboardPage from './pages/TaskManagerDashboardPage'
 import TaskAgentStatusPage from './pages/TaskAgentStatusPage'
 import TaskDigestPage from './pages/TaskDigestPage'
