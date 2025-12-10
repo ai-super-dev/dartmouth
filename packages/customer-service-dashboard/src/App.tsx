@@ -58,9 +58,9 @@ function App() {
           <Route path="memo" element={<MemoPage />} />
           <Route path="tags" element={<TagsPage />} />
           <Route path="tasks" element={<TasksDashboardPage />} />
-          <Route path="task-manager/dashboard" element={<TaskManagerDashboardPage />} />
+          <Route path="task-manager" element={<TaskManagerDashboardPage />} />
           <Route path="task-manager/agent-status" element={<TaskAgentStatusPage />} />
-          <Route path="task-manager/digest" element={<TaskDigestPage />} />
+          <Route path="task-digest" element={<TaskDigestPage />} />
           <Route path="settings/task-manager" element={<TaskManagerSettingsPage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
           <Route path="settings" element={<SettingsHubPage />} />
