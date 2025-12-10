@@ -34,6 +34,8 @@ import * as groupChatController from '../controllers/group-chat';
 import * as memosController from '../controllers/memos';
 import * as tagsController from '../controllers/tags';
 import * as signaturesController from '../controllers/signatures';
+import * as paAiAuthController from '../controllers/pa-ai-auth';
+import * as paAiChatController from '../controllers/pa-ai-chat';
 
 /**
  * Create API router
@@ -41,8 +43,14 @@ import * as signaturesController from '../controllers/signatures';
 export function createAPIRouter() {
   const app = new Hono<{ Bindings: Env }>();
 
-  // Enable CORS
-  app.use('/*', cors());
+  // Enable CORS with explicit configuration for mobile apps
+  app.use('/*', cors({
+    origin: '*', // Allow all origins (mobile apps don't have a fixed origin)
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Type'],
+    credentials: false,
+  }));
 
   // Debug middleware to log all requests
   app.use('/*', async (c, next) => {
@@ -57,6 +65,22 @@ export function createAPIRouter() {
   app.post('/api/auth/login', authController.login);
   app.post('/api/auth/logout', authController.logout);
   app.get('/api/auth/me', authenticate, authController.me);
+
+  // ========================================================================
+  // PA_AI MOBILE APP ROUTES
+  // ========================================================================
+
+  // Authentication
+  app.post('/api/pa-ai/auth/register', paAiAuthController.register);
+  app.post('/api/pa-ai/auth/login', paAiAuthController.login);
+
+  // Profile
+  app.get('/api/pa-ai/profile', authenticate, paAiAuthController.getProfile);
+  app.put('/api/pa-ai/profile', authenticate, paAiAuthController.updateProfile);
+
+  // Chat (text and voice)
+  app.post('/api/pa-ai/chat', authenticate, paAiChatController.chat);
+  app.post('/api/pa-ai/chat/voice', authenticate, paAiChatController.voiceChat);
 
   // ========================================================================
   // TICKETS ROUTES

@@ -23,23 +23,53 @@ export class FallbackHandler implements Handler {
   ): Promise<Response> {
     const startTime = Date.now();
 
-    // UPDATED 2025-11-23: Check if we have conversation history
-    // If mid-conversation, use LLM with context instead of generic response
-    const hasContext = context.state && context.state.messages && context.state.messages.length > 1;
+    // Check if this is a self-introduction question that should use LLM
+    const lowerMessage = message.toLowerCase();
+    const selfIntroQuestions = [
+      'who are you',
+      'what are you',
+      'tell me about yourself',
+      'what\'s your name',
+      'what is your name',
+      'introduce yourself',
+      'who is mccarthy',
+      'what is mccarthy'
+    ];
     
-    if (hasContext) {
-      // Mid-conversation - use contextual response
-      const responseText = await this.generateContextualResponse(message, context);
-      
+    const isSelfIntro = selfIntroQuestions.some(question => lowerMessage.includes(question));
+    
+    if (isSelfIntro) {
+      // Self-introduction questions should ALWAYS use LLM with system prompt
+      console.log('[FallbackHandler] Self-introduction question detected, requesting LLM fallback');
       return {
-        content: responseText,
+        content: '', // Empty content signals LLM should handle this
         metadata: {
           handlerName: this.name,
           handlerVersion: this.version,
           processingTime: Date.now() - startTime,
           cached: false,
-          confidence: 0.7,
-          contextAware: true
+          confidence: 0.3,
+          useLLMFallback: true // Explicit flag to use LLM
+        }
+      };
+    }
+
+    // UPDATED 2025-11-23: Check if we have conversation history
+    // If mid-conversation, use LLM with context instead of generic response
+    const hasContext = context.state && context.state.messages && context.state.messages.length > 1;
+    
+    if (hasContext) {
+      // Mid-conversation - use LLM for better contextual responses
+      console.log('[FallbackHandler] Mid-conversation detected, requesting LLM fallback');
+      return {
+        content: '', // Empty content signals LLM should handle this
+        metadata: {
+          handlerName: this.name,
+          handlerVersion: this.version,
+          processingTime: Date.now() - startTime,
+          cached: false,
+          confidence: 0.5,
+          useLLMFallback: true // Explicit flag to use LLM
         }
       };
     }

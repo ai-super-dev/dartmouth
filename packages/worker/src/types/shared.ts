@@ -69,6 +69,9 @@ export interface Env {
   PERP_DB_USER?: string;
   PERP_DB_PASSWORD?: string;
   ELEVENLABS_API_KEY?: string;
+  
+  // Index signature for Hono compatibility
+  [key: string]: unknown;
 }
 
 export interface Message {

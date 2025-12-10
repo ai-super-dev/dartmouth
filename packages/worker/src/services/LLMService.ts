@@ -105,8 +105,21 @@ export class LLMService {
 
     const data = await response.json() as any;
     
+    // Validate response has content
+    const content = data.choices[0]?.message?.content;
+    if (!content || (typeof content === 'string' && content.trim().length === 0)) {
+      console.error('[LLMService] OpenAI returned empty or missing content:', {
+        hasChoices: !!data.choices,
+        choicesLength: data.choices?.length,
+        hasMessage: !!data.choices[0]?.message,
+        contentValue: content,
+        fullResponse: JSON.stringify(data).substring(0, 500),
+      });
+      throw new Error('OpenAI API returned empty or missing content');
+    }
+    
     return {
-      content: data.choices[0].message.content,
+      content: content,
       model: data.model,
       tokensUsed: data.usage.total_tokens,
       finishReason: data.choices[0].finish_reason

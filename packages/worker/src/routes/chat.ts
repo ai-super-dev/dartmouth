@@ -19,6 +19,7 @@ export interface ChatRequest {
   sessionId?: string;
   userId?: string;
   metadata?: Record<string, any>;
+  systemPrompt?: string; // Optional system prompt from client
 }
 
 /**
@@ -68,19 +69,9 @@ function validateChatRequest(body: any): { valid: boolean; error?: string } {
 /**
  * Get agent configuration from database or use default
  */
-async function getBaseAgentConfig(agentId: string, env: Env, userId?: string) {
-  // For now, return a default config
-  // In the future, this would load from the database
-  return {
-    agentId,
-    tenantId: 'default-tenant',
-    userId,
-    agentConfig: {
-      agentId,
-      name: `Agent ${agentId}`,
-      description: 'Production agent',
-      version: '1.0.0',
-      systemPrompt: `You are a professional AI assistant designed to have natural, helpful conversations.
+async function getBaseAgentConfig(agentId: string, env: Env, userId?: string, systemPrompt?: string) {
+  // Default system prompt (generic, can be overridden by client)
+  const defaultSystemPrompt = `You are a professional AI assistant designed to have natural, helpful conversations.
 
 CORE CONVERSATIONAL SKILLS:
 - ALWAYS read the full conversation history before responding
@@ -106,7 +97,20 @@ CONSTRAINTS:
 - Be honest about your limitations
 - Don't make promises you can't keep
 - Don't pretend to have capabilities you don't have
-- Stay on topic unless the user changes the subject`,
+- Stay on topic unless the user changes the subject`;
+
+  // For now, return a default config
+  // In the future, this would load from the database
+  return {
+    agentId,
+    tenantId: 'default-tenant',
+    userId,
+    agentConfig: {
+      agentId,
+      name: `Agent ${agentId}`,
+      description: 'Production agent',
+      version: '1.0.0',
+      systemPrompt: systemPrompt || defaultSystemPrompt,
       llmProvider: (env.LLM_PROVIDER || 'openai') as 'openai' | 'anthropic' | 'google',
       llmModel: env.LLM_MODEL || 'gpt-4o-mini',
       temperature: 0.7,
@@ -170,8 +174,20 @@ export async function handleChat(
       );
     }
 
-    // Get agent configuration
-    const config = await getBaseAgentConfig(agentId, env, body.userId);
+    // Get agent configuration (use systemPrompt from request if provided)
+    console.log('[handleChat] System prompt from request:', {
+      hasSystemPrompt: !!body.systemPrompt,
+      systemPromptLength: body.systemPrompt?.length,
+      systemPromptPreview: body.systemPrompt?.substring(0, 150),
+    });
+    
+    const config = await getBaseAgentConfig(agentId, env, body.userId, body.systemPrompt);
+    
+    console.log('[handleChat] Agent config system prompt:', {
+      hasSystemPrompt: !!config.agentConfig.systemPrompt,
+      systemPromptLength: config.agentConfig.systemPrompt?.length,
+      systemPromptPreview: config.agentConfig.systemPrompt?.substring(0, 150),
+    });
     
     // Create agent instance based on agentId
     let agent: BaseAgent;
@@ -180,15 +196,15 @@ export async function handleChat(
     } else if (agentId === 'customer-service') {
       agent = new CustomerServiceAgent({
         ...config,
-        shopifyApiUrl: env.SHOPIFY_API_URL!,
-        shopifyAccessToken: env.SHOPIFY_ACCESS_TOKEN!,
-        perpApiUrl: env.PERP_API_URL!,
-        perpApiKey: env.PERP_API_KEY!,
+        shopifyApiUrl: (env.SHOPIFY_API_URL as string) || '',
+        shopifyAccessToken: (env.SHOPIFY_ACCESS_TOKEN as string) || '',
+        perpApiUrl: (env.PERP_API_URL as string) || '',
+        perpApiKey: (env.PERP_API_KEY as string) || '',
         gmailCredentials: {
-          clientId: env.GMAIL_CLIENT_ID!,
-          clientSecret: env.GMAIL_CLIENT_SECRET!,
-          redirectUri: env.GMAIL_REDIRECT_URI!,
-          refreshToken: env.GMAIL_REFRESH_TOKEN!
+          clientId: (env.GMAIL_CLIENT_ID as string) || '',
+          clientSecret: (env.GMAIL_CLIENT_SECRET as string) || '',
+          redirectUri: (env.GMAIL_REDIRECT_URI as string) || '',
+          refreshToken: (env.GMAIL_REFRESH_TOKEN as string) || ''
         },
         aiResponseMode: (env.AI_RESPONSE_MODE || 'draft') as 'auto' | 'draft'
       });
@@ -200,30 +216,72 @@ export async function handleChat(
     const sessionId = body.sessionId || `session-${agentId}-${Date.now()}`;
     
     // Process message
+    console.log(`[handleChat] Processing message with agent: ${agentId}, sessionId: ${sessionId}`);
+    console.log(`[handleChat] Message: "${body.message.substring(0, 100)}..."`);
+    console.log(`[handleChat] OpenAI API Key present: ${!!env.OPENAI_API_KEY}`);
+    console.log(`[handleChat] LLM Provider: ${env.LLM_PROVIDER || 'openai'}`);
+    console.log(`[handleChat] LLM Model: ${env.LLM_MODEL || 'gpt-4o-mini'}`);
+    
+    if (!env.OPENAI_API_KEY && (env.LLM_PROVIDER || 'openai') === 'openai') {
+      console.error('[handleChat] WARNING: OpenAI API key is missing! Chat will fail.');
+    }
+    
     const response = await agent.processMessage(body.message, sessionId);
     
-    // Log to analytics
-    const db = new DatabaseManager(env.DB);
-    await db.createAnalyticsEvent({
-      id: `analytics-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      agentId,
-      sessionId,
-      eventType: 'message_sent',
-      eventData: {
-        messageLength: body.message.length,
-        responseLength: response.content.length,
-        processingTime: Date.now() - startTime,
-        intent: response.metadata.intent,
-      },
-      userId: body.userId,
-      timestamp: new Date().toISOString(),
+    console.log(`[handleChat] Agent response received:`, {
+      hasContent: !!response.content,
+      contentLength: response.content?.length,
+      contentPreview: response.content?.substring(0, 100),
+      hasError: !!response.metadata?.error,
+      error: response.metadata?.error,
     });
+    
+    // Validate response has content - be very explicit
+    if (!response) {
+      console.error('[handleChat] No response object from agent');
+      throw new Error('Agent returned no response');
+    }
+    
+    if (!response.content || (typeof response.content === 'string' && response.content.trim().length === 0)) {
+      console.error('[handleChat] Invalid response from agent - missing or empty content:', {
+        hasResponse: !!response,
+        hasContent: !!response.content,
+        contentType: typeof response.content,
+        contentValue: response.content,
+        contentLength: response.content?.length,
+        responseKeys: Object.keys(response),
+        fullResponse: JSON.stringify(response).substring(0, 1000),
+      });
+      throw new Error('Agent returned invalid response: missing or empty content');
+    }
+    
+    // Log to analytics
+    try {
+      const db = new DatabaseManager(env.DB);
+      await db.createAnalyticsEvent({
+        id: `analytics-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        agentId,
+        sessionId,
+        eventType: 'message_sent',
+        eventData: {
+          messageLength: body.message.length,
+          responseLength: response.content.length,
+          processingTime: Date.now() - startTime,
+          intent: response.metadata?.intent,
+        },
+        userId: body.userId,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (analyticsError) {
+      console.warn('[handleChat] Failed to log analytics:', analyticsError);
+      // Don't fail the request if analytics fails
+    }
 
     // Return response
     const chatResponse: ChatResponse = {
       content: response.content,
       sessionId,
-      messageId: response.metadata.messageId || `msg-${Date.now()}`,
+      messageId: response.metadata?.messageId || `msg-${Date.now()}`,
       metadata: {
         ...response.metadata,
         processingTime: Date.now() - startTime,
