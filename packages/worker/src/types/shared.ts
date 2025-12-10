@@ -125,6 +125,7 @@ export interface ConversationState {
   conversationPlan?: Plan | null
   isFrustrationDetected: boolean
   isRepeatDetected: boolean
+  repetitionCount: number
   isGoalAchieved: boolean
   needsEscalation: boolean
   isMultiTurn: boolean

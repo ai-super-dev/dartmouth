@@ -323,6 +323,7 @@ export class BaseAgent {
       if (repetition.isRepetition) {
         console.log(`[BaseAgent] Repetition detected (count: ${repetition.count})`);
         this.state.isRepeatDetected = true;
+        this.state.repetitionCount = (this.state.repetitionCount || 0) + 1;
         
         // DON'T override intent for information/howto questions - let them use RAG handlers
         // Only override for generic questions that need varied responses
@@ -717,7 +718,7 @@ export class BaseAgent {
       sessionId: this.state.sessionId,
       messageCount: this.state.messageCount,
       topicsDiscussed: this.stateManager.getTopicsDiscussed(this.state),
-      repetitionCount: this.stateManager.getRepetitionCount(this.state),
+      repetitionCount: this.state.repetitionCount || 0,
       isFrustrated: this.state.isFrustrationDetected
     };
   }

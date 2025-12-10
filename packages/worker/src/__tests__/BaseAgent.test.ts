@@ -206,7 +206,13 @@ describe('BaseAgent', () => {
       await agent.processMessage('What is DPI?');
       await agent.processMessage('What is DPI?');
       
+      const state = agent.getState();
       const stats = agent.getStats();
+      
+      // Debug: Check if state has repetitionCount
+      console.log('State repetitionCount:', state?.repetitionCount);
+      console.log('Stats repetitionCount:', stats.repetitionCount);
+      
       expect(stats.repetitionCount).toBeGreaterThan(0);
     });
   });
