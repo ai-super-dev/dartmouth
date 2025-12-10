@@ -13,6 +13,9 @@ import { authenticate, requireAdmin, requireManagerOrAdmin } from '../middleware
 // Controllers
 import * as authController from '../controllers/auth';
 import * as ticketsController from '../controllers/tickets';
+import * as mccarthyTasksController from '../controllers/mccarthy-tasks';
+import * as taskManagerSettingsController from '../controllers/task-manager-settings';
+import * as mccarthySettingsController from '../controllers/mccarthy-settings';
 import * as mentionsController from '../controllers/mentions';
 import * as settingsController from '../controllers/settings';
 import * as staffController from '../controllers/staff';
@@ -29,8 +32,8 @@ import * as attachmentsController from '../controllers/attachments';
 import * as integrationsController from '../controllers/integrations';
 import * as groupChatController from '../controllers/group-chat';
 import * as memosController from '../controllers/memos';
-import * as tasksController from '../controllers/tasks';
-import * as taskManagerChatController from '../controllers/task-manager-chat';
+import * as tagsController from '../controllers/tags';
+import * as signaturesController from '../controllers/signatures';
 
 /**
  * Create API router
@@ -75,9 +78,16 @@ export function createAPIRouter() {
   app.post('/api/tickets/:id/schedule-reply', authenticate, ticketsController.scheduleReply);
   app.delete('/api/tickets/:id', authenticate, requireAdmin, ticketsController.deleteTicket);
   app.post('/api/tickets/bulk-assign', authenticate, ticketsController.bulkAssignTickets);
+  app.post('/api/tickets/create-manual', authenticate, ticketsController.createManualTicket);
   app.post('/api/tickets/:id/merge', authenticate, ticketsController.mergeTickets);
   app.get('/api/tickets/:id/scheduled-messages', authenticate, ticketsController.getScheduledMessages);
   app.put('/api/scheduled-messages/:messageId', authenticate, ticketsController.updateScheduledMessage);
+  
+  // McCarthy AI Task routes
+  app.post('/api/tasks/:id/generate-draft', authenticate, mccarthyTasksController.generateTaskDraft);
+  app.get('/api/tasks/:id/drafts', authenticate, mccarthyTasksController.getTaskDrafts);
+  app.post('/api/tasks/drafts/:id/approve', authenticate, mccarthyTasksController.approveDraft);
+  app.post('/api/tasks/drafts/:id/reject', authenticate, mccarthyTasksController.rejectDraft);
   app.delete('/api/scheduled-messages/:messageId', authenticate, ticketsController.deleteScheduledMessage);
 
   // AI Draft Response Routes
@@ -97,6 +107,14 @@ export function createAPIRouter() {
   // SETTINGS ROUTES
   // ========================================================================
 
+  // Task Manager Settings (must come before generic :key routes)
+  app.get('/api/settings/task-manager', authenticate, taskManagerSettingsController.getTaskManagerSettings);
+  app.put('/api/settings/task-manager', authenticate, taskManagerSettingsController.updateTaskManagerSettings);
+  
+  // McCarthy AI Settings (must come before generic :key routes)
+  app.get('/api/settings/mccarthy', authenticate, mccarthySettingsController.getMcCarthySettings);
+  app.put('/api/settings/mccarthy', authenticate, mccarthySettingsController.updateMcCarthySettings);
+  
   app.get('/api/settings', authenticate, requireAdmin, settingsController.listSettings);
   app.get('/api/settings/:key', authenticate, requireAdmin, settingsController.getSetting);
   app.put('/api/settings/:key', authenticate, requireAdmin, settingsController.updateSetting);
@@ -270,6 +288,8 @@ export function createAPIRouter() {
   // Global Settings
   app.get('/api/group-chat/settings/time-limit', authenticate, groupChatController.getTimeLimit);
   app.put('/api/group-chat/settings/time-limit', authenticate, groupChatController.setTimeLimit);
+  app.get('/api/group-chat/settings/auto-archive', authenticate, groupChatController.getAutoArchiveHours);
+  app.put('/api/group-chat/settings/auto-archive', authenticate, groupChatController.setAutoArchiveHours);
 
   // ========================================================================
   // MEMOS
@@ -283,31 +303,21 @@ export function createAPIRouter() {
   // TAGS ROUTES
   // ========================================================================
   
-  app.get('/api/tags', authenticate, memosController.getAllTags);
+  app.get('/api/tags', authenticate, tagsController.getAllTags);
+  app.get('/api/tags/search', authenticate, tagsController.searchTags);
 
   // ========================================================================
-  // TASKS ROUTES
+  // EMAIL SIGNATURES
   // ========================================================================
   
-  app.get('/api/tasks', authenticate, tasksController.listTasks);
-  app.get('/api/tasks/:id', authenticate, tasksController.getTask);
-  app.post('/api/tasks', authenticate, tasksController.createTask);
-  app.put('/api/tasks/:id', authenticate, tasksController.updateTask);
-  app.delete('/api/tasks/:id', authenticate, tasksController.deleteTask);
-  app.post('/api/tasks/:id/comments', authenticate, tasksController.addTaskComment);
-
-  // ========================================================================
-  // TASK MANAGER AI CHAT ROUTES
-  // ========================================================================
-  
-  app.post('/api/task-manager/chat', authenticate, taskManagerChatController.sendMessage);
-  app.get('/api/task-manager/conversations', authenticate, taskManagerChatController.listConversations);
-  app.post('/api/task-manager/conversations', authenticate, taskManagerChatController.createConversation);
-  app.get('/api/task-manager/conversations/:id', authenticate, taskManagerChatController.getConversation);
-  app.delete('/api/task-manager/conversations/:id', authenticate, taskManagerChatController.archiveConversation);
-  app.post('/api/task-manager/actions/:id/execute', authenticate, taskManagerChatController.executeAction);
-  app.get('/api/task-manager/conversations/:id/actions', authenticate, taskManagerChatController.getPendingActions);
-  app.get('/api/task-manager/suggestions', authenticate, taskManagerChatController.getQuickSuggestions);
+  app.get('/api/signatures/global', authenticate, signaturesController.getGlobalSignature);
+  app.put('/api/signatures/global', authenticate, signaturesController.setGlobalSignature);
+  app.get('/api/signatures/preview', authenticate, signaturesController.getSignaturePreview);
+  app.get('/api/signatures/plain-text', authenticate, signaturesController.getSignaturePlainText);
+  app.post('/api/signatures/upload-logo', authenticate, signaturesController.uploadLogo);
+  app.get('/api/signatures/settings', authenticate, signaturesController.getSettings);
+  app.put('/api/signatures/settings', authenticate, signaturesController.saveSettings);
+  app.post('/api/signatures/preview-from-settings', authenticate, signaturesController.getPreviewFromSettings);
 
   // ========================================================================
   // @MENTIONS ROUTES

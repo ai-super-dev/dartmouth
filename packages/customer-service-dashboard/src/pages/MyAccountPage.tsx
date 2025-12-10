@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { staffApi } from '../lib/api';
+import { Link } from 'react-router-dom';
+import { staffApi, api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { CheckIcon, ExclamationCircleIcon, CameraIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, ExclamationCircleIcon, CameraIcon, TrashIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 type AvailabilityStatus = 'online' | 'offline' | 'away';
 
@@ -45,6 +46,28 @@ export default function MyAccountPage() {
     queryKey: ['currentStaff'],
     queryFn: () => staffApi.me().then(res => res.data.staff),
     enabled: !!user,
+  });
+
+  // Fetch task digest data
+  const { data: myTasks } = useQuery({
+    queryKey: ['my-tasks-digest'],
+    queryFn: async () => {
+      const response = await api.get('/api/tickets', {
+        params: { channel: 'task', assigned_to: user?.id, limit: 100 }
+      });
+      return response.data.tickets;
+    },
+    enabled: !!user,
+  });
+
+  const now = new Date();
+  const myOpenTasks = myTasks?.filter((t: any) => t.status !== 'completed' && t.status !== 'cancelled') || [];
+  const myOverdueTasks = myOpenTasks.filter((t: any) => t.sla_due_at && new Date(t.sla_due_at) < now);
+  const myApproachingTasks = myOpenTasks.filter((t: any) => {
+    if (!t.sla_due_at) return false;
+    const deadline = new Date(t.sla_due_at);
+    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    return deadline > now && deadline <= in24Hours;
   });
 
   // Update form when data loads
@@ -452,6 +475,68 @@ export default function MyAccountPage() {
                 </dd>
               </div>
             </dl>
+          </div>
+        </div>
+
+        {/* Task Digest Section */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <ClipboardDocumentListIcon className="w-5 h-5 text-amber-600" />
+              My Task Digest
+            </h3>
+            <Link
+              to="/task-digest"
+              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              View All Tasks →
+            </Link>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-amber-700 font-medium">Open Tasks</p>
+                    <p className="text-2xl font-bold text-amber-900">{myOpenTasks.length}</p>
+                  </div>
+                  <ClipboardDocumentListIcon className="w-8 h-8 text-amber-500" />
+                </div>
+              </div>
+
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-red-700 font-medium">Overdue</p>
+                    <p className="text-2xl font-bold text-red-900">{myOverdueTasks.length}</p>
+                  </div>
+                  <ExclamationTriangleIcon className="w-8 h-8 text-red-500" />
+                </div>
+              </div>
+
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-orange-700 font-medium">Due in 24h</p>
+                    <p className="text-2xl font-bold text-orange-900">{myApproachingTasks.length}</p>
+                  </div>
+                  <ClockIcon className="w-8 h-8 text-orange-500" />
+                </div>
+              </div>
+            </div>
+
+            {(myOverdueTasks.length > 0 || myApproachingTasks.length > 0) && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ You have {myOverdueTasks.length} overdue task{myOverdueTasks.length !== 1 ? 's' : ''} 
+                  {myApproachingTasks.length > 0 && ` and ${myApproachingTasks.length} due in the next 24 hours`}.
+                  {' '}
+                  <Link to="/task-digest" className="font-medium underline hover:text-yellow-900">
+                    Review now
+                  </Link>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

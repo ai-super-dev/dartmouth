@@ -12,11 +12,13 @@ import {
   TicketIcon,
   BellIcon,
   Cog6ToothIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
 const navigation = [
   { name: 'Tickets', href: '/tickets', icon: TicketIcon },
   { name: 'Mentions', href: '/mentions', icon: BellIcon },
+  { name: 'Task Digest', href: '/task-digest', icon: ClipboardDocumentListIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
 

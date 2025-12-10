@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckSquare, Bot, Plus, Calendar, User, AlertCircle } from 'lucide-react';
-import { tasksApi } from '../lib/api';
+import { api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import TaskManagerChatPanel from '../components/TaskManagerChatPanel';
@@ -47,7 +47,7 @@ export default function TasksDashboardPage() {
         params.created_by = user?.id;
       }
 
-      const response = await tasksApi.list(params);
+      const response = await api.get('/api/tasks', { params });
       return response.data;
     },
     refetchInterval: 30000,

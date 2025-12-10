@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { Clipboard, AlertCircle, Clock, CheckCircle, TrendingUp, Users, BarChart3, ArrowRight } from 'lucide-react'
 import { api } from '../lib/api'
-
 export default function TaskManagerDashboardPage() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today')
 

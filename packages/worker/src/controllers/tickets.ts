@@ -8,6 +8,161 @@ import type { AuthUser } from '../middleware/auth';
 import { parseTagsFromText, formatTagsForStorage } from '../utils/tag-parser';
 
 /**
+ * Parse mentions and channel shortcuts from task description
+ * Supports: @all, @john (staff mentions), #customerservice, #task, #general (channel shortcuts)
+ * Returns: { targetChannel, staffToMention, cleanedDescription }
+ */
+async function parseMentionsAndNotify(
+  env: Env,
+  taskTicketNumber: string,
+  taskSubject: string,
+  taskDescription: string,
+  taskPriority: string,
+  creatorId: string
+) {
+  try {
+    // Extract channel shortcuts (#customerservice, #task, #general, etc.)
+    const channelPattern = /#(\w+)/g;
+    const channelMatches = taskDescription.matchAll(channelPattern);
+    const channelShortcuts = Array.from(channelMatches).map(m => m[1].toLowerCase());
+    
+    // Extract staff mentions (@all, @john, etc.)
+    const mentionPattern = /@(\w+)/g;
+    const mentionMatches = taskDescription.matchAll(mentionPattern);
+    const mentions = Array.from(mentionMatches).map(m => m[1].toLowerCase());
+    
+    console.log(`[TaskMentions] Task ${taskTicketNumber} - Channels:`, channelShortcuts, 'Mentions:', mentions);
+    
+    // Determine target channel from shortcuts (default to 'task')
+    let targetChannelName = 'task'; // Default
+    
+    if (channelShortcuts.length > 0) {
+      // Map shortcuts to channel names
+      const channelMap: Record<string, string> = {
+        'customerservice': 'customer-service',
+        'cs': 'customer-service', // Backward compatibility
+        'task': 'task',
+        'general': 'general',
+        'sales': 'sales',
+        'support': 'support'
+      };
+      
+      const firstChannel = channelShortcuts[0];
+      targetChannelName = channelMap[firstChannel] || 'task';
+    }
+    
+    // Get the target channel
+    const channel = await env.DB.prepare(`
+      SELECT id, name FROM group_chat_channels WHERE name = ? LIMIT 1
+    `).first<{ id: string; name: string }>();
+    
+    if (!channel) {
+      console.log(`[TaskMentions] Channel "${targetChannelName}" not found, using 'task' as fallback`);
+      // Try to get task channel as fallback
+      const taskChannel = await env.DB.prepare(`
+        SELECT id, name FROM group_chat_channels WHERE name = 'task' LIMIT 1
+      `).first<{ id: string; name: string }>();
+      
+      if (!taskChannel) {
+        console.log(`[TaskMentions] No valid channel found, skipping notification`);
+        return;
+      }
+    }
+    
+    // Get all staff members
+    const allStaff = await env.DB.prepare(`
+      SELECT id, first_name, last_name FROM staff_users
+    `).all();
+    
+    // Determine who to mention
+    const staffToMention: Array<{ id: string; firstName: string }> = [];
+    
+    for (const mention of mentions) {
+      if (mention === 'all') {
+        // Add all staff
+        allStaff.results.forEach((s: any) => {
+          if (!staffToMention.find(st => st.id === s.id)) {
+            staffToMention.push({ id: s.id, firstName: s.first_name });
+          }
+        });
+      } else {
+        // Find specific staff member by first name or last name
+        const staff = allStaff.results.find((s: any) => 
+          s.first_name.toLowerCase() === mention || 
+          s.last_name.toLowerCase() === mention
+        );
+        if (staff && !staffToMention.find(st => st.id === (staff as any).id)) {
+          staffToMention.push({ id: (staff as any).id, firstName: (staff as any).first_name });
+        }
+      }
+    }
+    
+    if (staffToMention.length === 0) {
+      console.log(`[TaskMentions] No valid staff found for mentions, skipping notification`);
+      return;
+    }
+    
+    console.log(`[TaskMentions] Will mention ${staffToMention.length} staff members in ${channel?.name || targetChannelName} channel`);
+    
+    // Build priority badge
+    const priorityEmojis: Record<string, string> = {
+      low: '🟢',
+      normal: '🔵',
+      high: '🟠',
+      critical: '🔴',
+      urgent: '🚨'
+    };
+    const priorityEmoji = priorityEmojis[taskPriority] || '🔵';
+    
+    // Strip channel shortcuts from description for display
+    let cleanedDescription = taskDescription;
+    channelShortcuts.forEach(shortcut => {
+      cleanedDescription = cleanedDescription.replace(new RegExp(`#${shortcut}\\b`, 'gi'), '');
+    });
+    cleanedDescription = cleanedDescription.trim();
+    
+    // Build message (without channel shortcuts, but WITH mentions)
+    const mentionsText = staffToMention.map(s => `@${s.firstName.toLowerCase()}`).join(' ');
+    const chatMessage = `${priorityEmoji} **New Task Created** - Priority: ${taskPriority.toUpperCase()}\n\n` +
+      `**Task:** *${taskTicketNumber}* - ${taskSubject}\n\n` +
+      `${mentionsText}`;
+    
+    // Post message to group chat
+    const now = new Date().toISOString();
+    const chatMessageId = `msg-${crypto.randomUUID()}`;
+    
+    await env.DB.prepare(`
+      INSERT INTO group_chat_messages (id, channel_id, sender_id, sender_type, content, created_at)
+      VALUES (?, ?, ?, 'staff', ?, ?)
+    `).bind(chatMessageId, channel!.id, creatorId, chatMessage, now).run();
+    
+    // Create mentions for each staff member
+    for (const staff of staffToMention) {
+      await env.DB.prepare(`
+        INSERT INTO mentions (id, message_id, mentioned_staff_id, mentioning_staff_id, mention_type, context_type, context_id, created_at)
+        VALUES (?, ?, ?, ?, 'staff', 'group_chat', ?, ?)
+      `).bind(
+        crypto.randomUUID(),
+        chatMessageId,
+        staff.id,
+        creatorId,
+        channel!.id,
+        now
+      ).run();
+    }
+    
+    console.log(`[TaskMentions] Posted notification to ${channel!.name} channel with ${staffToMention.length} mentions`);
+    
+    // Return cleaned description (without channel shortcuts)
+    return cleanedDescription;
+  } catch (error) {
+    console.error('[TaskMentions] Error:', error);
+    // Don't fail the task creation if notification fails
+    return taskDescription; // Return original if error
+  }
+}
+
+/**
  * Convert plain text to HTML with proper paragraph spacing
  * Uses consistent font styling (Arial) to match email signature
  */
@@ -40,6 +195,7 @@ export async function listTickets(c: Context<{ Bindings: Env }>) {
     const status = c.req.query('status');
     const priority = c.req.query('priority');
     const assignedTo = c.req.query('assignedTo');
+    const channel = c.req.query('channel'); // Filter by channel (e.g., 'task')
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
 
@@ -58,7 +214,7 @@ export async function listTickets(c: Context<{ Bindings: Env }>) {
     `;
     const params: any[] = [user.id];
 
-    if (status) {
+    if (status && status !== 'all') {
       query += ' AND t.status = ?';
       params.push(status);
     }
@@ -71,6 +227,11 @@ export async function listTickets(c: Context<{ Bindings: Env }>) {
     if (assignedTo) {
       query += ' AND t.assigned_to = ?';
       params.push(assignedTo);
+    }
+
+    if (channel) {
+      query += ' AND t.channel = ?';
+      params.push(channel);
     }
 
     // Group by ticket_id to handle multiple escalations
@@ -86,7 +247,9 @@ export async function listTickets(c: Context<{ Bindings: Env }>) {
     query += ' ORDER BY is_escalated_to_me DESC, t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
+    console.log('[listTickets] Query params:', { status, priority, assignedTo, channel, limit, offset });
     const { results } = await c.env.DB.prepare(query).bind(...params).all();
+    console.log('[listTickets] Found tickets:', results.length, 'Channel filter:', channel);
 
     return c.json({ tickets: results });
   } catch (error) {
@@ -128,13 +291,42 @@ export async function getTicket(c: Context<{ Bindings: Env }>) {
       JOIN staff_users s ON n.staff_id = s.id
       LEFT JOIN escalations e ON n.ticket_id = e.ticket_id AND n.note_type = 'escalation' AND e.created_at = n.created_at
       WHERE n.ticket_id = ? AND (n.is_deleted IS NULL OR n.is_deleted = 0)
-      ORDER BY n.created_at DESC
+      ORDER BY n.created_at ASC
     `).bind(ticketId).all();
+
+    // Get related tasks (tasks that reference this ticket)
+    const { results: relatedTasks } = await c.env.DB.prepare(`
+      SELECT ticket_number, subject, status, priority, assigned_to, sla_due_at, created_at
+      FROM tickets 
+      WHERE related_ticket_id = ? AND channel = 'task' AND deleted_at IS NULL
+      ORDER BY created_at DESC
+    `).bind(ticket.ticket_number).all();
+
+    // Get sub-tasks (if this is a parent task)
+    const { results: subTasks } = await c.env.DB.prepare(`
+      SELECT ticket_id, ticket_number, subject, status, priority, assigned_to, sla_due_at, created_at
+      FROM tickets 
+      WHERE parent_task_id = ? AND channel = 'task' AND deleted_at IS NULL
+      ORDER BY ticket_number ASC
+    `).bind(ticketId).all();
+
+    // Get parent task (if this is a sub-task)
+    let parentTask = null;
+    if (ticket.parent_task_id) {
+      parentTask = await c.env.DB.prepare(`
+        SELECT ticket_id, ticket_number, subject, status, priority, assigned_to, sla_due_at, created_at
+        FROM tickets 
+        WHERE ticket_id = ? AND deleted_at IS NULL
+      `).bind(ticket.parent_task_id).first();
+    }
 
     return c.json({
       ticket,
       messages,
-      notes
+      notes,
+      relatedTasks: relatedTasks || [],
+      subTasks: subTasks || [],
+      parentTask: parentTask || null
     });
   } catch (error) {
     console.error('[Tickets] Get error:', error);
@@ -626,10 +818,132 @@ export async function addNote(c: Context<{ Bindings: Env }>) {
       console.log(`[Tickets] Created ${mentions.length} mention(s) from note ${noteId}`);
     }
 
+    // Handle Parent/Child task linking for task tickets
+    const currentTicket = await c.env.DB.prepare(`
+      SELECT ticket_id, ticket_number, subject, channel, parent_task_id, assigned_to
+      FROM tickets WHERE ticket_id = ?
+    `).bind(ticketId).first<any>();
+
+    if (currentTicket && currentTicket.channel === 'task') {
+      await handleTaskNoteSync(c.env, currentTicket, noteId, user.id, finalContent, noteType || 'general', now);
+    }
+
     return c.json({ message: 'Note added', noteId, mentionsCreated: mentions.length });
   } catch (error) {
     console.error('[Tickets] Add note error:', error);
     return c.json({ error: 'Internal server error' }, 500);
+  }
+}
+
+/**
+ * Handle syncing notes between Parent and Child tasks
+ */
+async function handleTaskNoteSync(
+  env: Env,
+  currentTicket: any,
+  noteId: string,
+  staffId: string,
+  content: string,
+  noteType: string,
+  timestamp: string
+) {
+  try {
+    const relatedTasks: any[] = [];
+    const involvedStaffIds = new Set<string>();
+    involvedStaffIds.add(currentTicket.assigned_to);
+
+    // If this is a parent task, get all child tasks
+    if (!currentTicket.parent_task_id) {
+      const { results: children } = await env.DB.prepare(`
+        SELECT ticket_id, ticket_number, subject, assigned_to
+        FROM tickets
+        WHERE parent_task_id = ? AND deleted_at IS NULL
+      `).bind(currentTicket.ticket_id).all();
+      relatedTasks.push(...(children || []));
+    } else {
+      // If this is a child task, get parent and all siblings
+      const parent = await env.DB.prepare(`
+        SELECT ticket_id, ticket_number, subject, assigned_to
+        FROM tickets
+        WHERE ticket_id = ? AND deleted_at IS NULL
+      `).bind(currentTicket.parent_task_id).first<any>();
+      
+      if (parent) {
+        relatedTasks.push(parent);
+        involvedStaffIds.add(parent.assigned_to);
+
+        // Get siblings
+        const { results: siblings } = await env.DB.prepare(`
+          SELECT ticket_id, ticket_number, subject, assigned_to
+          FROM tickets
+          WHERE parent_task_id = ? AND ticket_id != ? AND deleted_at IS NULL
+        `).bind(currentTicket.parent_task_id, currentTicket.ticket_id).all();
+        relatedTasks.push(...(siblings || []));
+      }
+    }
+
+    // Add notes to related tasks
+    for (const relatedTask of relatedTasks) {
+      involvedStaffIds.add(relatedTask.assigned_to);
+      
+      const relatedNoteId = crypto.randomUUID();
+      const relatedContent = `[Note from ${currentTicket.parent_task_id ? 'Child' : 'Parent'} Task ${currentTicket.ticket_number}]\n\n${content}`;
+      
+      await env.DB.prepare(`
+        INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        relatedNoteId,
+        relatedTask.ticket_id,
+        staffId,
+        noteType,
+        relatedContent,
+        timestamp,
+        timestamp
+      ).run();
+    }
+
+    // Post to Task Group Chat
+    const taskChannel = await env.DB.prepare(`
+      SELECT id FROM group_chat_channels WHERE name = 'Tasks' LIMIT 1
+    `).first<{ id: string }>();
+
+    if (taskChannel) {
+      const messageId = `msg-${crypto.randomUUID()}`;
+      const taskNumbers = [currentTicket.ticket_number, ...relatedTasks.map(t => t.ticket_number)];
+      const taskMentions = taskNumbers.map(tn => `*${tn.replace('TSK-', '')}`).join(', ');
+      
+      const chatMessage = `📝 Staff note added to ${currentTicket.parent_task_id ? 'Child' : 'Parent'} Task ${taskMentions}\n\n"${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`;
+      
+      await env.DB.prepare(`
+        INSERT INTO group_chat_messages (id, channel_id, sender_id, sender_type, content, created_at)
+        VALUES (?, ?, ?, 'staff', ?, ?)
+      `).bind(messageId, taskChannel.id, staffId, chatMessage, timestamp).run();
+
+      // Create mentions for all involved staff (excluding duplicates and self if only one person)
+      const uniqueStaffIds = Array.from(involvedStaffIds).filter(id => id);
+      const shouldMentionSelf = uniqueStaffIds.length > 1 || uniqueStaffIds[0] !== staffId;
+      
+      for (const mentionedStaffId of uniqueStaffIds) {
+        if (shouldMentionSelf || mentionedStaffId !== staffId) {
+          await env.DB.prepare(`
+            INSERT INTO mentions (id, message_id, mentioned_staff_id, mentioning_staff_id, mention_type, context_type, context_id, created_at)
+            VALUES (?, ?, ?, ?, 'staff', 'group_chat', ?, ?)
+          `).bind(
+            crypto.randomUUID(),
+            messageId,
+            mentionedStaffId,
+            staffId,
+            taskChannel.id,
+            timestamp
+          ).run();
+        }
+      }
+
+      console.log(`[TaskNoteSync] Synced note to ${relatedTasks.length} related task(s) and posted to Task channel`);
+    }
+  } catch (error) {
+    console.error('[TaskNoteSync] Error syncing task notes:', error);
   }
 }
 
@@ -1549,6 +1863,362 @@ export async function bulkAssignTickets(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     console.error('[Tickets] Bulk assign error:', error);
     return c.json({ error: 'Internal server error' }, 500);
+  }
+}
+
+/**
+ * POST /api/tickets/create-manual
+ * Create a ticket manually (for phone calls, walk-ins, etc.)
+ * Body: { customer_name, customer_email, customer_phone?, subject, message, channel, priority, assign_to? }
+ */
+export async function createManualTicket(c: Context<{ Bindings: Env }>) {
+  try {
+    const user = c.get('user') as AuthUser;
+    const body = await c.req.json();
+    const { customer_name, customer_email, customer_phone, subject, message, channel, priority, assign_to, related_ticket, deadline, parent_task_id } = body;
+
+    // Validation
+    if (!customer_name || !customer_email || !subject || !message || !channel) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    console.log(`[Tickets] Creating manual ticket by ${user.email} for ${customer_email}, channel=${channel}`);
+    const startTime = Date.now();
+
+    const now = new Date().toISOString();
+    const ticketId = crypto.randomUUID();
+    const conversationId = crypto.randomUUID();
+
+    // Generate ticket number - use different prefix for tasks vs tickets
+    console.log(`[Tickets] Channel value: "${channel}", type: ${typeof channel}, isTask: ${channel === 'task'}, parent_task_id: ${parent_task_id}`);
+    const prefix = channel === 'task' ? 'TSK' : 'TKT';
+    
+    let ticketNumber: string;
+    
+    // If this is a sub-task, generate sub-task number (TSK-123-1, TSK-123-2)
+    if (parent_task_id && channel === 'task') {
+      // Get parent task number
+      const parentTask = await c.env.DB.prepare(`
+        SELECT ticket_number FROM tickets WHERE ticket_id = ?
+      `).bind(parent_task_id).first<{ ticket_number: string }>();
+      
+      if (!parentTask) {
+        return c.json({ error: 'Parent task not found' }, 404);
+      }
+      
+      // Count existing sub-tasks for this parent
+      const subTaskCount = await c.env.DB.prepare(`
+        SELECT COUNT(*) as count FROM tickets WHERE parent_task_id = ?
+      `).bind(parent_task_id).first<{ count: number }>();
+      
+      const subTaskNumber = (subTaskCount?.count || 0) + 1;
+      ticketNumber = `${parentTask.ticket_number}-${subTaskNumber}`;
+      console.log(`[Tickets] Sub-task number generated: ${ticketNumber}`);
+    } else {
+      // Regular ticket/task numbering
+      const countResult = await c.env.DB.prepare(`
+        SELECT COUNT(*) as count FROM tickets WHERE ticket_number LIKE ? AND parent_task_id IS NULL
+      `).bind(`${prefix}-%`).first<{ count: number }>();
+      
+      // For tasks, start numbering from 100 (minimum 3 digits)
+      let nextNumber = (countResult?.count || 0) + 1;
+      if (channel === 'task' && nextNumber < 100) {
+        nextNumber = 100;
+      }
+      ticketNumber = `${prefix}-${String(nextNumber).padStart(3, '0')}`;
+      console.log(`[Tickets] Ticket number generated in ${Date.now() - startTime}ms: ${ticketNumber}`);
+    }
+
+    // Determine assigned_to (auto-assign or manual)
+    let assignedTo = assign_to || null;
+    
+    // Skip auto-assignment for tasks - use the provided assign_to or default to creator
+    if (!assignedTo) {
+      // Default to the user creating the ticket
+      assignedTo = user.id;
+    }
+    console.log(`[Tickets] Assignment resolved in ${Date.now() - startTime}ms: ${assignedTo}`)
+
+    // Create ticket
+    await c.env.DB.prepare(`
+      INSERT INTO tickets (
+        ticket_id, ticket_number, conversation_id, customer_id, customer_name, customer_email,
+        subject, description, channel, status, priority, category, assigned_to, sentiment,
+        sla_due_at, related_ticket_id, parent_task_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, 'general', ?, 'neutral', ?, ?, ?, ?, ?)
+    `).bind(
+      ticketId,
+      ticketNumber,
+      conversationId,
+      customer_email, // customer_id is the email
+      customer_name,
+      customer_email,
+      subject,
+      message,
+      channel,
+      priority || 'normal',
+      assignedTo,
+      deadline || null, // sla_due_at stores the deadline
+      related_ticket || null, // related_ticket_id links tasks to tickets
+      parent_task_id || null, // parent_task_id links sub-tasks to parent tasks
+      now,
+      now
+    ).run();
+
+    // Get staff info first (need it for message and notes)
+    const staffUser = await c.env.DB.prepare(`
+      SELECT first_name, last_name FROM staff_users WHERE id = ?
+    `).bind(user.id).first<{ first_name: string; last_name: string }>();
+    
+    const staffName = staffUser ? `${staffUser.first_name} ${staffUser.last_name}` : 'Staff';
+
+    // For email tickets, create initial message (staff is initiating the email)
+    // For tasks, skip this - the description field IS the task content
+    if (channel === 'email') {
+      const messageId = crypto.randomUUID();
+      await c.env.DB.prepare(`
+        INSERT INTO ticket_messages (
+          id, ticket_id, sender_type, sender_id, sender_name, content, created_at
+        ) VALUES (?, ?, 'agent', ?, ?, ?, ?)
+      `).bind(
+        messageId,
+        ticketId,
+        user.id,
+        staffName,
+        message,
+        now
+      ).run();
+    }
+
+    // Add system note about manual creation
+    const noteId = crypto.randomUUID();
+    
+    await c.env.DB.prepare(`
+      INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, created_at, updated_at)
+      VALUES (?, ?, ?, 'system', ?, ?, ?)
+    `).bind(
+      noteId,
+      ticketId,
+      user.id,
+      `📝 Ticket created manually by ${staffName} via dashboard`,
+      now,
+      now
+    ).run();
+
+    // Handle parent/child task linking
+    if (channel === 'task' && parent_task_id) {
+      // This is a child (sub-task) - add notes to both parent and child
+      const parentTask = await c.env.DB.prepare(`
+        SELECT ticket_number, subject, assigned_to FROM tickets WHERE ticket_id = ?
+      `).bind(parent_task_id).first<{ ticket_number: string; subject: string; assigned_to: string | null }>();
+      
+      if (parentTask) {
+        // Add note to child task referencing parent
+        const childNoteId = crypto.randomUUID();
+        await c.env.DB.prepare(`
+          INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, created_at, updated_at)
+          VALUES (?, ?, ?, 'system', ?, ?, ?)
+        `).bind(
+          childNoteId,
+          ticketId,
+          user.id,
+          `🔗 Child task of Parent: ${parentTask.ticket_number}`,
+          now,
+          now
+        ).run();
+        
+        // Add note to parent task referencing child
+        const parentNoteId = crypto.randomUUID();
+        await c.env.DB.prepare(`
+          INSERT INTO internal_notes (id, ticket_id, staff_id, note_type, content, created_at, updated_at)
+          VALUES (?, ?, ?, 'system', ?, ?, ?)
+        `).bind(
+          parentNoteId,
+          parent_task_id,
+          user.id,
+          `🔗 Child task created: ${ticketNumber}`,
+          now,
+          now
+        ).run();
+        
+        // Post to Task Group Chat channel
+        const taskChannel = await c.env.DB.prepare(`
+          SELECT id FROM group_chat_channels WHERE name = 'Tasks' LIMIT 1
+        `).first<{ id: string }>();
+        
+        if (taskChannel) {
+          const parentMention = `*${parentTask.ticket_number.replace('TSK-', '')}`;
+          const childMention = `*${ticketNumber.replace('TSK-', '')}`;
+          
+          // Get assigned staff for both tasks
+          const childAssignedStaff = await c.env.DB.prepare(`
+            SELECT id, first_name FROM staff_users WHERE id = ?
+          `).bind(assignedTo).first<{ id: string; first_name: string }>();
+          
+          let parentAssignedStaff = null;
+          if (parentTask.assigned_to) {
+            parentAssignedStaff = await c.env.DB.prepare(`
+              SELECT id, first_name FROM staff_users WHERE id = ?
+            `).bind(parentTask.assigned_to).first<{ id: string; first_name: string }>();
+          }
+          
+          // Build message with mentions
+          let chatMessage = `🔗 Child task ${childMention} created for Parent ${parentMention}\n\n`;
+          chatMessage += `Parent: "${parentTask.subject}"\n`;
+          chatMessage += `Child: "${subject}"\n\n`;
+          
+          // Mention staff members
+          const mentionedStaff: Array<{ id: string; firstName: string }> = [];
+          
+          if (childAssignedStaff) {
+            mentionedStaff.push({ id: childAssignedStaff.id, firstName: childAssignedStaff.first_name });
+          }
+          
+          if (parentAssignedStaff && parentAssignedStaff.id !== childAssignedStaff?.id) {
+            mentionedStaff.push({ id: parentAssignedStaff.id, firstName: parentAssignedStaff.first_name });
+          }
+          
+          if (mentionedStaff.length > 0) {
+            chatMessage += mentionedStaff.map(s => `@${s.firstName.toLowerCase()}`).join(' ');
+          }
+          
+          // Post message
+          const chatMessageId = `msg-${crypto.randomUUID()}`;
+          await c.env.DB.prepare(`
+            INSERT INTO group_chat_messages (id, channel_id, sender_id, sender_type, content, created_at)
+            VALUES (?, ?, 'system', 'system', ?, ?)
+          `).bind(chatMessageId, taskChannel.id, chatMessage, now).run();
+          
+          // Create mentions
+          for (const staff of mentionedStaff) {
+            await c.env.DB.prepare(`
+              INSERT INTO mentions (id, message_id, mentioned_staff_id, mentioning_staff_id, mention_type, context_type, context_id, created_at)
+              VALUES (?, ?, ?, 'system', 'staff', 'group_chat', ?, ?)
+            `).bind(
+              crypto.randomUUID(),
+              chatMessageId,
+              staff.id,
+              taskChannel.id,
+              now
+            ).run();
+          }
+          
+          console.log(`[Tickets] Posted parent/child link notification to Task channel`);
+        }
+      }
+    }
+
+    console.log(`[Tickets] Manual ticket created: ${ticketNumber} (${ticketId}) in ${Date.now() - startTime}ms`);
+
+    // For task channel, parse mentions and notify via group chat
+    if (channel === 'task' && message) {
+      const cleanedDescription = await parseMentionsAndNotify(
+        c.env,
+        ticketNumber,
+        subject,
+        message,
+        priority,
+        user.id
+      );
+      
+      // Update ticket description to remove channel shortcuts (keep mentions)
+      if (cleanedDescription && cleanedDescription !== message) {
+        await c.env.DB.prepare(`
+          UPDATE tickets SET description = ? WHERE ticket_id = ?
+        `).bind(cleanedDescription, ticketId).run();
+        console.log(`[Tickets] Updated task description (removed channel shortcuts)`);
+      }
+    }
+
+    // For email channel, send the email to customer via Resend
+    let emailSent = false;
+    if (channel === 'email') {
+      try {
+        const { sendEmailThroughResend } = await import('../services/ResendService');
+
+        // Get mailbox
+        const mailbox = await c.env.DB.prepare(`
+          SELECT id, email_address FROM mailboxes WHERE email_address = 'john@directtofilm.com.au' LIMIT 1
+        `).first<{ id: string; email_address: string }>();
+
+        if (mailbox) {
+          // Convert message to HTML
+          const messageHtml = message.split(/\n\n+/).map((para: string) => {
+            const lines = para.trim().replace(/\n/g, '<br>');
+            return lines ? `<p style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${lines}</p>` : '';
+          }).filter((p: string) => p).join('\n');
+
+          // Get signature
+          let signatureHtml = '';
+          try {
+            const settingsJson = await c.env.APP_CONFIG?.get('signature_settings');
+            const settings = settingsJson 
+              ? JSON.parse(settingsJson)
+              : {
+                  logoUrl: '',
+                  companyName: 'Amazing Transfers',
+                  email: 'info@amazingtransfers.com.au',
+                  website: 'amazingtransfers.com',
+                };
+            
+            const { logoUrl, companyName, email, website } = settings;
+            const staffDetails = await c.env.DB.prepare(
+              'SELECT job_title, department FROM staff_users WHERE id = ?'
+            ).bind(user.id).first();
+            const staffJobTitle = (staffDetails as any)?.job_title || 'Customer Support';
+            
+            signatureHtml = `
+<br>
+<p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+  Regards,<br>
+  <strong>${staffName}</strong><br>
+  ${staffJobTitle}<br>
+  ${companyName}<br>
+  <a href="mailto:${email}" style="color: #0066cc; text-decoration: none;">${email}</a><br>
+  <a href="https://${website}" style="color: #0066cc; text-decoration: none;">${website}</a>
+</p>
+${logoUrl ? `<p style="margin: 10px 0 0 0;"><img src="${logoUrl}" alt="${companyName}" style="display: block; width: 120px; height: auto;" /></p>` : ''}`;
+          } catch (sigError) {
+            console.error('[Tickets] Failed to get signature for manual ticket:', sigError);
+          }
+
+          const bodyHtml = messageHtml + signatureHtml;
+
+          await sendEmailThroughResend(c.env, {
+            tenantId: 'test-tenant-dtf',
+            conversationId: conversationId,
+            mailboxId: mailbox.id,
+            userId: user.id,
+            toEmail: customer_email,
+            fromEmail: mailbox.email_address,
+            fromName: staffName,
+            subject: subject,
+            bodyHtml: bodyHtml,
+            bodyText: message,
+          });
+
+          emailSent = true;
+          console.log(`[Tickets] Email sent to ${customer_email} for manual ticket ${ticketNumber}`);
+        } else {
+          console.error('[Tickets] No mailbox configured - email not sent');
+        }
+      } catch (emailError) {
+        console.error('[Tickets] Failed to send email for manual ticket:', emailError);
+        // Continue - ticket is created, just email failed
+      }
+    }
+
+    console.log(`[Tickets] Total createManualTicket time: ${Date.now() - startTime}ms`);
+    return c.json({
+      message: 'Ticket created successfully',
+      ticket_id: ticketId,
+      ticket_number: ticketNumber,
+      assigned_to: assignedTo,
+      email_sent: emailSent
+    });
+  } catch (error) {
+    console.error('[Tickets] Create manual ticket error:', error);
+    return c.json({ error: 'Failed to create ticket' }, 500);
   }
 }
 

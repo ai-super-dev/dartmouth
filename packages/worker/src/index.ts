@@ -13,6 +13,8 @@ import { sendScheduledMessages } from './workers/scheduled-message-sender';
 import { checkSnoozeExpiry } from './workers/snooze-expiry-checker';
 import { runAutoAssignment } from './workers/auto-assignment-job';
 import { handleInboundEmail, type EmailMessage } from './services/EmailHandler';
+import { TaskManagerAgent } from './services/TaskManagerAgent';
+import { TaskEscalationService } from './services/TaskEscalationService';
 import type { Env } from './types/shared';
 import type { Env as DartmouthEnv } from '../../dartmouth-core/src/types';
 
@@ -248,6 +250,18 @@ export default {
       
       // Run auto-assignment job in background
       ctx.waitUntil(runAutoAssignment(env));
+      
+      // Run Task Manager Agent checks in background
+      ctx.waitUntil((async () => {
+        const taskManager = new TaskManagerAgent(env);
+        await taskManager.runAllChecks();
+      })());
+      
+      // Run Task Escalation checks in background
+      ctx.waitUntil((async () => {
+        const escalationService = new TaskEscalationService(env);
+        await escalationService.checkAndEscalateOverdueTasks();
+      })());
     } catch (error) {
       console.error('[Scheduled] Error in scheduled jobs:', error);
     }

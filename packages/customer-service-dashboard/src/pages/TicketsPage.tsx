@@ -3,9 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ticketsApi, api } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, X, GitMerge, Trash2, Mail, MessageSquare, Phone, Instagram, Facebook, CheckSquare } from 'lucide-react'
+import { Search, X, GitMerge, Trash2, Mail, MessageSquare, Phone, Instagram, Facebook, Plus, Clipboard } from 'lucide-react'
 import ReassignModal from '../components/ReassignModal'
-import CreateTaskModal from '../components/CreateTaskModal'
+import CreateTicketModal from '../components/CreateTicketModal'
 import { useAuthStore } from '../store/authStore'
 import PlatformSelect from '../components/PlatformSelect'
 
@@ -21,6 +21,9 @@ const statusColors = {
 // Platform icon component - using Lucide React icons to match dropdown exactly
 const PlatformIcon = ({ platform, className = "w-4 h-4" }: { platform?: string; className?: string }) => {
   switch (platform) {
+    case 'task':
+      // Task - clipboard icon, amber/orange color
+      return <Clipboard className={`${className} text-amber-600`} />;
     case 'chat':
       // Live Chat - indigo color to match the design
       return <MessageSquare className={`${className} text-indigo-500`} />;
@@ -73,12 +76,24 @@ const staffNames: Record<string, string> = {
   'ai-agent-001': 'McCarthy AI',
 }
 
-// Format ticket number to TKT-173 format (remove leading zeros)
+// Format ticket number - preserve prefix (TKT/TSK) and remove leading zeros
 const formatTicketNumber = (ticketNumber: string): string => {
-  const match = ticketNumber.match(/\d+/);
-  if (!match) return ticketNumber;
-  const num = parseInt(match[0], 10); // This removes leading zeros
-  return `TKT-${num}`;
+  // Handle sub-tasks (TSK-100-1)
+  const subTaskMatch = ticketNumber.match(/^([A-Z]+)-?(\d+)-(\d+)$/);
+  if (subTaskMatch) {
+    const prefix = subTaskMatch[1];
+    const parentNum = parseInt(subTaskMatch[2], 10);
+    const subNum = parseInt(subTaskMatch[3], 10);
+    return `${prefix}-${parentNum}-${subNum}`;
+  }
+  
+  // Handle regular tickets (TKT-123, TSK-100)
+  const prefixMatch = ticketNumber.match(/^([A-Z]+)-?/);
+  const numMatch = ticketNumber.match(/\d+/);
+  if (!numMatch) return ticketNumber;
+  const prefix = prefixMatch ? prefixMatch[1] : 'TKT';
+  const num = parseInt(numMatch[0], 10); // This removes leading zeros
+  return `${prefix}-${num}`;
 };
 
 export default function TicketsPage() {
@@ -99,7 +114,7 @@ export default function TicketsPage() {
   const [showMergeConfirm, setShowMergeConfirm] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
-  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -324,13 +339,14 @@ export default function TicketsPage() {
   if (searchQuery.trim()) {
     const query = searchQuery.trim()
     
-    // Check if it's a ticket number search (e.g., "254", "TKT-254", "112, 119, 122")
-    const isTicketNumberSearch = /^(TKT-)?[\d,\s-]+$/.test(query)
+    // Check if it's a ticket/task number search (e.g., "254", "TKT-254", "TSK-2", "112, 119, 122")
+    const isTicketNumberSearch = /^(TKT-|TSK-)?[\d,\s-]+$/.test(query)
     
     if (isTicketNumberSearch) {
-      // Parse ticket numbers (handle comma-separated and single tickets)
+      // Parse ticket/task numbers (handle comma-separated and single tickets)
       const ticketNumbers = query
         .replace(/TKT-/gi, '') // Remove TKT- prefix
+        .replace(/TSK-/gi, '') // Remove TSK- prefix
         .split(',')
         .map(n => n.trim().replace(/\D/g, '')) // Remove non-digits
         .filter(n => n.length > 0)
@@ -425,8 +441,8 @@ export default function TicketsPage() {
 
   return (
     <div className="p-6">
-      {/* Sticky Header + Filters */}
-      <div className="sticky top-0 z-10 bg-white pb-4 -mx-6 px-6 -mt-6 pt-6 border-b border-gray-200 mb-4">
+      {/* Sticky Header + Filters - stays fixed at top */}
+      <div className="sticky top-0 z-20 bg-white pb-4 -mx-6 px-6 -mt-6 pt-6 border-b border-gray-200 shadow-sm">
         <div className="sm:flex sm:items-center sm:justify-between">
           <div className="sm:flex-auto">
             <h1 className="text-2xl font-semibold leading-6 text-gray-900 flex items-center gap-3">
@@ -449,11 +465,11 @@ export default function TicketsPage() {
           <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
             <button
               type="button"
-              onClick={() => setShowCreateTaskModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
-              <CheckSquare className="w-4 h-4" />
-              Create Task
+              <Plus className="w-4 h-4" />
+              Create Ticket
             </button>
           </div>
         </div>
@@ -1046,10 +1062,10 @@ export default function TicketsPage() {
         </div>
       )}
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={showCreateTaskModal}
-        onClose={() => setShowCreateTaskModal(false)}
+      {/* Create Ticket Modal */}
+      <CreateTicketModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
       />
     </div>
   )

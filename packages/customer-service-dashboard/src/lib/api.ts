@@ -95,6 +95,8 @@ export const ticketsApi = {
     api.post(`/api/tickets/${primaryTicketId}/merge`, { secondaryTicketIds }),
   bulkAssign: (ticketIds: string[], assignedTo: string | null) =>
     api.post('/api/tickets/bulk-assign', { ticketIds, assignedTo }),
+  createManual: (data: { customer_name: string; customer_email: string; customer_phone?: string; subject: string; message: string; channel: string; priority: string; assign_to?: string | null; related_ticket?: string | null; deadline?: string | null; parent_task_id?: string | null }) =>
+    api.post('/api/tickets/create-manual', data),
 }
 
 // Staff API
@@ -303,8 +305,6 @@ export const groupChatApi = {
   // Global Settings
   getTimeLimit: () => api.get('/api/group-chat/settings/time-limit'),
   setTimeLimit: (timeLimit: number) => api.put('/api/group-chat/settings/time-limit', { timeLimit }),
-  
-  // Auto-archive settings
   getAutoArchiveHours: () => api.get('/api/group-chat/settings/auto-archive'),
   setAutoArchiveHours: (hours: number) => api.put('/api/group-chat/settings/auto-archive', { hours }),
 };
@@ -320,8 +320,23 @@ export const memosApi = {
 
 // Tags API
 export const tagsApi = {
-  getAllTags: (search?: string) => api.get('/api/tags', { params: { search } }),
-  searchTags: (tag: string) => api.get('/api/tags/search', { params: { tag } }),
+  getAllTags: (search?: string) => api.get('/api/tags', { params: search ? { search } : {} }),
+  searchTags: (query: string) => api.get('/api/tags/search', { params: { search: query } }),
+};
+
+// Email Signatures API
+export const signaturesApi = {
+  getGlobal: () => api.get('/api/signatures/global'),
+  setGlobal: (signatureHtml: string) => api.put('/api/signatures/global', { signatureHtml }),
+  getPreview: () => api.get('/api/signatures/preview'),
+  getPlainText: () => api.get('/api/signatures/plain-text'),
+  uploadLogo: (attachment: { name: string; data: string; type: string; size: number }) => 
+    api.post('/api/signatures/upload-logo', { attachment }),
+  getSettings: () => api.get('/api/signatures/settings'),
+  saveSettings: (settings: { logoUrl: string; companyName: string; email: string; website: string }) =>
+    api.put('/api/signatures/settings', settings),
+  getPreviewFromSettings: (settings: { logoUrl: string; companyName: string; email: string; website: string }) =>
+    api.post('/api/signatures/preview-from-settings', settings),
 };
 
 // Mentions API
@@ -355,46 +370,5 @@ export const mentionsApi = {
     ai_result?: string;
   }) => api.patch(`/api/mentions/${id}`, data),
   deleteMention: (id: string) => api.delete(`/api/mentions/${id}`),
-};
-
-// Email Signatures API
-export const signaturesApi = {
-  getSettings: () => api.get('/api/email/signature/settings'),
-  saveSettings: (data: any) => api.post('/api/email/signature/settings', data),
-  getPreviewFromSettings: (data: any) => api.post('/api/email/signature/preview', data),
-  uploadLogo: (data: any) => api.post('/api/email/signature/upload-logo', data),
-};
-
-// Tasks API
-export const tasksApi = {
-  list: (params?: {
-    status?: string;
-    assigned_to?: string;
-    created_by?: string;
-    priority?: string;
-    related_ticket_id?: string;
-  }) => api.get('/api/tasks', { params }),
-  get: (id: string) => api.get(`/api/tasks/${id}`),
-  create: (data: {
-    title: string;
-    description?: string;
-    priority?: 'low' | 'normal' | 'high' | 'urgent';
-    due_date?: string;
-    assigned_to?: string;
-    channel_id?: string;
-    mentions?: string[];
-    related_ticket_id?: string;
-  }) => api.post('/api/tasks', data),
-  update: (id: string, data: {
-    title?: string;
-    description?: string;
-    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-    priority?: 'low' | 'normal' | 'high' | 'urgent';
-    assigned_to?: string;
-    due_date?: string;
-  }) => api.put(`/api/tasks/${id}`, data),
-  delete: (id: string) => api.delete(`/api/tasks/${id}`),
-  addComment: (id: string, content: string) => 
-    api.post(`/api/tasks/${id}/comments`, { content }),
 };
 

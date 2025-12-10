@@ -27,12 +27,12 @@ import ShopifyIntegrationPage from './pages/ShopifyIntegrationPage'
 import GroupChatPage from './pages/GroupChatPage'
 import GroupChatSettingsPage from './pages/GroupChatSettingsPage'
 import TagsPage from './pages/TagsPage'
-import TasksDashboardPage from './pages/TasksDashboardPage'
-import TaskManagerSettingsPage from './pages/TaskManagerSettingsPage'
-// Task Manager imports - rebuild trigger
+import TagsSettingsPage from './pages/TagsSettingsPage'
+import EmailSettingsPage from './pages/EmailSettingsPage'
 import TaskManagerDashboardPage from './pages/TaskManagerDashboardPage'
+import TaskDigestTablePage from './pages/TaskDigestTablePage'
+import TaskManagerSettingsPage from './pages/TaskManagerSettingsPage'
 import TaskAgentStatusPage from './pages/TaskAgentStatusPage'
-import TaskDigestPage from './pages/TaskDigestPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -58,13 +58,13 @@ function App() {
           <Route path="mentions" element={<MentionsPage />} />
           <Route path="memo" element={<MemoPage />} />
           <Route path="tags" element={<TagsPage />} />
-          <Route path="tasks" element={<TasksDashboardPage />} />
           <Route path="task-manager" element={<TaskManagerDashboardPage />} />
           <Route path="task-manager/agent-status" element={<TaskAgentStatusPage />} />
-          <Route path="task-digest" element={<TaskDigestPage />} />
-          <Route path="settings/task-manager" element={<TaskManagerSettingsPage />} />
+          <Route path="task-digest" element={<TaskDigestTablePage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
           <Route path="settings" element={<SettingsHubPage />} />
+          <Route path="settings/tags" element={<TagsSettingsPage />} />
+          <Route path="settings/email" element={<EmailSettingsPage />} />
           <Route path="settings/business-hours" element={<BusinessHoursPage />} />
           <Route path="settings/chat-widget" element={<ChatWidgetSettingsPage />} />
           <Route path="settings/chat-embed" element={<ChatEmbedCodePage />} />
@@ -83,6 +83,8 @@ function App() {
           {/* Group Chat */}
           <Route path="group-chat" element={<GroupChatPage />} />
           <Route path="settings/group-chat" element={<GroupChatSettingsPage />} />
+          {/* Task Manager */}
+          <Route path="settings/task-manager" element={<TaskManagerSettingsPage />} />
           {/* Integrations */}
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings/integrations/shopify" element={<ShopifyIntegrationPage />} />

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mentionsApi, groupChatApi, staffApi } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
-import { AtSign, MessageSquare, Hash, Calendar, Filter, ExternalLink, Shield, ChevronLeft, ChevronRight, Search, X, Mail, Phone, MessageCircle, Paperclip } from 'lucide-react';
+import { AtSign, MessageSquare, Hash, Calendar, Filter, ExternalLink, Shield, ChevronLeft, ChevronRight, Search, X, Mail, Phone, MessageCircle, Paperclip, Clipboard } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 interface Mention {
@@ -119,19 +119,22 @@ export default function MentionsPage() {
     const query = searchQuery.toLowerCase().trim();
     
     return mentions.filter(mention => {
-      // Extract just the number from search query (e.g., "1234" from "@1234" or "ticket 1234")
+      // Extract just the number from search query (e.g., "1234" from "@1234" or "ticket 1234" or "*1234")
       const searchNumber = query.match(/\d+/)?.[0];
       
-      // If searching by number, check message content for ticket references
+      // If searching by number, check message content for ticket/task references
       if (searchNumber && mention.message_content) {
         const messageContent = mention.message_content.toLowerCase();
-        // Check for @1234, #1234, ticket 1234, TKT-1234, etc.
+        // Check for @1234, #1234, ticket 1234, TKT-1234, *1234, TSK-1234, etc.
         const ticketPatterns = [
           `@${searchNumber}`,
           `#${searchNumber}`,
+          `*${searchNumber}`,
           `ticket ${searchNumber}`,
           `tkt-${searchNumber}`,
           `tkt-000${searchNumber}`,
+          `tsk-${searchNumber}`,
+          `tsk-000${searchNumber}`,
         ];
         
         if (ticketPatterns.some(pattern => messageContent.includes(pattern))) {
@@ -437,9 +440,19 @@ export default function MentionsPage() {
     }
   };
 
-  // Format ticket number to @173 format (mention style)
+  // Format ticket number to @173 or @100-1 format (mention style)
   const formatTicketNumber = (ticketNumber: string | null): string => {
     if (!ticketNumber) return '';
+    
+    // Handle sub-tasks (TSK-100-1 -> @100-1)
+    const subTaskMatch = ticketNumber.match(/^[A-Z]+-?(\d+)-(\d+)$/);
+    if (subTaskMatch) {
+      const parentNum = parseInt(subTaskMatch[1], 10);
+      const subNum = parseInt(subTaskMatch[2], 10);
+      return `@${parentNum}-${subNum}`;
+    }
+    
+    // Handle regular tickets (TKT-173 -> @173)
     const match = ticketNumber.match(/\d+/);
     if (!match) return ticketNumber;
     const num = parseInt(match[0], 10); // This removes leading zeros
@@ -455,6 +468,9 @@ export default function MentionsPage() {
       case 'callback':
         // RED for callback requests
         return <Phone className={`${size} text-red-600`} />;
+      case 'task':
+        // Clipboard icon for task tickets (amber color)
+        return <Clipboard className={`${size} text-amber-600`} />;
       case 'chat':
         return <MessageSquare className={size} />;
       case 'whatsapp':
@@ -470,10 +486,10 @@ export default function MentionsPage() {
   const linkifyTickets = (text: string) => {
     if (!text) return null;
 
-    // Regex to match: @261, TKT-261, ticket 261, #261
-    const ticketRegex = /(@(\d+)|TKT-(\d+)|ticket\s+(\d+)|#(\d+))/gi;
+    // Regex to match: @261, TKT-261, ticket 261, #261, *123, TSK-123 (including sub-tasks)
+    const ticketRegex = /(@(\d+)|TKT-(\d+)|ticket\s+(\d+)|#(\d+)|\*(\d+)(?:-(\d+))?|TSK-(\d+)(?:-(\d+))?)/gi;
     
-    const parts: Array<{ text: string; isTicket: boolean; ticketNumber?: string }> = [];
+    const parts: Array<{ text: string; isTicket: boolean; ticketNumber?: string; isTask?: boolean; subTaskNumber?: string }> = [];
     let lastIndex = 0;
     let match;
 
@@ -483,14 +499,22 @@ export default function MentionsPage() {
         parts.push({ text: text.substring(lastIndex, match.index), isTicket: false });
       }
 
-      // Extract ticket number from whichever group matched
+      // Extract ticket/task number from whichever group matched
       const ticketNumber = match[2] || match[3] || match[4] || match[5];
+      const taskNumber = match[6] || match[8];
+      const subTaskNumber = match[7] || match[9];
+      
+      // Determine if it's a task or ticket
+      const isTask = taskNumber !== undefined;
+      const searchNumber = isTask ? taskNumber : ticketNumber;
       
       // Keep the original format for display, use number for search
       parts.push({ 
         text: match[0], 
-        isTicket: true, 
-        ticketNumber: ticketNumber // Just the number, will search by it
+        isTicket: !isTask, 
+        ticketNumber: searchNumber, // Just the number, will search by it
+        isTask: isTask,
+        subTaskNumber: subTaskNumber
       });
 
       lastIndex = match.index + match[0].length;
@@ -510,16 +534,18 @@ export default function MentionsPage() {
     return (
       <span>
         {parts.map((part, index) => 
-          part.isTicket ? (
+          part.isTicket || part.isTask ? (
             <a
               key={index}
-              href={`/tickets?search=TKT-${part.ticketNumber}`}
+              href={part.isTask 
+                ? `/tickets?search=${part.subTaskNumber ? `TSK-${part.ticketNumber}-${part.subTaskNumber}` : `TSK-${part.ticketNumber}`}` 
+                : `/tickets?search=TKT-${part.ticketNumber}`}
               target="_blank"
               rel="noopener noreferrer"
+              className={part.isTask ? "text-amber-600 hover:text-amber-800 hover:underline font-medium cursor-pointer" : "text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"}
               onClick={(e) => {
                 e.stopPropagation();
               }}
-              className="text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
             >
               {part.text}
             </a>
@@ -575,7 +601,7 @@ export default function MentionsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by ticket (@261), staff name, or message..."
+              placeholder="Search by ticket (@261), task (*123), staff name, or message..."
               className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchQuery && (

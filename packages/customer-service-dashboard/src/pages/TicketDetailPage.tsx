@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { ticketsApi, shopifyApi } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { User, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Paperclip, X, Phone, Hash } from 'lucide-react'
+import { User, Users, Package, ShoppingBag, ChevronLeft, ChevronRight, Sparkles, Paperclip, X, Phone, Hash, Mail, MessageSquare, Clipboard, Instagram, Facebook, Clock } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import StatusModal from '../components/StatusModal'
 import ReassignModal from '../components/ReassignModal'
@@ -11,7 +11,7 @@ import EscalateModal from '../components/EscalateModal'
 import SnoozeModal from '../components/SnoozeModal'
 import ScheduleReplyModal from '../components/ScheduleReplyModal'
 import EditScheduledMessageModal from '../components/EditScheduledMessageModal'
-import CreateTaskModal from '../components/CreateTaskModal'
+import CreateTicketModal from '../components/CreateTicketModal'
 import { AIDraftResponsePanel } from '../components/AIDraftResponsePanel'
 import { AIDraftFeedbackModal } from '../components/AIDraftFeedbackModal'
 import { parseTagsFromStorage } from '../utils/tagParser'
@@ -71,12 +71,24 @@ const getAttachmentUrl = (attachmentUrl: string | null | undefined): string => {
   return `https://dartmouth-os-worker.dartmouth.workers.dev/api/attachments/${attachmentUrl}`;
 };
 
-// Format ticket number to TKT-173 format (remove leading zeros)
+// Format ticket number - preserve prefix (TKT/TSK) and remove leading zeros
 const formatTicketNumber = (ticketNumber: string): string => {
-  const match = ticketNumber.match(/\d+/);
-  if (!match) return ticketNumber;
-  const num = parseInt(match[0], 10); // This removes leading zeros
-  return `TKT-${num}`;
+  // Handle sub-tasks (TSK-100-1)
+  const subTaskMatch = ticketNumber.match(/^([A-Z]+)-?(\d+)-(\d+)$/);
+  if (subTaskMatch) {
+    const prefix = subTaskMatch[1];
+    const parentNum = parseInt(subTaskMatch[2], 10);
+    const subNum = parseInt(subTaskMatch[3], 10);
+    return `${prefix}-${parentNum}-${subNum}`;
+  }
+  
+  // Handle regular tickets (TKT-123, TSK-100)
+  const prefixMatch = ticketNumber.match(/^([A-Z]+)-?/);
+  const numMatch = ticketNumber.match(/\d+/);
+  if (!numMatch) return ticketNumber;
+  const prefix = prefixMatch ? prefixMatch[1] : 'TKT';
+  const num = parseInt(numMatch[0], 10);
+  return `${prefix}-${num}`;
 };
 
 export default function TicketDetailPage() {
@@ -102,7 +114,7 @@ export default function TicketDetailPage() {
   const [showSnoozeModal, setShowSnoozeModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showEditScheduledModal, setShowEditScheduledModal] = useState(false)
-  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false)
+  const [showCreateSubTaskModal, setShowCreateSubTaskModal] = useState(false)
   const [messageToEdit, setMessageToEdit] = useState<any>(null)
   const [showInternalNotes, setShowInternalNotes] = useState(false) // Hidden by default
   const [showResponseArea, setShowResponseArea] = useState(false) // Hidden by default
@@ -855,12 +867,20 @@ export default function TicketDetailPage() {
                 </svg>
               </Link>
               <div className="flex items-center gap-2">
-                {ticket.subject?.toLowerCase().includes('callback request') ? (
-                  <Phone className="w-4 h-4 text-red-600 fill-current" />
+                {ticket.channel === 'task' ? (
+                  <Clipboard className="w-4 h-4 text-amber-600" />
+                ) : ticket.channel === 'phone' || ticket.subject?.toLowerCase().includes('callback request') ? (
+                  <Phone className="w-4 h-4 text-red-600" />
+                ) : ticket.channel === 'chat' ? (
+                  <MessageSquare className="w-4 h-4 text-indigo-500" />
+                ) : ticket.channel === 'whatsapp' ? (
+                  <MessageSquare className="w-4 h-4 text-green-600" />
+                ) : ticket.channel === 'facebook' ? (
+                  <Facebook className="w-4 h-4 text-blue-600" />
+                ) : ticket.channel === 'instagram' ? (
+                  <Instagram className="w-4 h-4 text-pink-500" />
                 ) : (
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+                  <Mail className="w-4 h-4 text-gray-500" />
                 )}
                 <h1 className="text-base font-semibold text-gray-900">{formatTicketNumber(ticket.ticket_number)}</h1>
               </div>
@@ -881,6 +901,53 @@ export default function TicketDetailPage() {
               <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${sentimentColors[ticket.sentiment as keyof typeof sentimentColors] || sentimentColors.neutral}`}>
                 {sentimentIcons[ticket.sentiment as keyof typeof sentimentIcons] || '😐'} {ticket.sentiment || 'neutral'}
               </span>
+              {/* Deadline for tasks */}
+              {ticket.channel === 'task' && ticket.sla_due_at && (
+                <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                  new Date(ticket.sla_due_at) < new Date() 
+                    ? 'bg-red-50 text-red-700 ring-red-600/20' 
+                    : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                }`}>
+                  <Clock className="w-3 h-3" />
+                  {new Date(ticket.sla_due_at).toLocaleString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </span>
+              )}
+              {/* Related ticket pill for tasks */}
+              {ticket.related_ticket_id && (() => {
+                // Clean the related ticket ID for display and search
+                let displayTicket = ticket.related_ticket_id
+                let searchTicket = ticket.related_ticket_id
+                
+                // If it starts with @, convert @278 -> TKT-278 for search, keep @278 for display
+                if (displayTicket.startsWith('@')) {
+                  searchTicket = `TKT-${displayTicket.substring(1)}`
+                } else if (!displayTicket.includes('-')) {
+                  // If it's just a number like "278", convert to TKT-278 for both
+                  searchTicket = `TKT-${displayTicket}`
+                  displayTicket = `@${displayTicket}`
+                } else {
+                  // If it's already TKT-278 or TSK-278, convert display to @278
+                  const match = displayTicket.match(/^[A-Z]+-(\d+)$/)
+                  if (match) {
+                    displayTicket = `@${match[1]}`
+                  }
+                }
+                
+                return (
+                  <Link 
+                    to={`/tickets?search=${searchTicket}`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-indigo-50 text-indigo-700 ring-indigo-600/20 hover:bg-indigo-100"
+                  >
+                    {displayTicket}
+                  </Link>
+                )
+              })()}
             </div>
             <button className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
               {ticket.assigned_to ? staffNames[ticket.assigned_to] || ticket.assigned_to : 'Unassigned'}
@@ -910,6 +977,16 @@ export default function TicketDetailPage() {
               <span className="font-medium">Subject:</span> {ticket.subject}
             </p>
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Create Sub-Task button - only for tasks */}
+              {ticket.channel === 'task' && (
+                <button 
+                  onClick={() => setShowCreateSubTaskModal(true)}
+                  className="text-xs px-2 py-1 bg-amber-50 border border-amber-300 rounded-lg hover:bg-amber-100 flex items-center gap-1 text-amber-900"
+                >
+                  <Clipboard className="w-3 h-3" />
+                  <span>Create Sub-Task</span>
+                </button>
+              )}
               <button 
                 onClick={() => setShowReassignModal(true)}
                 className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
@@ -936,15 +1013,6 @@ export default function TicketDetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Snooze</span>
-              </button>
-              <button 
-                onClick={() => setShowCreateTaskModal(true)}
-                className="text-xs px-2 py-1 bg-blue-600 text-white border border-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                <span>Create Task</span>
               </button>
               <button 
                 onClick={() => setShowMergeModal(true)}
@@ -1011,6 +1079,48 @@ export default function TicketDetailPage() {
                 <span>
                   <strong>Merged:</strong> {formatTicketNumber(ticket.ticket_number)} and {formatTicketNumber(ticket.merged_from || '')}
                 </span>
+              </div>
+            )}
+            {/* Related Tasks - shows tasks linked to this ticket */}
+            {ticketData?.relatedTasks && ticketData.relatedTasks.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {ticketData.relatedTasks.map((task: any) => (
+                  <Link
+                    key={task.ticket_number}
+                    to={`/tickets?search=${task.ticket_number}`}
+                    className="h-7 text-xs px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-1.5 text-amber-900 hover:bg-amber-100"
+                  >
+                    <Clipboard className="w-3 h-3 text-amber-600" />
+                    <span>{formatTicketNumber(task.ticket_number)}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {/* Sub-Tasks - shows sub-tasks for this parent task */}
+            {ticket.channel === 'task' && ticketData?.subTasks && ticketData.subTasks.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {ticketData.subTasks.map((subTask: any) => (
+                  <Link
+                    key={subTask.ticket_number}
+                    to={`/tickets?search=${subTask.ticket_number}`}
+                    className="h-7 text-xs px-2 py-1 bg-purple-50 border border-purple-200 rounded-lg flex items-center gap-1.5 text-purple-900 hover:bg-purple-100"
+                  >
+                    <Users className="w-3 h-3 text-purple-600" />
+                    <span>{formatTicketNumber(subTask.ticket_number)}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {/* Parent Task - shows parent task for sub-tasks */}
+            {ticket.channel === 'task' && ticket.parent_task_id && ticketData?.parentTask && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link
+                  to={`/tickets?search=${ticketData.parentTask.ticket_number}`}
+                  className="h-7 text-xs px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-1.5 text-gray-900 hover:bg-gray-100"
+                >
+                  <User className="w-3 h-3 text-gray-600" />
+                  <span>{formatTicketNumber(ticketData.parentTask.ticket_number)}</span>
+                </Link>
               </div>
             )}
           </div>
@@ -2126,13 +2236,6 @@ export default function TicketDetailPage() {
         message={messageToEdit}
       />
 
-      <CreateTaskModal
-        isOpen={showCreateTaskModal}
-        onClose={() => setShowCreateTaskModal(false)}
-        relatedTicketId={ticket.id}
-        relatedTicketNumber={ticket.ticket_number}
-      />
-
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2261,6 +2364,17 @@ export default function TicketDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Create Sub-Task Modal */}
+      <CreateTicketModal 
+        isOpen={showCreateSubTaskModal} 
+        onClose={() => {
+          setShowCreateSubTaskModal(false)
+          refetch() // Refresh to show new sub-task
+        }}
+        parentTaskId={ticket?.ticket_id}
+        parentTaskNumber={ticket?.ticket_number}
+      />
     </div>
   )
 }
