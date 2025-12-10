@@ -303,6 +303,10 @@ export const groupChatApi = {
   // Global Settings
   getTimeLimit: () => api.get('/api/group-chat/settings/time-limit'),
   setTimeLimit: (timeLimit: number) => api.put('/api/group-chat/settings/time-limit', { timeLimit }),
+  
+  // Auto-archive settings
+  getAutoArchiveHours: () => api.get('/api/group-chat/settings/auto-archive'),
+  setAutoArchiveHours: (hours: number) => api.put('/api/group-chat/settings/auto-archive', { hours }),
 };
 
 // Memos API
@@ -316,7 +320,8 @@ export const memosApi = {
 
 // Tags API
 export const tagsApi = {
-  getAllTags: () => api.get('/api/tags'),
+  getAllTags: (search?: string) => api.get('/api/tags', { params: { search } }),
+  searchTags: (tag: string) => api.get('/api/tags/search', { params: { tag } }),
 };
 
 // Mentions API
@@ -350,5 +355,46 @@ export const mentionsApi = {
     ai_result?: string;
   }) => api.patch(`/api/mentions/${id}`, data),
   deleteMention: (id: string) => api.delete(`/api/mentions/${id}`),
+};
+
+// Email Signatures API
+export const signaturesApi = {
+  getSettings: () => api.get('/api/email/signature/settings'),
+  saveSettings: (data: any) => api.post('/api/email/signature/settings', data),
+  getPreviewFromSettings: (data: any) => api.post('/api/email/signature/preview', data),
+  uploadLogo: (data: any) => api.post('/api/email/signature/upload-logo', data),
+};
+
+// Tasks API
+export const tasksApi = {
+  list: (params?: {
+    status?: string;
+    assigned_to?: string;
+    created_by?: string;
+    priority?: string;
+    related_ticket_id?: string;
+  }) => api.get('/api/tasks', { params }),
+  get: (id: string) => api.get(`/api/tasks/${id}`),
+  create: (data: {
+    title: string;
+    description?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    due_date?: string;
+    assigned_to?: string;
+    channel_id?: string;
+    mentions?: string[];
+    related_ticket_id?: string;
+  }) => api.post('/api/tasks', data),
+  update: (id: string, data: {
+    title?: string;
+    description?: string;
+    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    assigned_to?: string;
+    due_date?: string;
+  }) => api.put(`/api/tasks/${id}`, data),
+  delete: (id: string) => api.delete(`/api/tasks/${id}`),
+  addComment: (id: string, content: string) => 
+    api.post(`/api/tasks/${id}/comments`, { content }),
 };
 

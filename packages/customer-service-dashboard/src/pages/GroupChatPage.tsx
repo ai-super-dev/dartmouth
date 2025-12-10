@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { groupChatApi, staffApi, memosApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File, Pencil, Trash2, Smile, Download, ArrowDown, StickyNote, Loader2 } from 'lucide-react';
-import { parseTagsFromStorage, TAG_HELP_TEXT } from '../utils/tagParser';
 
 interface Channel {
   id: string;

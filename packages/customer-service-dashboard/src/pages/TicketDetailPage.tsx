@@ -11,6 +11,7 @@ import EscalateModal from '../components/EscalateModal'
 import SnoozeModal from '../components/SnoozeModal'
 import ScheduleReplyModal from '../components/ScheduleReplyModal'
 import EditScheduledMessageModal from '../components/EditScheduledMessageModal'
+import CreateTaskModal from '../components/CreateTaskModal'
 import { AIDraftResponsePanel } from '../components/AIDraftResponsePanel'
 import { AIDraftFeedbackModal } from '../components/AIDraftFeedbackModal'
 import { parseTagsFromStorage } from '../utils/tagParser'
@@ -101,6 +102,7 @@ export default function TicketDetailPage() {
   const [showSnoozeModal, setShowSnoozeModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showEditScheduledModal, setShowEditScheduledModal] = useState(false)
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false)
   const [messageToEdit, setMessageToEdit] = useState<any>(null)
   const [showInternalNotes, setShowInternalNotes] = useState(false) // Hidden by default
   const [showResponseArea, setShowResponseArea] = useState(false) // Hidden by default
@@ -934,6 +936,15 @@ export default function TicketDetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Snooze</span>
+              </button>
+              <button 
+                onClick={() => setShowCreateTaskModal(true)}
+                className="text-xs px-2 py-1 bg-blue-600 text-white border border-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <span>Create Task</span>
               </button>
               <button 
                 onClick={() => setShowMergeModal(true)}
@@ -2113,6 +2124,13 @@ export default function TicketDetailPage() {
         onConfirm={handleEditScheduledMessageConfirm}
         onRemove={handleRemoveScheduledMessage}
         message={messageToEdit}
+      />
+
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        relatedTicketId={ticket.id}
+        relatedTicketNumber={ticket.ticket_number}
       />
 
       {/* Delete Confirmation Modal */}

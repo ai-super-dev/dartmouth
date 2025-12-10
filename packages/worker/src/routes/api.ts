@@ -29,6 +29,8 @@ import * as attachmentsController from '../controllers/attachments';
 import * as integrationsController from '../controllers/integrations';
 import * as groupChatController from '../controllers/group-chat';
 import * as memosController from '../controllers/memos';
+import * as tasksController from '../controllers/tasks';
+import * as taskManagerChatController from '../controllers/task-manager-chat';
 
 /**
  * Create API router
@@ -282,6 +284,30 @@ export function createAPIRouter() {
   // ========================================================================
   
   app.get('/api/tags', authenticate, memosController.getAllTags);
+
+  // ========================================================================
+  // TASKS ROUTES
+  // ========================================================================
+  
+  app.get('/api/tasks', authenticate, tasksController.listTasks);
+  app.get('/api/tasks/:id', authenticate, tasksController.getTask);
+  app.post('/api/tasks', authenticate, tasksController.createTask);
+  app.put('/api/tasks/:id', authenticate, tasksController.updateTask);
+  app.delete('/api/tasks/:id', authenticate, tasksController.deleteTask);
+  app.post('/api/tasks/:id/comments', authenticate, tasksController.addTaskComment);
+
+  // ========================================================================
+  // TASK MANAGER AI CHAT ROUTES
+  // ========================================================================
+  
+  app.post('/api/task-manager/chat', authenticate, taskManagerChatController.sendMessage);
+  app.get('/api/task-manager/conversations', authenticate, taskManagerChatController.listConversations);
+  app.post('/api/task-manager/conversations', authenticate, taskManagerChatController.createConversation);
+  app.get('/api/task-manager/conversations/:id', authenticate, taskManagerChatController.getConversation);
+  app.delete('/api/task-manager/conversations/:id', authenticate, taskManagerChatController.archiveConversation);
+  app.post('/api/task-manager/actions/:id/execute', authenticate, taskManagerChatController.executeAction);
+  app.get('/api/task-manager/conversations/:id/actions', authenticate, taskManagerChatController.getPendingActions);
+  app.get('/api/task-manager/suggestions', authenticate, taskManagerChatController.getQuickSuggestions);
 
   // ========================================================================
   // @MENTIONS ROUTES

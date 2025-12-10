@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ticketsApi, api } from '../lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, X, GitMerge, Trash2, Mail, MessageSquare, Phone, Instagram, Facebook } from 'lucide-react'
+import { Search, X, GitMerge, Trash2, Mail, MessageSquare, Phone, Instagram, Facebook, CheckSquare } from 'lucide-react'
 import ReassignModal from '../components/ReassignModal'
+import CreateTaskModal from '../components/CreateTaskModal'
 import { useAuthStore } from '../store/authStore'
 import PlatformSelect from '../components/PlatformSelect'
 
@@ -98,6 +99,7 @@ export default function TicketsPage() {
   const [showMergeConfirm, setShowMergeConfirm] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false)
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -443,6 +445,16 @@ export default function TicketsPage() {
             <p className="mt-2 text-sm text-gray-700">
               A list of all customer service tickets including their status, priority, and assignment.
             </p>
+          </div>
+          <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+            <button
+              type="button"
+              onClick={() => setShowCreateTaskModal(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
+            >
+              <CheckSquare className="w-4 h-4" />
+              Create Task
+            </button>
           </div>
         </div>
 
@@ -1033,6 +1045,12 @@ export default function TicketsPage() {
           </div>
         </div>
       )}
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+      />
     </div>
   )
 }
