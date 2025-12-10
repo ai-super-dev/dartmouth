@@ -411,6 +411,10 @@ export default function Sidebar({
             onToggle={() => setIsStaffExpanded(!isStaffExpanded)}
           >
             <SubNavLink to="/staff">List</SubNavLink>
+            <SubNavLink to="/staff/hours">Hours</SubNavLink>
+            <SubNavLink to="/staff/assignment">Assignment</SubNavLink>
+            <SubNavLink to="/staff/performance">Performance</SubNavLink>
+            <SubNavLink to="/staff/views">Private Views</SubNavLink>
           </CollapsibleSection>
 
           {/* Customers Section */}
@@ -576,9 +580,8 @@ export default function Sidebar({
               {isGeneralExpanded && (
                 <div className="ml-4 mt-1 space-y-1">
                   <SubNavLink to="/settings/general/auth">Auth & Security</SubNavLink>
-                  <SubNavLink to="/settings/email">Email</SubNavLink>
                   <SubNavLink to="/settings/general/templates">Templates</SubNavLink>
-                  <SubNavLink to="/settings/tags">Tags</SubNavLink>
+                  <SubNavLink to="/settings/general/tags">Tags</SubNavLink>
                 </div>
               )}
             </div>

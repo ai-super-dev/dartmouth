@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, Link } from 'react-router-dom';
 import { groupChatApi, staffApi, memosApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File, Pencil, Trash2, Smile, Download, ArrowDown, StickyNote, Loader2, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { Hash, Plus, Send, Paperclip, Users, X, Image as ImageIcon, File, Pencil, Trash2, Smile, Download, ArrowDown, StickyNote, Loader2 } from 'lucide-react';
 import { parseTagsFromStorage, TAG_HELP_TEXT } from '../utils/tagParser';
 
 interface Channel {
@@ -21,7 +21,6 @@ interface Message {
   channel_id: string;
   sender_id: string;
   content: string;
-  tags: string | null;
   message_type: string;
   attachment_url: string | null;
   attachment_name: string | null;
@@ -82,10 +81,6 @@ export default function GroupChatPage() {
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<string[]>([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [showSearch, setShowSearch] = useState(false);
 
   // Fetch channels
   const { data: channelsData } = useQuery({
@@ -144,65 +139,6 @@ export default function GroupChatPage() {
     setTimeout(() => {
       setHighlightedMessageId(null);
     }, 5000);
-  };
-
-  // Search function - searches both content and tags
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim() || !messages.length) {
-      setSearchResults([]);
-      setCurrentSearchIndex(0);
-      return;
-    }
-
-    const lowerQuery = query.toLowerCase();
-    const results: string[] = [];
-
-    // Search through messages (from bottom to top, so reverse)
-    [...messages].reverse().forEach((message) => {
-      let isMatch = false;
-
-      // Search in content
-      if (message.content.toLowerCase().includes(lowerQuery)) {
-        isMatch = true;
-      }
-
-      // Search in tags
-      if (message.tags) {
-        const tags = message.tags.split(',').map(t => t.trim().toLowerCase());
-        if (tags.some(tag => tag.includes(lowerQuery))) {
-          isMatch = true;
-        }
-      }
-
-      if (isMatch) {
-        results.push(message.id);
-      }
-    });
-
-    setSearchResults(results);
-    setCurrentSearchIndex(0);
-
-    // Scroll to first result
-    if (results.length > 0) {
-      scrollToMessage(results[0]);
-    }
-  };
-
-  // Navigate to next search result
-  const nextSearchResult = () => {
-    if (searchResults.length === 0) return;
-    const nextIndex = (currentSearchIndex + 1) % searchResults.length;
-    setCurrentSearchIndex(nextIndex);
-    scrollToMessage(searchResults[nextIndex]);
-  };
-
-  // Navigate to previous search result
-  const prevSearchResult = () => {
-    if (searchResults.length === 0) return;
-    const prevIndex = currentSearchIndex === 0 ? searchResults.length - 1 : currentSearchIndex - 1;
-    setCurrentSearchIndex(prevIndex);
-    scrollToMessage(searchResults[prevIndex]);
   };
 
   // Set first channel as active if none selected
@@ -416,7 +352,7 @@ export default function GroupChatPage() {
     if (replyToMessage) {
       finalContent = `↩️ Replying to ${replyToMessage.first_name}: "${replyToMessage.content.substring(0, 50)}${replyToMessage.content.length > 50 ? '...' : ''}" [msg:${replyToMessage.id}]\n\n${messageInput}`;
     }
-
+    
     sendMessageMutation.mutate({
       content: finalContent,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -603,8 +539,8 @@ export default function GroupChatPage() {
         {activeChannel ? (
           <>
             {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0" style={{ minHeight: '73px' }}>
-              <div className="flex items-center gap-4">
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ height: '73px' }}>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <Hash className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   <div className="min-w-0">
@@ -615,13 +551,6 @@ export default function GroupChatPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowSearch(!showSearch)}
-                  className={`p-2 rounded-lg flex-shrink-0 ${showSearch ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-                  title="Search messages"
-                >
-                  <Search className="w-5 h-5" />
-                </button>
-                <button
                   onClick={() => setShowMembersPanel(!showMembersPanel)}
                   className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg flex-shrink-0"
                 >
@@ -629,57 +558,6 @@ export default function GroupChatPage() {
                   <span className="text-sm font-medium">{members.length} members</span>
                 </button>
               </div>
-              
-              {/* Search Bar */}
-              {showSearch && (
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="Search messages and tags... (e.g., James Scott, #james-scott)"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                    {searchResults.length > 0 && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-white px-2">
-                        <span className="text-sm text-gray-600">
-                          {currentSearchIndex + 1} / {searchResults.length}
-                        </span>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={prevSearchResult}
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Previous result"
-                          >
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={nextSearchResult}
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Next result"
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowSearch(false);
-                      setSearchQuery('');
-                      setSearchResults([]);
-                      setCurrentSearchIndex(0);
-                    }}
-                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                    title="Close search"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Messages Area */}
@@ -860,18 +738,18 @@ export default function GroupChatPage() {
                               <div className="mt-2">
                                 {message.attachment_type?.startsWith('image/') ? (
                                   <div className="relative inline-block">
-                                  <a
-                                    href={getAttachmentUrl(message.attachment_url)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block"
-                                  >
-                                    <img
-                                      src={getAttachmentUrl(message.attachment_url)}
-                                      alt={message.attachment_name || 'Attachment'}
-                                      className="max-w-md rounded border border-gray-300"
-                                    />
-                                  </a>
+                                    <a
+                                      href={getAttachmentUrl(message.attachment_url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block"
+                                    >
+                                      <img
+                                        src={getAttachmentUrl(message.attachment_url)}
+                                        alt={message.attachment_name || 'Attachment'}
+                                        className="max-w-md rounded border border-gray-300"
+                                      />
+                                    </a>
                                     <button
                                       onClick={() => message.attachment_url && handleDownloadFile(getAttachmentUrl(message.attachment_url), message.attachment_name || 'image.png')}
                                       className="absolute top-2 right-2 p-2 bg-white/90 hover:bg-white text-gray-700 hover:text-blue-600 rounded-lg shadow-md border border-gray-200"
@@ -882,20 +760,20 @@ export default function GroupChatPage() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-2">
-                                  <a
-                                    href={getAttachmentUrl(message.attachment_url)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                                  >
-                                    <File className="w-4 h-4" />
-                                    <span>{message.attachment_name}</span>
-                                    {message.attachment_size && (
-                                      <span className="text-xs text-gray-500">
-                                        ({(message.attachment_size / 1024).toFixed(1)} KB)
-                                      </span>
-                                    )}
-                                  </a>
+                                    <a
+                                      href={getAttachmentUrl(message.attachment_url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                                    >
+                                      <File className="w-4 h-4" />
+                                      <span>{message.attachment_name}</span>
+                                      {message.attachment_size && (
+                                        <span className="text-xs text-gray-500">
+                                          ({(message.attachment_size / 1024).toFixed(1)} KB)
+                                        </span>
+                                      )}
+                                    </a>
                                     <button
                                       onClick={() => message.attachment_url && handleDownloadFile(getAttachmentUrl(message.attachment_url), message.attachment_name || 'download')}
                                       className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -905,22 +783,6 @@ export default function GroupChatPage() {
                                     </button>
                                   </div>
                                 )}
-                              </div>
-                            )}
-                            
-                            {/* Tags */}
-                            {message.tags && (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {parseTagsFromStorage(message.tags).map((tag, index) => (
-                                  <Link
-                                    key={index}
-                                    to={`/tags?tag=${encodeURIComponent(tag)}`}
-                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 transition-colors"
-                                  >
-                                    <Hash className="w-3 h-3" />
-                                    {tag}
-                                  </Link>
-                                ))}
                               </div>
                             )}
                           </div>
@@ -995,10 +857,7 @@ export default function GroupChatPage() {
             )}
 
             {/* Message Input */}
-            <div className="bg-white pt-8 pb-4 px-4">
-              {/* Tag Help Text */}
-              <div className="text-xs text-gray-500 mb-2">{TAG_HELP_TEXT}</div>
-              
+            <div className="bg-white p-4">
               {selectedFiles.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {selectedFiles.map((file, index) => (
@@ -1088,7 +947,7 @@ export default function GroupChatPage() {
                         setShowMentionSuggestions(false);
                       }
                     }}
-                    placeholder="Type a message... Use @ to mention, #keyword to add tags"
+                    placeholder="Type a message... (use @ to mention someone)"
                     className="w-full px-4 h-[42px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   
@@ -1171,8 +1030,8 @@ export default function GroupChatPage() {
                     </>
                   ) : (
                     <>
-                  <Send className="w-5 h-5" />
-                  <span>Send</span>
+                      <Send className="w-5 h-5" />
+                      <span>Send</span>
                     </>
                   )}
                 </button>

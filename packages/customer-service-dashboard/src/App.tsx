@@ -27,8 +27,6 @@ import ShopifyIntegrationPage from './pages/ShopifyIntegrationPage'
 import GroupChatPage from './pages/GroupChatPage'
 import GroupChatSettingsPage from './pages/GroupChatSettingsPage'
 import TagsPage from './pages/TagsPage'
-import TagsSettingsPage from './pages/TagsSettingsPage'
-import EmailSettingsPage from './pages/EmailSettingsPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -56,8 +54,6 @@ function App() {
           <Route path="tags" element={<TagsPage />} />
           <Route path="analytics/ai-agent" element={<AIAgentAnalyticsPage />} />
           <Route path="settings" element={<SettingsHubPage />} />
-          <Route path="settings/tags" element={<TagsSettingsPage />} />
-          <Route path="settings/email" element={<EmailSettingsPage />} />
           <Route path="settings/business-hours" element={<BusinessHoursPage />} />
           <Route path="settings/chat-widget" element={<ChatWidgetSettingsPage />} />
           <Route path="settings/chat-embed" element={<ChatEmbedCodePage />} />

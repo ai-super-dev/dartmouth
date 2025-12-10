@@ -29,8 +29,6 @@ import * as attachmentsController from '../controllers/attachments';
 import * as integrationsController from '../controllers/integrations';
 import * as groupChatController from '../controllers/group-chat';
 import * as memosController from '../controllers/memos';
-import * as tagsController from '../controllers/tags';
-import * as signaturesController from '../controllers/signatures';
 
 /**
  * Create API router
@@ -270,8 +268,6 @@ export function createAPIRouter() {
   // Global Settings
   app.get('/api/group-chat/settings/time-limit', authenticate, groupChatController.getTimeLimit);
   app.put('/api/group-chat/settings/time-limit', authenticate, groupChatController.setTimeLimit);
-  app.get('/api/group-chat/settings/auto-archive', authenticate, groupChatController.getAutoArchiveHours);
-  app.put('/api/group-chat/settings/auto-archive', authenticate, groupChatController.setAutoArchiveHours);
 
   // ========================================================================
   // MEMOS
@@ -285,21 +281,7 @@ export function createAPIRouter() {
   // TAGS ROUTES
   // ========================================================================
   
-  app.get('/api/tags', authenticate, tagsController.getAllTags);
-  app.get('/api/tags/search', authenticate, tagsController.searchTags);
-
-  // ========================================================================
-  // EMAIL SIGNATURES
-  // ========================================================================
-  
-  app.get('/api/signatures/global', authenticate, signaturesController.getGlobalSignature);
-  app.put('/api/signatures/global', authenticate, signaturesController.setGlobalSignature);
-  app.get('/api/signatures/preview', authenticate, signaturesController.getSignaturePreview);
-  app.get('/api/signatures/plain-text', authenticate, signaturesController.getSignaturePlainText);
-  app.post('/api/signatures/upload-logo', authenticate, signaturesController.uploadLogo);
-  app.get('/api/signatures/settings', authenticate, signaturesController.getSettings);
-  app.put('/api/signatures/settings', authenticate, signaturesController.saveSettings);
-  app.post('/api/signatures/preview-from-settings', authenticate, signaturesController.getPreviewFromSettings);
+  app.get('/api/tags', authenticate, memosController.getAllTags);
 
   // ========================================================================
   // @MENTIONS ROUTES

@@ -303,8 +303,6 @@ export const groupChatApi = {
   // Global Settings
   getTimeLimit: () => api.get('/api/group-chat/settings/time-limit'),
   setTimeLimit: (timeLimit: number) => api.put('/api/group-chat/settings/time-limit', { timeLimit }),
-  getAutoArchiveHours: () => api.get('/api/group-chat/settings/auto-archive'),
-  setAutoArchiveHours: (hours: number) => api.put('/api/group-chat/settings/auto-archive', { hours }),
 };
 
 // Memos API
@@ -318,23 +316,7 @@ export const memosApi = {
 
 // Tags API
 export const tagsApi = {
-  getAllTags: (search?: string) => api.get('/api/tags', { params: search ? { search } : {} }),
-  searchTags: (query: string) => api.get('/api/tags/search', { params: { search: query } }),
-};
-
-// Email Signatures API
-export const signaturesApi = {
-  getGlobal: () => api.get('/api/signatures/global'),
-  setGlobal: (signatureHtml: string) => api.put('/api/signatures/global', { signatureHtml }),
-  getPreview: () => api.get('/api/signatures/preview'),
-  getPlainText: () => api.get('/api/signatures/plain-text'),
-  uploadLogo: (attachment: { name: string; data: string; type: string; size: number }) => 
-    api.post('/api/signatures/upload-logo', { attachment }),
-  getSettings: () => api.get('/api/signatures/settings'),
-  saveSettings: (settings: { logoUrl: string; companyName: string; email: string; website: string }) =>
-    api.put('/api/signatures/settings', settings),
-  getPreviewFromSettings: (settings: { logoUrl: string; companyName: string; email: string; website: string }) =>
-    api.post('/api/signatures/preview-from-settings', settings),
+  getAllTags: () => api.get('/api/tags'),
 };
 
 // Mentions API

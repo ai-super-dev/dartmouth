@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { memosApi } from '../lib/api';
-import { StickyNote, Paperclip, X, Edit2, Trash2, Download, Send, Image, File, Loader2, Hash, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { StickyNote, Paperclip, X, Edit2, Trash2, Download, Send, Image, File, Loader2, Hash } from 'lucide-react';
 import { parseTagsFromStorage, TAG_HELP_TEXT } from '../utils/tagParser';
 
 interface Memo {
@@ -32,11 +32,6 @@ export default function MemoPage() {
   const [editingContent, setEditingContent] = useState('');
   const [deleteAttachment, setDeleteAttachment] = useState(false);
   const [deleteConfirmMemoId, setDeleteConfirmMemoId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<string[]>([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [showSearch, setShowSearch] = useState(false);
-  const [highlightedMemoId, setHighlightedMemoId] = useState<string | null>(null);
 
   // Fetch memos
   const { data: memosData } = useQuery({
@@ -97,81 +92,6 @@ export default function MemoPage() {
       queryClient.invalidateQueries({ queryKey: ['memos'] });
     },
   });
-
-  // Search function - searches both content and tags
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim() || !memos.length) {
-      setSearchResults([]);
-      setCurrentSearchIndex(0);
-      return;
-    }
-
-    const lowerQuery = query.toLowerCase();
-    const results: string[] = [];
-
-    // Search through memos (from bottom to top, so reverse)
-    [...memos].reverse().forEach((memo) => {
-      let isMatch = false;
-
-      // Search in content
-      if (memo.content.toLowerCase().includes(lowerQuery)) {
-        isMatch = true;
-      }
-
-      // Search in tags
-      if (memo.tags) {
-        const tags = memo.tags.split(',').map(t => t.trim().toLowerCase());
-        if (tags.some(tag => tag.includes(lowerQuery))) {
-          isMatch = true;
-        }
-      }
-
-      if (isMatch) {
-        results.push(memo.id);
-      }
-    });
-
-    setSearchResults(results);
-    setCurrentSearchIndex(0);
-
-    // Scroll to first result
-    if (results.length > 0) {
-      scrollToMemo(results[0]);
-    }
-  };
-
-  // Scroll to and highlight a specific memo
-  const scrollToMemo = (memoId: string) => {
-    setHighlightedMemoId(memoId);
-    setTimeout(() => {
-      const memoElement = document.getElementById(`memo-${memoId}`);
-      if (memoElement) {
-        memoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
-    
-    // Clear highlight after 5 seconds
-    setTimeout(() => {
-      setHighlightedMemoId(null);
-    }, 5000);
-  };
-
-  // Navigate to next search result
-  const nextSearchResult = () => {
-    if (searchResults.length === 0) return;
-    const nextIndex = (currentSearchIndex + 1) % searchResults.length;
-    setCurrentSearchIndex(nextIndex);
-    scrollToMemo(searchResults[nextIndex]);
-  };
-
-  // Navigate to previous search result
-  const prevSearchResult = () => {
-    if (searchResults.length === 0) return;
-    const prevIndex = currentSearchIndex === 0 ? searchResults.length - 1 : currentSearchIndex - 1;
-    setCurrentSearchIndex(prevIndex);
-    scrollToMemo(searchResults[prevIndex]);
-  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -299,70 +219,10 @@ export default function MemoPage() {
               <p className="text-sm text-gray-600">Personal notes to yourself</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-lg ${showSearch ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              title="Search memos"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-            <div className="text-sm text-gray-500">
-              {memos.length} memo{memos.length !== 1 ? 's' : ''}
-            </div>
+          <div className="text-sm text-gray-500">
+            {memos.length} memo{memos.length !== 1 ? 's' : ''}
           </div>
         </div>
-        
-        {/* Search Bar */}
-        {showSearch && (
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search memos and tags... (e.g., James Scott, #james-scott)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
-              />
-              {searchResults.length > 0 && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-white px-2">
-                  <span className="text-sm text-gray-600">
-                    {currentSearchIndex + 1} / {searchResults.length}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={prevSearchResult}
-                      className="p-1 hover:bg-gray-100 rounded"
-                      title="Previous result"
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={nextSearchResult}
-                      className="p-1 hover:bg-gray-100 rounded"
-                      title="Next result"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                setShowSearch(false);
-                setSearchQuery('');
-                setSearchResults([]);
-                setCurrentSearchIndex(0);
-              }}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              title="Close search"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Memos List */}
@@ -373,16 +233,8 @@ export default function MemoPage() {
             <p className="text-gray-500">No @Memos yet. Create your first note below!</p>
           </div>
         ) : (
-          memos.map((memo) => {
-            const isHighlighted = highlightedMemoId === memo.id;
-            return (
-            <div 
-              key={memo.id} 
-              id={`memo-${memo.id}`}
-              className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 transition-colors duration-500 ${
-                isHighlighted ? 'bg-yellow-100 border-yellow-400' : ''
-              }`}
-            >
+          memos.map((memo) => (
+            <div key={memo.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               {editingMemoId === memo.id ? (
                 // Edit mode
                 <div className="space-y-3">
@@ -528,8 +380,7 @@ export default function MemoPage() {
                 </>
               )}
             </div>
-          );
-          })
+          ))
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -574,7 +425,7 @@ export default function MemoPage() {
                 handleSendMemo();
               }
             }}
-            placeholder="Write a note... Use #keyword to add tags (e.g., #james-scott, #artwork-issue)"
+            placeholder="Write a note... Use @tag {keyword} to add tags"
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <span className="absolute -top-6 left-0 text-xs text-gray-500">{TAG_HELP_TEXT}</span>
