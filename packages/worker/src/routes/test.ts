@@ -37,6 +37,7 @@ function createTestBaseAgentConfig(env: Env, agentId: string = 'test-agent') {
       CACHE: env.CACHE as any,
       FILES: env.FILES as any,
       WORKERS_AI: env.WORKERS_AI as any,
+      VECTORIZE: env.VECTORIZE as any, // Optional - can be undefined
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
       GOOGLE_API_KEY: env.GOOGLE_API_KEY,
@@ -228,11 +229,17 @@ export async function handleTestCalculation(request: Request, _env: Env): Promis
  * POST /test/memory
  * Test the MemorySystem component
  */
-export async function handleTestMemory(request: Request, _env: Env): Promise<Response> {
+export async function handleTestMemory(request: Request, env: Env): Promise<Response> {
   try {
     const body = await request.json() as { 
-      action: 'store' | 'retrieve';
+      action: 'store' | 'retrieve' | 'getFacts' | 'getEpisodes';
       agentId: string;
+      sessionId?: string;
+      userId?: string;
+      content?: string;
+      query?: string;
+      summary?: string;
+      metadata?: Record<string, any>;
     };
     
     if (!body.action || !body.agentId) {
@@ -242,14 +249,143 @@ export async function handleTestMemory(request: Request, _env: Env): Promise<Res
       );
     }
 
-    // TODO: Implement memory system testing once MemorySystem API is finalized
+    const { MemorySystem } = await import('../components/MemorySystem');
+    const memorySystem = new MemorySystem(env.APP_CONFIG as any, env.DB);
+
+    if (body.action === 'store') {
+      if (!body.content) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required field for store: content' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      try {
+        await memorySystem.storeFact(body.agentId, body.content, body.metadata || {});
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            message: 'Fact stored successfully',
+            agentId: body.agentId,
+            content: body.content
+          }, null, 2),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (storeError) {
+        console.error('Store error:', storeError);
+        const errorMessage = storeError instanceof Error ? storeError.message : String(storeError);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('semantic_memory');
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to store fact',
+            details: errorMessage,
+            ...(isTableMissing && {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            })
+          }, null, 2),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (body.action === 'retrieve') {
+      const sessionId = body.sessionId || `test-session-${Date.now()}`;
+      const userId = body.userId || 'test-user';
+      const context = body.query || '';
+
+      try {
+        const memories = await memorySystem.recall(sessionId, userId, body.agentId, context);
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            agentId: body.agentId,
+            sessionId,
+            userId,
+            memories
+          }, null, 2),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (retrieveError) {
+        console.error('Retrieve error:', retrieveError);
+        const errorMessage = retrieveError instanceof Error ? retrieveError.message : String(retrieveError);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('semantic_memory') || errorMessage.includes('episodic_memory');
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to retrieve memories',
+            details: errorMessage,
+            ...(isTableMissing && {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            })
+          }, null, 2),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (body.action === 'getFacts') {
+      try {
+        const facts = await memorySystem.getFacts(body.agentId, body.query);
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            agentId: body.agentId,
+            query: body.query || null,
+            facts
+          }, null, 2),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Get facts error:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('semantic_memory');
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to get facts',
+            details: errorMessage,
+            ...(isTableMissing && {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            })
+          }, null, 2),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (body.action === 'getEpisodes') {
+      const userId = body.userId || 'test-user';
+      try {
+        const episodes = await memorySystem.getEpisodes(userId, body.agentId, 5);
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            agentId: body.agentId,
+            userId,
+            episodes
+          }, null, 2),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Get episodes error:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('episodic_memory');
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to get episodes',
+            details: errorMessage,
+            ...(isTableMissing && {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            })
+          }, null, 2),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     return new Response(
-      JSON.stringify({ 
-        message: 'Memory system testing not yet implemented',
-        action: body.action,
-        agentId: body.agentId
-      }, null, 2),
-      { status: 501, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Invalid action. Use "store", "retrieve", "getFacts", or "getEpisodes"' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     return new Response(
@@ -287,7 +423,7 @@ export async function handleTestRAG(request: Request, env: Env): Promise<Respons
     }
 
     const { RAGEngine } = await import('../components/RAGEngine');
-    const ragEngine = new RAGEngine(env.DB, env.WORKERS_AI, env.CACHE);
+    const ragEngine = new RAGEngine(env.DB, env.WORKERS_AI as any, env.CACHE as any);
 
     if (body.action === 'ingest') {
       if (!body.title || !body.content) {
@@ -302,7 +438,7 @@ export async function handleTestRAG(request: Request, env: Env): Promise<Respons
           id: crypto.randomUUID(),
           title: body.title,
           content: body.content,
-          type: 'md'
+          type: 'markdown'
         });
 
         return new Response(
@@ -317,12 +453,19 @@ export async function handleTestRAG(request: Request, env: Env): Promise<Respons
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
       } catch (ingestError) {
-        console.error('Ingest error:', ingestError);
+        console.error('[TestRAG] Ingest error:', ingestError);
+        const errorMessage = ingestError instanceof Error ? ingestError.message : String(ingestError);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('documents') || errorMessage.includes('rag_chunks');
+        
         return new Response(
           JSON.stringify({ 
             error: 'Failed to ingest document',
-            details: ingestError instanceof Error ? ingestError.message : String(ingestError),
-            stack: ingestError instanceof Error ? ingestError.stack : undefined
+            details: errorMessage,
+            stack: ingestError instanceof Error ? ingestError.stack : undefined,
+            ...(isTableMissing && {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            })
           }, null, 2),
           { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
@@ -335,17 +478,41 @@ export async function handleTestRAG(request: Request, env: Env): Promise<Respons
         );
       }
 
-      const result = await ragEngine.retrieve(body.agentId, body.query, 5, 0.7);
+      try {
+        const result = await ragEngine.retrieve(body.agentId, body.query, 5, 0.7);
 
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          agentId: body.agentId,
-          query: body.query,
-          results: result
-        }, null, 2),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            agentId: body.agentId,
+            query: body.query,
+            results: result,
+            message: result.chunks.length === 0 
+              ? 'No matching documents found. Try ingesting a document first.' 
+              : `Found ${result.chunks.length} relevant chunks`
+          }, null, 2),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (searchError) {
+        console.error('[TestRAG] Search error:', searchError);
+        const errorMessage = searchError instanceof Error ? searchError.message : String(searchError);
+        const isTableMissing = errorMessage.includes('no such table') || errorMessage.includes('rag_chunks') || errorMessage.includes('documents');
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to search documents',
+            details: errorMessage,
+            stack: searchError instanceof Error ? searchError.stack : undefined,
+            ...(isTableMissing ? {
+              hint: 'Database tables are missing. Please run the migration: npm run db:migrate:remote',
+              solution: 'Run: wrangler d1 execute agent-army-db --remote --file=./migrations/0001_initial_schema.sql'
+            } : {
+              hint: 'Make sure you have ingested at least one document before searching'
+            })
+          }, null, 2),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
@@ -353,6 +520,7 @@ export async function handleTestRAG(request: Request, env: Env): Promise<Respons
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    console.error('[TestRAG] Unexpected error:', error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Unknown error',
