@@ -7,41 +7,51 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "agent-army-db"
-database_id = "7cf1c2ab-a284-49bb-8484-ade563391cb2"
+database_id = "394bcee5-559f-4e9f-b212-c8095adf34fa"
 
 # KV Namespaces
 [[kv_namespaces]]
 binding = "APP_CONFIG"
-id = "b70d8a2961bd4394a13f9c0f6002bef7"
-preview_id = "4e0fd620f6f443e687dacc43e483d553"
+id = "ad1e9fefaa934cf0a3917abda62ee9c6"
+preview_id = "234a0da16fa64036b336468050220e03"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "4dde59b47cc34c9495aba50d7312df1d"
-preview_id = "ddbe6a75fde34a9daac1f58b217bfc61"
+id = "694d0ca8467c451d9a85b2b3bef3a519"
+preview_id = "ad762076df8943ca95eaea30ae453681"
 
-# R2 Buckets for file attachments
-[[r2_buckets]]
-binding = "ATTACHMENTS"
-bucket_name = "dartmouth-attachments"
+# R2 Buckets for file attachments (OPTIONAL - comment out if you don't want to use R2)
+# The system will automatically fallback to storing files as base64 in the database
+# [[r2_buckets]]
+# binding = "ATTACHMENTS"
+# bucket_name = "dartmouth-attachments"
 # preview_bucket_name = "dartmouth-os-files-preview"
 
 # Workers AI
 [ai]
 binding = "WORKERS_AI"
 
-# Vectorize (RAG Vector Database)
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "dartmouth-rag"
+# Vectorize (RAG Vector Database) - Commented out until index is created
+# To enable: Create index via Cloudflare dashboard or: npx wrangler vectorize create dartmouth-rag --dimensions=1536 --metric=cosine
+# Then uncomment the lines below:
+# [[vectorize]]
+# binding = "VECTORIZE"
+# index_name = "dartmouth-rag"
 
 # Observability
 [observability]
 enabled = true
 
+# Development server settings
+[dev]
+port = 8788
+ip = "127.0.0.1"
+
 # Environment Variables (non-secret)
 [vars]
 ENVIRONMENT = "production"
+LLM_PROVIDER = "openai"
+LLM_MODEL = "gpt-4o-mini"
 GMAIL_REDIRECT_URI = "https://dartmouth-os-worker.your-subdomain.workers.dev/oauth/callback"
 AI_RESPONSE_MODE = "draft"  # "auto" or "draft"
 

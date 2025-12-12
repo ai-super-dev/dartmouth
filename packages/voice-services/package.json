@@ -1,0 +1,27 @@
+{
+  "name": "@agent-army/voice-services",
+  "version": "1.0.0",
+  "description": "Voice Services for Dartmouth OS - STT, TTS, Streaming, VAD",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "dependencies": {
+    "@agent-army/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  }
+}
+

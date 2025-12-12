@@ -18,6 +18,12 @@ import { TaskEscalationService } from './services/TaskEscalationService';
 import type { Env } from './types/shared';
 import type { Env as DartmouthEnv } from '../../dartmouth-core/src/types';
 
+// Log module load to verify worker is being executed
+console.log('[Worker Module] ========================================');
+console.log('[Worker Module] Module loaded at:', new Date().toISOString());
+console.log('[Worker Module] Worker file: src/index.ts');
+console.log('[Worker Module] ========================================');
+
 // Global Dartmouth OS instance (initialized on first request)
 let dartmouth: DartmouthOS | null = null;
 
@@ -34,8 +40,8 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
   // Create Dartmouth OS instance
   const dartmouthEnv: DartmouthEnv = {
     DB: env.DB,
-    R2: env.FILES,
-    KV: env.CACHE,
+    R2: env.FILES as any || undefined, // Optional - type assertion to handle version conflicts
+    KV: env.CACHE as any, // Type assertion to handle version conflicts
     OPENAI_API_KEY: env.OPENAI_API_KEY || '',
     ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || '',
     ELEVENLABS_API_KEY: env.ELEVENLABS_API_KEY,
@@ -64,6 +70,10 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
     agentId: 'fam',
     tenantId: 'default',
     agentConfig: {
+      agentId: 'fam',
+      name: 'FAM Agent',
+      version: '1.0.0',
+      description: 'Base agent configuration',
       llmProvider: (env.LLM_PROVIDER as 'openai' | 'anthropic' | 'google') || 'openai',
       llmModel: env.LLM_MODEL || 'gpt-4o-mini',
       systemPrompt: '', // Will be set by agent
@@ -72,10 +82,11 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
     },
     env: {
       DB: env.DB,
-      APP_CONFIG: env.APP_CONFIG,
-      CACHE: env.CACHE,
-      FILES: env.FILES,
-      WORKERS_AI: env.WORKERS_AI,
+      APP_CONFIG: env.APP_CONFIG as any, // Type assertion to handle version conflicts
+      CACHE: env.CACHE as any, // Type assertion to handle version conflicts
+      FILES: env.FILES as any, // Type assertion to handle version conflicts
+      WORKERS_AI: env.WORKERS_AI as any, // Type assertion to handle version conflicts
+      VECTORIZE: env.VECTORIZE,
       OPENAI_API_KEY: env.OPENAI_API_KEY,
       ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
       GOOGLE_API_KEY: env.GOOGLE_API_KEY,
@@ -91,6 +102,12 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
   const artworkAgent = createArtworkAnalyzerAgent({
     ...baseConfig,
     agentId: 'mccarthy-artwork',
+    agentConfig: {
+      ...baseConfig.agentConfig,
+      agentId: 'mccarthy-artwork',
+      name: 'McCarthy Artwork Analyzer',
+      version: '1.0.0',
+    },
   });
   dartmouth.registerAgent(artworkAgent);
   console.log('[Dartmouth] ✅ McCarthy Artwork Analyzer registered');
@@ -99,6 +116,12 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
   const testAgent = createTestAgent({
     ...baseConfig,
     agentId: 'test-agent',
+    agentConfig: {
+      ...baseConfig.agentConfig,
+      agentId: 'test-agent',
+      name: 'Test Agent',
+      version: '1.0.0',
+    },
   });
   dartmouth.registerAgent(testAgent);
   console.log('[Dartmouth] ✅ Test Agent registered');
@@ -119,17 +142,57 @@ async function initializeDartmouth(env: Env): Promise<DartmouthOS> {
 /**
  * Cloudflare Worker fetch handler
  */
-// Create API router instance
-const apiRouter = createAPIRouter();
+// Create API router instance - lazy load to avoid import errors at module load time
+let apiRouter: ReturnType<typeof createAPIRouter> | null = null;
+
+function getAPIRouter(): ReturnType<typeof createAPIRouter> {
+  if (!apiRouter) {
+    console.log('[Worker Init] Creating API router (lazy init)...');
+    try {
+      apiRouter = createAPIRouter();
+      console.log('[Worker Init] API router created successfully');
+    } catch (error) {
+      console.error('[Worker Init] ERROR creating API router:', error);
+      throw error;
+    }
+  }
+  return apiRouter;
+}
+
+// Log that we're creating the export
+console.log('[Worker Export] Creating default export object at:', new Date().toISOString());
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const startTime = Date.now();
+    console.log(`[Worker] ===== FETCH HANDLER CALLED =====`);
+    console.log(`[Worker] Method: ${request.method}`);
+    console.log(`[Worker] URL: ${request.url}`);
+    console.log(`[Worker] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[Worker] Env keys:`, Object.keys(env || {}).slice(0, 5));
+    
     try {
       const url = new URL(request.url);
+      console.log(`[Worker] Parsed URL - pathname: ${url.pathname}`);
+      
+      // Handle CORS preflight
+      if (request.method === 'OPTIONS') {
+        console.log('[Worker] Handling OPTIONS preflight request');
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Id',
+            'Access-Control-Max-Age': '86400',
+          },
+        });
+      }
       
       // Root route - welcome page
       if (url.pathname === '/') {
-        return new Response(
+        console.log('[Worker] Handling root route');
+        const response = new Response(
           JSON.stringify({
             message: 'Dartmouth OS Worker API',
             version: '2.0',
@@ -142,15 +205,20 @@ export default {
           }),
           {
             status: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
           }
         );
+        console.log('[Worker] Root route response created');
+        return response;
       }
       
       // Route Email System V2 test routes FIRST (before Dartmouth OS)
       if (url.pathname.startsWith('/api/v2/test/') || 
           url.pathname.startsWith('/api/v2/conversations')) {
-        return await apiRouter.fetch(request, env);
+        return await getAPIRouter().fetch(request, env);
       }
       
       // Route Dartmouth OS V2 requests
@@ -229,25 +297,46 @@ export default {
       
       // Route Customer Service API requests
       if (url.pathname.startsWith('/api/')) {
-        return await apiRouter.fetch(request, env);
+        return await getAPIRouter().fetch(request, env);
       }
 
       // Otherwise, use legacy routing (for backward compatibility)
-      return await router(request, env);
+      console.log('[Worker] Routing to legacy router');
+      try {
+        const response = await router(request, env);
+        const duration = Date.now() - startTime;
+        console.log(`[Worker] Request handled in ${duration}ms, status: ${response.status}`);
+        return response;
+      } catch (routerError) {
+        console.error('[Worker] Router error:', routerError);
+        throw routerError; // Re-throw to be caught by outer catch
+      }
     } catch (error) {
-      console.error('Worker error:', error);
+      console.error('[Worker] ERROR:', error);
+      console.error('[Worker] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
-      return new Response(
-        JSON.stringify({
-          error: 'Internal Server Error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString(),
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      // Always return a response, even on error
+      try {
+        return new Response(
+          JSON.stringify({
+            error: 'Internal Server Error',
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+          }),
+          {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      } catch (responseError) {
+        // If even creating the error response fails, return minimal response
+        console.error('[Worker] CRITICAL: Failed to create error response:', responseError);
+        return new Response('Internal Server Error', { status: 500 });
+      }
     }
   },
 
@@ -291,7 +380,7 @@ export default {
    * Cloudflare Email Worker handler
    * Receives inbound emails via Cloudflare Email Routing
    */
-  async email(message: EmailMessage, env: Env, ctx: ExecutionContext): Promise<void> {
+  async email(message: EmailMessage, env: Env, _ctx: ExecutionContext): Promise<void> {
     console.log('[Email] Received inbound email');
     
     try {

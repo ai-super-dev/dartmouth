@@ -36,6 +36,7 @@ import * as tagsController from '../controllers/tags';
 import * as signaturesController from '../controllers/signatures';
 import * as paAiAuthController from '../controllers/pa-ai-auth';
 import * as paAiChatController from '../controllers/pa-ai-chat';
+import { createVoiceRouter } from './voice';
 
 /**
  * Create API router
@@ -357,6 +358,26 @@ export function createAPIRouter() {
   app.patch('/api/mentions/:id/unread', authenticate, mentionsController.markMentionAsUnread);
   app.patch('/api/mentions/:id/archive', authenticate, mentionsController.archiveMention);
   app.delete('/api/mentions/:id', authenticate, mentionsController.deleteMention);
+
+  // ========================================================================
+  // V2 API ROUTES (NEW)
+  // ========================================================================
+
+  // Voice Services (Week 3)
+  const voiceRouter = createVoiceRouter();
+  app.route('/', voiceRouter);
+
+  // Calendar Services (Week 4)
+  // const calendarRouter = createCalendarRouter();
+  // app.route('/', calendarRouter);
+
+  // Email Services (Week 4)
+  // const emailRouter = createEmailRouter();
+  // app.route('/', emailRouter);
+
+  // Auth V2 (Week 4)
+  // const authV2Router = createAuthV2Router();
+  // app.route('/', authV2Router);
 
   return app;
 }

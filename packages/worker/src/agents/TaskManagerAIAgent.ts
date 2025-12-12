@@ -196,6 +196,10 @@ Important Rules:
   async searchTaskKnowledge(query: string): Promise<any> {
     console.log(`[TaskManagerAIAgent] Searching task knowledge base: "${query}"`);
     const vectorRAG = this.getVectorRAG();
+    if (!vectorRAG) {
+      console.log('[TaskManagerAIAgent] VectorRAG not available, returning empty results');
+      return { chunks: [], sourcesUsed: [] };
+    }
     const results = await vectorRAG.search(query, 5);
     console.log(`[TaskManagerAIAgent] Found ${results.chunks.length} relevant chunks`);
     return results;

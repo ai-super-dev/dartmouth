@@ -4,7 +4,8 @@
   "description": "Cloudflare Worker for Agent Army",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local",
+    "dev:remote": "wrangler dev",
     "deploy": "wrangler deploy",
     "deploy:check": "npm run lint && npm run test",
     "deploy:full": "npm run deploy:check && npm run deploy",
@@ -37,6 +38,6 @@
     "@vitest/ui": "^1.6.1",
     "typescript": "^5.3.3",
     "vitest": "^1.6.1",
-    "wrangler": "^4.47.0"
+    "wrangler": "^4.54.0"
   }
 }

@@ -19,15 +19,15 @@ export interface Env {
   APP_CONFIG: KVNamespace;
   CACHE: KVNamespace;
   
-  // R2 Buckets
-  FILES: R2Bucket;
-  ATTACHMENTS: R2Bucket;
+  // R2 Buckets (optional - system will fallback to base64 storage if not available)
+  FILES?: R2Bucket;
+  ATTACHMENTS?: R2Bucket;
   
   // Workers AI
   WORKERS_AI: Ai;
   
-  // Vectorize (RAG Vector Database)
-  VECTORIZE: VectorizeIndex;
+  // Vectorize (RAG Vector Database) - Optional, will fallback to keyword search if not available
+  VECTORIZE?: VectorizeIndex;
   
   // Environment Variables
   ENVIRONMENT?: string;

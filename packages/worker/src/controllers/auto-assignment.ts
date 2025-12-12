@@ -4,12 +4,9 @@
  * API endpoints for managing auto-assignment configuration
  */
 
-import { Context } from 'hono';
+import type { Context } from 'hono';
+import type { Env } from '../types/shared';
 import { AutoAssignmentService } from '../services/AutoAssignmentService';
-
-interface Env {
-  DB: D1Database;
-}
 
 /**
  * Get auto-assignment configuration

@@ -78,7 +78,7 @@ export class BaseAgent {
   private responseValidator: ResponseValidator;
   private memorySystem: MemorySystem;
   private ragEngine: RAGEngine; // ⚠️ DEPRECATED - Use vectorRAG instead
-  private vectorRAG: VectorRAGService; // ✅ NEW - Vector-based semantic search
+  private vectorRAG: VectorRAGService | null = null; // ✅ NEW - Vector-based semantic search (optional)
   private repetitionDetector: RepetitionDetector;
   private frustrationHandler: FrustrationHandler;
   
@@ -128,11 +128,18 @@ export class BaseAgent {
     
     // Initialize RAG systems
     this.ragEngine = new RAGEngine(config.env.DB, config.env.WORKERS_AI, config.env.CACHE); // ⚠️ DEPRECATED - Kept for backwards compatibility
-    this.vectorRAG = new VectorRAGService(
-      config.env.DB,
-      config.env.VECTORIZE,
-      config.env.OPENAI_API_KEY || ''
-    ); // ✅ NEW - Vector-based semantic search
+    // Initialize VectorRAG only if VECTORIZE is available
+    if (config.env.VECTORIZE && config.env.OPENAI_API_KEY) {
+      this.vectorRAG = new VectorRAGService(
+        config.env.DB,
+        config.env.VECTORIZE,
+        config.env.OPENAI_API_KEY
+      ); // ✅ NEW - Vector-based semantic search
+      console.log('[BaseAgent] Vector RAG initialized ✅');
+    } else {
+      this.vectorRAG = null;
+      console.log('[BaseAgent] Vector RAG not available (VECTORIZE or OPENAI_API_KEY missing), using keyword search fallback');
+    }
     
     this.repetitionDetector = new RepetitionDetector();
     this.frustrationHandler = new FrustrationHandler();
@@ -277,7 +284,7 @@ export class BaseAgent {
    * Get VectorRAG service (for external RAG operations)
    * ✅ NEW: Provides access to upgraded vector-based semantic search
    */
-  getVectorRAG(): VectorRAGService {
+  getVectorRAG(): VectorRAGService | null {
     return this.vectorRAG;
   }
 
@@ -670,6 +677,12 @@ export class BaseAgent {
     category: string = 'general'
   ): Promise<void> {
     console.log(`[BaseAgent] Ingesting document: ${title}`);
+    
+    if (!this.vectorRAG) {
+      console.log('[BaseAgent] VectorRAG not available, skipping document ingestion');
+      return;
+    }
+    
     const documentId = crypto.randomUUID();
     
     // Use new VectorRAG service
@@ -685,10 +698,17 @@ export class BaseAgent {
 
   /**
    * Search the knowledge base
-   * ✅ UPGRADED: Now uses VectorRAGService for semantic search
+   * ✅ UPGRADED: Now uses VectorRAGService for semantic search (falls back to keyword search if not available)
    */
   async searchKnowledge(query: string, limit: number = 5): Promise<any> {
     console.log(`[BaseAgent] Searching knowledge base: "${query}"`);
+    
+    if (!this.vectorRAG) {
+      console.log('[BaseAgent] VectorRAG not available, falling back to keyword search');
+      // Fallback to keyword search using the deprecated RAG engine
+      return await this.ragEngine.search(query, limit);
+    }
+    
     const results = await this.vectorRAG.search(query, limit);
     console.log(`[BaseAgent] Found ${results.chunks.length} results from ${results.sourcesUsed.length} sources`);
     return results;
