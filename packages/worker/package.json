@@ -28,6 +28,8 @@
     "logs:pretty": "wrangler tail --format=pretty"
   },
   "dependencies": {
+    "@agent-army/integration-services": "workspace:*",
+    "@agent-army/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
     "hono": "^3.11.7",
     "zod": "^3.22.4"

@@ -48,6 +48,15 @@ export interface Env {
   // Email Services
   RESEND_API_KEY?: string;
   
+  // Google Calendar & Gmail Integration
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REDIRECT_URI?: string;
+  GOOGLE_REFRESH_TOKEN?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
+  
   // Omnichannel Integration
   SENDGRID_API_KEY?: string;
   TWILIO_ACCOUNT_SID?: string;

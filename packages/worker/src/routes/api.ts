@@ -37,6 +37,9 @@ import * as signaturesController from '../controllers/signatures';
 import * as paAiAuthController from '../controllers/pa-ai-auth';
 import * as paAiChatController from '../controllers/pa-ai-chat';
 import { createVoiceRouter } from './voice';
+import { createCalendarRouter } from './calendar';
+import { createEmailRouter } from './email';
+import { createAuthV2Router } from './auth';
 
 /**
  * Create API router
@@ -367,17 +370,21 @@ export function createAPIRouter() {
   const voiceRouter = createVoiceRouter();
   app.route('/', voiceRouter);
 
+  // ========================================================================
+  // V2 API ROUTES (Week 4 - Integration APIs)
+  // ========================================================================
+
   // Calendar Services (Week 4)
-  // const calendarRouter = createCalendarRouter();
-  // app.route('/', calendarRouter);
+  const calendarRouter = createCalendarRouter();
+  app.route('/', calendarRouter);
 
   // Email Services (Week 4)
-  // const emailRouter = createEmailRouter();
-  // app.route('/', emailRouter);
+  const emailRouter = createEmailRouter();
+  app.route('/', emailRouter);
 
   // Auth V2 (Week 4)
-  // const authV2Router = createAuthV2Router();
-  // app.route('/', authV2Router);
+  const authV2Router = createAuthV2Router();
+  app.route('/', authV2Router);
 
   return app;
 }
