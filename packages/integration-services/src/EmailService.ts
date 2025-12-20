@@ -17,6 +17,7 @@
  */
 
 import { google } from 'googleapis';
+import type { OAuth2Client } from 'google-auth-library';
 import type {
   EmailMessage,
   EmailListOptions,
@@ -28,7 +29,7 @@ import type {
 export class EmailService {
   private config: EmailServiceConfig;
   private gmail: ReturnType<typeof google.gmail> | null = null;
-  private oauth2Client: ReturnType<typeof google.auth.OAuth2Client> | null = null;
+  private oauth2Client: OAuth2Client | null = null;
 
   constructor(config: EmailServiceConfig) {
     this.config = config;
@@ -141,7 +142,7 @@ export class EmailService {
 
       return {
         draftId: response.data.id || '',
-        messageId: response.data.message?.id
+        messageId: response.data.message?.id || undefined
       };
     } catch (error) {
       console.error('Failed to create draft:', error);
@@ -166,7 +167,7 @@ export class EmailService {
 
       return {
         messageId: response.data.id || '',
-        threadId: response.data.threadId,
+        threadId: response.data.threadId || undefined,
         status: 'sent'
       };
     } catch (error) {
@@ -178,7 +179,7 @@ export class EmailService {
   /**
    * Send email via SMTP
    */
-  private async sendViaSMTP(message: EmailMessage): Promise<EmailSendResult> {
+  private async sendViaSMTP(_message: EmailMessage): Promise<EmailSendResult> {
     // SMTP implementation would go here
     // For now, throw error indicating it's not implemented
     throw new Error('SMTP provider not yet implemented');

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EmailService } from '../src/EmailService';
-import type { EmailMessage } from '../src/types';
 
 // Mock googleapis
 vi.mock('googleapis', () => {

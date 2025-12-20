@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CalendarService } from '../src/CalendarService';
-import type { CalendarEvent } from '../src/types';
 
 // Mock googleapis
 vi.mock('googleapis', () => {
@@ -80,14 +79,6 @@ describe('CalendarService', () => {
     it('should create event with valid data', async () => {
       const { google } = await import('googleapis');
       const mockCalendar = (google.calendar as any)();
-      
-      const mockEvent: CalendarEvent = {
-        id: 'event123',
-        title: 'Test Event',
-        start: '2025-12-20T10:00:00Z',
-        end: '2025-12-20T11:00:00Z',
-        description: 'Test description'
-      };
 
       mockCalendar.events.insert.mockResolvedValue({
         data: {

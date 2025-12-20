@@ -21,7 +21,7 @@
   "author": "Dartmouth AI",
   "license": "MIT",
   "dependencies": {
-    "@dartmouth/worker": "workspace:*"
+    "@agent-army/worker": "file:../worker"
   },
   "devDependencies": {
     "typescript": "^5.3.3",

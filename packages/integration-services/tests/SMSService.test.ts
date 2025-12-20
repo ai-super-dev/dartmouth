@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SMSService } from '../src/SMSService';
-import type { SMSMessage } from '../src/types';
 
 describe('SMSService', () => {
   let smsService: SMSService;

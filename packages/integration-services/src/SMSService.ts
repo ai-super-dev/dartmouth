@@ -21,10 +21,8 @@ import type {
 } from './types';
 
 export class SMSService {
-  private config: SMSServiceConfig;
-
-  constructor(config: SMSServiceConfig) {
-    this.config = config;
+  constructor(_config: SMSServiceConfig) {
+    // Config stored for future use in V2 implementation
   }
 
   /**
@@ -47,10 +45,10 @@ export class SMSService {
 
   /**
    * Check message status
-   * @param messageId - Message ID
+   * @param _messageId - Message ID
    * @returns Message status
    */
-  async getStatus(messageId: string): Promise<SMSResult> {
+  async getStatus(_messageId: string): Promise<SMSResult> {
     // Stub implementation
     throw new Error('SMS status check not yet implemented. Full implementation coming in V2.');
   }

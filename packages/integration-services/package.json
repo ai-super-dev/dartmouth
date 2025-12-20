@@ -2,8 +2,8 @@
   "name": "@agent-army/integration-services",
   "version": "1.0.0",
   "description": "Integration Services for Dartmouth OS - Calendar, Email, SMS",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -13,7 +13,7 @@
     "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
-    "@agent-army/shared": "workspace:*",
+    "@agent-army/shared": "file:../shared",
     "googleapis": "^130.0.0"
   },
   "devDependencies": {

@@ -17,6 +17,7 @@
  */
 
 import { google } from 'googleapis';
+import type { OAuth2Client } from 'google-auth-library';
 import type {
   CalendarEvent,
   CalendarListOptions,
@@ -25,11 +26,9 @@ import type {
 
 export class CalendarService {
   private calendar: ReturnType<typeof google.calendar>;
-  private config: CalendarServiceConfig;
-  private oauth2Client: ReturnType<typeof google.auth.OAuth2Client>;
+  private oauth2Client: OAuth2Client;
 
   constructor(config: CalendarServiceConfig) {
-    this.config = config;
     this.oauth2Client = new google.auth.OAuth2(
       config.clientId,
       config.clientSecret,

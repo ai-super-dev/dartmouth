@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "Modular AI agent platform with foundational base and specialized agents",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=packages/worker",
     "build": "npm run build --workspaces",
+    "build:deps": "npm run build --workspace=packages/shared && npm run build --workspace=packages/integration-services",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces",
-    "deploy": "npm run deploy --workspace=packages/worker"
+    "deploy": "npm run build:deps && npm run deploy --workspace=packages/worker"
   },
   "keywords": [
     "ai",

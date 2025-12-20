@@ -215,9 +215,13 @@ export default {
         return response;
       }
       
-      // Route Email System V2 test routes FIRST (before Dartmouth OS)
+      // Route Week 4 Integration APIs and test routes FIRST (before Dartmouth OS)
       if (url.pathname.startsWith('/api/v2/test/') || 
-          url.pathname.startsWith('/api/v2/conversations')) {
+          url.pathname.startsWith('/api/v2/conversations') ||
+          url.pathname.startsWith('/api/v2/auth/') ||
+          url.pathname.startsWith('/api/v2/calendar/') ||
+          url.pathname.startsWith('/api/v2/email/') ||
+          url.pathname.startsWith('/api/v2/voice/')) {
         return await getAPIRouter().fetch(request, env);
       }
       
