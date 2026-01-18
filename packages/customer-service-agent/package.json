@@ -9,7 +9,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@dartmouth/core": "file:../dartmouth-core"
+    "@dartmouth/core": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",

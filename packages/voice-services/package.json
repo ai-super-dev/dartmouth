@@ -13,7 +13,7 @@
     "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
-    "@agent-army/shared": "file:../shared"
+    "@agent-army/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
