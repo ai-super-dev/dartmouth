@@ -215,14 +215,20 @@ export default {
         return response;
       }
       
-      // Route Email System V2 test routes FIRST (before Dartmouth OS)
-      if (url.pathname.startsWith('/api/v2/test/') || 
+      // Route V2 API routes to API router FIRST (before Dartmouth OS)
+      // This includes: multimodal, voice, and other V2 platform APIs
+      if (url.pathname.startsWith('/api/v2/vision/') ||
+          url.pathname.startsWith('/api/v2/document/') ||
+          url.pathname.startsWith('/api/v2/audio/') ||
+          url.pathname.startsWith('/api/v2/multimodal/') ||
+          url.pathname.startsWith('/api/v2/voice/') ||
+          url.pathname.startsWith('/api/v2/test/') || 
           url.pathname.startsWith('/api/v2/conversations')) {
         return await getAPIRouter().fetch(request, env);
       }
       
-      // Route Dartmouth OS V2 requests
-      if (url.pathname.startsWith('/api/v2/')) {
+      // Route Dartmouth OS V2 requests (agent-specific routes)
+      if (url.pathname.startsWith('/api/v2/agents/')) {
         const dartmouthOS = await initializeDartmouth(env);
         return await dartmouthOS.handleRequest(request);
       }

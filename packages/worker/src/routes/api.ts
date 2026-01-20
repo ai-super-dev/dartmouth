@@ -37,6 +37,7 @@ import * as signaturesController from '../controllers/signatures';
 import * as paAiAuthController from '../controllers/pa-ai-auth';
 import * as paAiChatController from '../controllers/pa-ai-chat';
 import { createVoiceRouter } from './voice';
+import { createMultimodalRouter } from './multimodal';
 
 /**
  * Create API router
@@ -366,6 +367,10 @@ export function createAPIRouter() {
   // Voice Services (Week 3)
   const voiceRouter = createVoiceRouter();
   app.route('/', voiceRouter);
+
+  // Multi-Modal Services (Phase 1)
+  const multimodalRouter = createMultimodalRouter();
+  app.route('/', multimodalRouter);
 
   // Calendar Services (Week 4)
   // const calendarRouter = createCalendarRouter();
