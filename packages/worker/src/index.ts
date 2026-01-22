@@ -216,14 +216,24 @@ export default {
       }
       
       // Route V2 API routes to API router FIRST (before Dartmouth OS)
-      // This includes: multimodal, voice, and other V2 platform APIs
+      // This includes: multimodal, voice, orchestration, and other V2 platform APIs
       if (url.pathname.startsWith('/api/v2/vision/') ||
           url.pathname.startsWith('/api/v2/document/') ||
           url.pathname.startsWith('/api/v2/audio/') ||
           url.pathname.startsWith('/api/v2/multimodal/') ||
           url.pathname.startsWith('/api/v2/voice/') ||
+          url.pathname.startsWith('/api/v2/orchestration/') ||
+          url.pathname.startsWith('/api/v2/workflow/') ||
+          url.pathname.startsWith('/api/v2/swarm/') ||
           url.pathname.startsWith('/api/v2/test/') || 
           url.pathname.startsWith('/api/v2/conversations')) {
+        return await getAPIRouter().fetch(request, env);
+      }
+      
+      // Route orchestration agent registry routes (before Dartmouth OS agent routes)
+      if (url.pathname.startsWith('/api/v2/agents/registry') ||
+          url.pathname.startsWith('/api/v2/agents/register') ||
+          url.pathname.startsWith('/api/v2/agents/invoke')) {
         return await getAPIRouter().fetch(request, env);
       }
       
