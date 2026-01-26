@@ -28,6 +28,10 @@ function getVoiceServiceEnv(env: Env): Record<string, string> {
   if (env.GOOGLE_TTS_API_KEY && typeof env.GOOGLE_TTS_API_KEY === 'string') {
     voiceEnv.GOOGLE_TTS_API_KEY = env.GOOGLE_TTS_API_KEY;
   }
+  // Also check for GOOGLE_API_KEY as fallback for Google TTS
+  if (env.GOOGLE_API_KEY && typeof env.GOOGLE_API_KEY === 'string') {
+    voiceEnv.GOOGLE_API_KEY = env.GOOGLE_API_KEY;
+  }
   if (env.AZURE_TTS_API_KEY && typeof env.AZURE_TTS_API_KEY === 'string') {
     voiceEnv.AZURE_TTS_API_KEY = env.AZURE_TTS_API_KEY;
   }
@@ -77,11 +81,20 @@ export async function speechToText(c: Context<{ Bindings: Env }>) {
     const voiceService = new VoiceService(getVoiceServiceEnv(c.env));
 
     // Perform STT
+    // Default to 'whisper' if provider not specified (since 'native' is just a placeholder)
+    const sttProvider = provider || 'whisper';
     const result = await voiceService.speechToText(audioBuffer, {
       language: language || 'en-AU',
-      provider: provider || 'native',
+      provider: sttProvider,
       sampleRate,
       encoding
+    });
+    
+    console.log('[Voice Controller] STT result:', {
+      provider: sttProvider,
+      hasTranscript: !!result.transcript,
+      transcriptLength: result.transcript?.length || 0,
+      transcriptPreview: result.transcript?.substring(0, 50) || '(empty)',
     });
 
     return c.json({
@@ -144,8 +157,21 @@ export async function textToSpeech(c: Context<{ Bindings: Env }>) {
     });
 
     // Convert ArrayBuffer to base64
+    // Use chunked approach to avoid stack overflow for large audio files
     const audioBytes = new Uint8Array(result.audio);
-    const audioBase64 = btoa(String.fromCharCode(...audioBytes));
+    const chunkSize = 8192; // Process in 8KB chunks
+    let binaryString = '';
+    
+    // Build binary string in chunks to avoid stack overflow
+    for (let i = 0; i < audioBytes.length; i += chunkSize) {
+      const chunk = audioBytes.slice(i, Math.min(i + chunkSize, audioBytes.length));
+      // Build string character by character to avoid stack overflow
+      for (let j = 0; j < chunk.length; j++) {
+        binaryString += String.fromCharCode(chunk[j]);
+      }
+    }
+    
+    const audioBase64 = btoa(binaryString);
 
     return c.json({
       success: true,
@@ -159,24 +185,40 @@ export async function textToSpeech(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('[Voice Controller] TTS error:', error);
+    console.error('[Voice Controller] TTS error type:', typeof error);
+    console.error('[Voice Controller] TTS error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
+      code: (error as any)?.code,
+      statusCode: (error as any)?.statusCode,
+    });
+    
+    let errorMessage = 'Text-to-speech failed';
+    let errorCode = 'INTERNAL_ERROR';
+    let statusCode = 500;
     
     if (error instanceof Error && 'code' in error && 'statusCode' in error) {
-      return c.json({
-        success: false,
-        error: {
-          code: (error as { code: string }).code,
-          message: error.message
-        }
-      }, (error as { statusCode: number }).statusCode || 500);
+      errorCode = (error as { code: string }).code;
+      errorMessage = error.message || errorMessage;
+      statusCode = (error as { statusCode: number }).statusCode || 500;
+    } else if (error instanceof Error) {
+      errorMessage = error.message || errorMessage;
+    } else {
+      errorMessage = String(error);
     }
-
+    
+    console.error('[Voice Controller] TTS error message:', errorMessage);
+    console.error('[Voice Controller] TTS error code:', errorCode);
+    console.error('[Voice Controller] TTS status code:', statusCode);
+    
     return c.json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
-        message: error instanceof Error ? error.message : 'Text-to-speech failed'
+        code: errorCode,
+        message: errorMessage
       }
-    }, 500);
+    }, statusCode);
   }
 }
 

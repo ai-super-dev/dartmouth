@@ -1,10 +1,12 @@
 /**
- * CalendarService - Google Calendar Integration
+ * CalendarService - Google Calendar Integration (Cloudflare Workers Compatible)
  * 
  * Provides calendar operations for ANY agent:
  * - PA Agent: Personal/family calendar management
  * - Customer Service: Appointment booking
  * - Other agents: Event scheduling
+ * 
+ * Uses Google Calendar REST API directly (no googleapis dependency)
  * 
  * @example
  * ```typescript
@@ -16,28 +18,112 @@
  * ```
  */
 
-import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
 import type {
   CalendarEvent,
   CalendarListOptions,
   CalendarServiceConfig
 } from './types';
 
+interface GoogleCalendarEvent {
+  id?: string;
+  summary?: string;
+  description?: string;
+  start?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  location?: string;
+  attendees?: Array<{ email: string }>;
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: Array<{
+      method: 'email' | 'popup' | 'sms';
+      minutes: number;
+    }>;
+  };
+  recurrence?: string[];
+  status?: 'confirmed' | 'tentative' | 'cancelled';
+}
+
+interface TokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
 export class CalendarService {
-  private calendar: ReturnType<typeof google.calendar>;
-  private oauth2Client: OAuth2Client;
+  private config: CalendarServiceConfig;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
+  private readonly API_BASE = 'https://www.googleapis.com/calendar/v3';
 
   constructor(config: CalendarServiceConfig) {
-    this.oauth2Client = new google.auth.OAuth2(
-      config.clientId,
-      config.clientSecret,
-      config.redirectUri
-    );
-    this.oauth2Client.setCredentials({
-      refresh_token: config.refreshToken
+    this.config = config;
+  }
+
+  /**
+   * Get or refresh access token
+   */
+  private async getAccessToken(): Promise<string> {
+    // Return cached token if still valid (with 5 minute buffer)
+    if (this.accessToken && Date.now() < this.tokenExpiry - 300000) {
+      return this.accessToken;
+    }
+
+    // Refresh token
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+        refresh_token: this.config.refreshToken,
+        grant_type: 'refresh_token',
+      }),
     });
-    this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to refresh access token: ${response.status} - ${error}`);
+    }
+
+    const data = (await response.json()) as TokenResponse;
+    this.accessToken = data.access_token;
+    this.tokenExpiry = Date.now() + (data.expires_in * 1000);
+
+    return this.accessToken;
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  private async apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = await this.getAccessToken();
+    const url = `${this.API_BASE}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Google Calendar API error: ${response.status} - ${error}`);
+    }
+
+    return response.json() as Promise<T>;
   }
 
   /**
@@ -47,17 +133,21 @@ export class CalendarService {
    */
   async listEvents(options: CalendarListOptions = {}): Promise<CalendarEvent[]> {
     try {
-      const response = await this.calendar.events.list({
-        calendarId: options.calendarId || 'primary',
-        timeMin: options.timeMin || new Date().toISOString(),
-        timeMax: options.timeMax,
-        maxResults: options.maxResults || 100,
-        singleEvents: true,
-        orderBy: options.orderBy || 'startTime',
-        q: options.query
-      });
+      const params = new URLSearchParams();
+      params.set('calendarId', options.calendarId || 'primary');
+      if (options.timeMin) params.set('timeMin', options.timeMin);
+      if (options.timeMax) params.set('timeMax', options.timeMax);
+      params.set('maxResults', String(options.maxResults || 100));
+      params.set('singleEvents', 'true');
+      params.set('orderBy', options.orderBy || 'startTime');
+      if (options.query) params.set('q', options.query);
+      if (options.showDeleted) params.set('showDeleted', 'true');
 
-      return (response.data.items || []).map(item => this.mapGoogleEventToCalendarEvent(item));
+      const response = await this.apiRequest<{ items?: GoogleCalendarEvent[] }>(
+        `/calendars/${options.calendarId || 'primary'}/events?${params.toString()}`
+      );
+
+      return (response.items || []).map(item => this.mapGoogleEventToCalendarEvent(item));
     } catch (error) {
       console.error('Failed to list calendar events:', error);
       throw new Error(`Calendar list failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -72,12 +162,11 @@ export class CalendarService {
    */
   async getEvent(eventId: string, calendarId: string = 'primary'): Promise<CalendarEvent> {
     try {
-      const response = await this.calendar.events.get({
-        calendarId,
-        eventId
-      });
+      const response = await this.apiRequest<GoogleCalendarEvent>(
+        `/calendars/${calendarId}/events/${eventId}`
+      );
 
-      return this.mapGoogleEventToCalendarEvent(response.data);
+      return this.mapGoogleEventToCalendarEvent(response);
     } catch (error) {
       console.error('Failed to get calendar event:', error);
       throw new Error(`Calendar get failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -100,12 +189,15 @@ export class CalendarService {
 
     try {
       const googleEvent = this.mapCalendarEventToGoogleEvent(event);
-      const response = await this.calendar.events.insert({
-        calendarId: event.calendarId || 'primary',
-        requestBody: googleEvent
-      });
+      const response = await this.apiRequest<GoogleCalendarEvent>(
+        `/calendars/${event.calendarId || 'primary'}/events`,
+        {
+          method: 'POST',
+          body: JSON.stringify(googleEvent),
+        }
+      );
 
-      return this.mapGoogleEventToCalendarEvent(response.data);
+      return this.mapGoogleEventToCalendarEvent(response);
     } catch (error) {
       console.error('Failed to create calendar event:', error);
       throw new Error(`Calendar create failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -130,13 +222,15 @@ export class CalendarService {
       };
 
       const googleEvent = this.mapCalendarEventToGoogleEvent(mergedEvent);
-      const response = await this.calendar.events.update({
-        calendarId,
-        eventId,
-        requestBody: googleEvent
-      });
+      const response = await this.apiRequest<GoogleCalendarEvent>(
+        `/calendars/${calendarId}/events/${eventId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(googleEvent),
+        }
+      );
 
-      return this.mapGoogleEventToCalendarEvent(response.data);
+      return this.mapGoogleEventToCalendarEvent(response);
     } catch (error) {
       console.error('Failed to update calendar event:', error);
       throw new Error(`Calendar update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -150,10 +244,12 @@ export class CalendarService {
    */
   async deleteEvent(eventId: string, calendarId: string = 'primary'): Promise<void> {
     try {
-      await this.calendar.events.delete({
-        calendarId,
-        eventId
-      });
+      await this.apiRequest<void>(
+        `/calendars/${calendarId}/events/${eventId}`,
+        {
+          method: 'DELETE',
+        }
+      );
     } catch (error) {
       console.error('Failed to delete calendar event:', error);
       throw new Error(`Calendar delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -163,7 +259,7 @@ export class CalendarService {
   /**
    * Map Google Calendar event to our CalendarEvent type
    */
-  private mapGoogleEventToCalendarEvent(googleEvent: any): CalendarEvent {
+  private mapGoogleEventToCalendarEvent(googleEvent: GoogleCalendarEvent): CalendarEvent {
     return {
       id: googleEvent.id,
       title: googleEvent.summary || '',
@@ -171,26 +267,26 @@ export class CalendarService {
       start: googleEvent.start?.dateTime || googleEvent.start?.date || '',
       end: googleEvent.end?.dateTime || googleEvent.end?.date || '',
       location: googleEvent.location || '',
-      attendees: googleEvent.attendees?.map((a: any) => a.email) || [],
-      reminders: googleEvent.reminders?.overrides?.map((r: any) => ({
-        method: r.method as 'email' | 'popup' | 'sms',
+      attendees: googleEvent.attendees?.map(a => a.email) || [],
+      reminders: googleEvent.reminders?.overrides?.map(r => ({
+        method: r.method,
         minutes: r.minutes
       })) || [],
       recurrence: googleEvent.recurrence?.[0] || undefined,
       timezone: googleEvent.start?.timeZone || googleEvent.end?.timeZone,
       allDay: !googleEvent.start?.dateTime && !!googleEvent.start?.date,
-      status: googleEvent.status as 'confirmed' | 'tentative' | 'cancelled' | undefined
+      status: googleEvent.status
     };
   }
 
   /**
    * Map our CalendarEvent to Google Calendar event format
    */
-  private mapCalendarEventToGoogleEvent(event: CalendarEvent): any {
+  private mapCalendarEventToGoogleEvent(event: CalendarEvent): GoogleCalendarEvent {
     const isAllDay = event.allDay || false;
     const timezone = event.timezone || 'UTC';
 
-    const googleEvent: any = {
+    const googleEvent: GoogleCalendarEvent = {
       summary: event.title,
       description: event.description,
       location: event.location
@@ -246,11 +342,10 @@ export class CalendarService {
    */
   async checkHealth(): Promise<'operational' | 'degraded' | 'down'> {
     try {
-      await this.calendar.calendarList.list({ maxResults: 1 });
+      await this.apiRequest('/users/me/calendarList?maxResults=1');
       return 'operational';
     } catch {
       return 'down';
     }
   }
 }
-

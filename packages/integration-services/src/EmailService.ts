@@ -1,8 +1,8 @@
 /**
- * EmailService - Email Integration
+ * EmailService - Email Integration (Cloudflare Workers Compatible)
  * 
  * Supports multiple providers:
- * - gmail: Google Gmail API
+ * - gmail: Google Gmail API (using REST API directly)
  * - smtp: Generic SMTP (for other providers)
  * 
  * @example
@@ -16,8 +16,6 @@
  * ```
  */
 
-import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
 import type {
   EmailMessage,
   EmailListOptions,
@@ -26,10 +24,26 @@ import type {
   EmailDraftResult
 } from './types';
 
+interface TokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
+interface GmailMessage {
+  id: string;
+  threadId?: string;
+  snippet?: string;
+  payload?: {
+    headers?: Array<{ name: string; value: string }>;
+  };
+}
+
 export class EmailService {
   private config: EmailServiceConfig;
-  private gmail: ReturnType<typeof google.gmail> | null = null;
-  private oauth2Client: OAuth2Client | null = null;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
+  private readonly API_BASE = 'https://gmail.googleapis.com/gmail/v1';
 
   constructor(config: EmailServiceConfig) {
     this.config = config;
@@ -38,16 +52,74 @@ export class EmailService {
       if (!config.clientId || !config.clientSecret || !config.refreshToken) {
         throw new Error('Gmail provider requires clientId, clientSecret, and refreshToken');
       }
-
-      this.oauth2Client = new google.auth.OAuth2(
-        config.clientId,
-        config.clientSecret
-      );
-      this.oauth2Client.setCredentials({
-        refresh_token: config.refreshToken
-      });
-      this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
     }
+  }
+
+  /**
+   * Get or refresh access token
+   */
+  private async getAccessToken(): Promise<string> {
+    if (this.config.provider !== 'gmail') {
+      throw new Error('Access token only available for Gmail provider');
+    }
+
+    // Return cached token if still valid (with 5 minute buffer)
+    if (this.accessToken && Date.now() < this.tokenExpiry - 300000) {
+      return this.accessToken;
+    }
+
+    // Refresh token
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: this.config.clientId!,
+        client_secret: this.config.clientSecret!,
+        refresh_token: this.config.refreshToken!,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to refresh access token: ${response.status} - ${error}`);
+    }
+
+    const data = (await response.json()) as TokenResponse;
+    this.accessToken = data.access_token;
+    this.tokenExpiry = Date.now() + (data.expires_in * 1000);
+
+    return this.accessToken;
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  private async apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    if (this.config.provider !== 'gmail') {
+      throw new Error('API requests only available for Gmail provider');
+    }
+
+    const token = await this.getAccessToken();
+    const url = `${this.API_BASE}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gmail API error: ${response.status} - ${error}`);
+    }
+
+    return response.json() as Promise<T>;
   }
 
   /**
@@ -60,29 +132,24 @@ export class EmailService {
       throw new Error('List messages only supported for Gmail provider');
     }
 
-    if (!this.gmail) {
-      throw new Error('Gmail client not initialized');
-    }
-
     try {
       const query = this.buildGmailQuery(options);
-      const response = await this.gmail.users.messages.list({
-        userId: 'me',
-        maxResults: options.maxResults || 20,
-        q: query,
-        pageToken: options.pageToken
-      });
+      const params = new URLSearchParams();
+      params.set('maxResults', String(options.maxResults || 20));
+      if (query) params.set('q', query);
+      if (options.pageToken) params.set('pageToken', options.pageToken);
+
+      const response = await this.apiRequest<{ messages?: Array<{ id: string }>, nextPageToken?: string }>(
+        `/users/me/messages?${params.toString()}`
+      );
 
       // Fetch full message details
       const messages = await Promise.all(
-        (response.data.messages || []).map(async (msg: any) => {
-          const full = await this.gmail!.users.messages.get({
-            userId: 'me',
-            id: msg.id!,
-            format: 'metadata',
-            metadataHeaders: ['From', 'To', 'Subject', 'Date']
-          });
-          return this.parseGmailMessage(full.data);
+        (response.messages || []).map(async (msg) => {
+          const full = await this.apiRequest<GmailMessage>(
+            `/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`
+          );
+          return this.parseGmailMessage(full);
         })
       );
 
@@ -127,22 +194,21 @@ export class EmailService {
       throw new Error('Drafts only supported for Gmail provider');
     }
 
-    if (!this.gmail) {
-      throw new Error('Gmail client not initialized');
-    }
-
     try {
       const raw = this.createRawEmail(message);
-      const response = await this.gmail.users.drafts.create({
-        userId: 'me',
-        requestBody: {
-          message: { raw }
+      const response = await this.apiRequest<{ id?: string; message?: { id?: string } }>(
+        '/users/me/drafts',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            message: { raw }
+          }),
         }
-      });
+      );
 
       return {
-        draftId: response.data.id || '',
-        messageId: response.data.message?.id || undefined
+        draftId: response.id || '',
+        messageId: response.message?.id || undefined
       };
     } catch (error) {
       console.error('Failed to create draft:', error);
@@ -154,20 +220,19 @@ export class EmailService {
    * Send email via Gmail API
    */
   private async sendViaGmail(message: EmailMessage): Promise<EmailSendResult> {
-    if (!this.gmail) {
-      throw new Error('Gmail client not initialized');
-    }
-
     try {
       const raw = this.createRawEmail(message);
-      const response = await this.gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw }
-      });
+      const response = await this.apiRequest<{ id?: string; threadId?: string }>(
+        '/users/me/messages/send',
+        {
+          method: 'POST',
+          body: JSON.stringify({ raw }),
+        }
+      );
 
       return {
-        messageId: response.data.id || '',
-        threadId: response.data.threadId || undefined,
+        messageId: response.id || '',
+        threadId: response.threadId || undefined,
         status: 'sent'
       };
     } catch (error) {
@@ -206,8 +271,28 @@ export class EmailService {
     ].filter(Boolean).join('\r\n');
 
     // Convert to base64url encoding (RFC 4648 §5)
-    return Buffer.from(email)
-      .toString('base64')
+    // In Cloudflare Workers, we use TextEncoder/TextDecoder instead of Buffer
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(email);
+    let base64 = '';
+    
+    // Manual base64 encoding (Workers-compatible)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    for (let i = 0; i < bytes.length; i += 3) {
+      const b1 = bytes[i];
+      const b2 = bytes[i + 1] || 0;
+      const b3 = bytes[i + 2] || 0;
+      
+      const bitmap = (b1 << 16) | (b2 << 8) | b3;
+      
+      base64 += chars.charAt((bitmap >> 18) & 63);
+      base64 += chars.charAt((bitmap >> 12) & 63);
+      base64 += i + 1 < bytes.length ? chars.charAt((bitmap >> 6) & 63) : '=';
+      base64 += i + 2 < bytes.length ? chars.charAt(bitmap & 63) : '=';
+    }
+
+    // Convert to base64url (RFC 4648 §5)
+    return base64
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
@@ -244,10 +329,10 @@ export class EmailService {
   /**
    * Parse Gmail message to our format
    */
-  private parseGmailMessage(gmailMessage: any): any {
+  private parseGmailMessage(gmailMessage: GmailMessage): any {
     const headers = gmailMessage.payload?.headers || [];
     const getHeader = (name: string) =>
-      headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+      headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
     return {
       id: gmailMessage.id,
@@ -264,8 +349,8 @@ export class EmailService {
    */
   async checkHealth(): Promise<'operational' | 'degraded' | 'down'> {
     try {
-      if (this.config.provider === 'gmail' && this.gmail) {
-        await this.gmail.users.getProfile({ userId: 'me' });
+      if (this.config.provider === 'gmail') {
+        await this.apiRequest('/users/me/profile');
         return 'operational';
       }
       return 'degraded';
@@ -274,4 +359,3 @@ export class EmailService {
     }
   }
 }
-

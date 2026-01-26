@@ -45,6 +45,9 @@ export interface Env {
   CLERK_SECRET_KEY?: string;
   JWT_SECRET?: string;
   
+  // Firebase (for V2 API authentication)
+  FIREBASE_PROJECT_ID?: string;
+  
   // Email Services
   RESEND_API_KEY?: string;
   

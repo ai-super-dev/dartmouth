@@ -57,6 +57,8 @@ export class TTSService {
       switch (provider) {
         case 'native':
           return await this.synthesizeNative(text, voice, speed, format);
+        case 'openai':
+          return await this.synthesizeOpenAI(text, voice, speed, format);
         case 'elevenlabs':
           return await this.synthesizeElevenLabs(text, voice, speed, format);
         case 'google':
@@ -84,6 +86,8 @@ export class TTSService {
 
   /**
    * Native TTS implementation
+   * Uses Google TTS as fallback since Cloudflare Workers don't have native TTS
+   * If GOOGLE_TTS_API_KEY is not available, falls back to GOOGLE_API_KEY
    */
   private async synthesizeNative(
     text: string,
@@ -91,21 +95,118 @@ export class TTSService {
     speed: number,
     format: string
   ): Promise<TTSResult> {
+    // Cloudflare Workers don't have native TTS, so use Google TTS as fallback
+    // Check if we have Google TTS API key
+    const googleTtsKey = this.env?.GOOGLE_TTS_API_KEY || this.env?.GOOGLE_API_KEY;
+    
+    if (googleTtsKey) {
+      // Use Google TTS as "native" provider
+      return await this.synthesizeGoogle(text, voice, speed, format);
+    }
+    
+    // If no Google API key, try to use OpenAI TTS (if available)
+    const openaiKey = this.env?.OPENAI_API_KEY;
+    if (openaiKey) {
+      return await this.synthesizeOpenAI(text, voice, speed, format);
+    }
+    
+    // Last resort: return error asking for API key configuration
+    throw new VoiceServiceError(
+      'Native TTS requires GOOGLE_TTS_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY to be configured',
+      'CONFIGURATION_ERROR',
+      500
+    );
+  }
+
+  /**
+   * OpenAI TTS implementation (tts-1 model)
+   */
+  private async synthesizeOpenAI(
+    text: string,
+    voice: string,
+    speed: number,
+    format: string
+  ): Promise<TTSResult> {
+    const apiKey = this.env?.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new VoiceServiceError(
+        'OPENAI_API_KEY not configured',
+        'CONFIGURATION_ERROR',
+        500
+      );
+    }
+
+    // OpenAI TTS has a 4096 character limit
+    // If text is too long, we need to truncate or split it
+    const MAX_CHARS = 4096;
+    if (text.length > MAX_CHARS) {
+      console.warn(`[TTSService] Text length (${text.length}) exceeds OpenAI TTS limit (${MAX_CHARS}), truncating...`);
+      text = text.substring(0, MAX_CHARS);
+    }
+
     const startTime = Date.now();
+
+    // Map voice to OpenAI voice names
+    const openaiVoice = voice.includes('female') ? 'nova' : voice.includes('male') ? 'onyx' : 'alloy';
     
-    // Placeholder implementation
-    // In production, this would use Web Speech API or native device APIs
-    const audioBuffer = new ArrayBuffer(1024);
-    new Uint8Array(audioBuffer).fill(128);
+    console.log('[TTSService] Calling OpenAI TTS:', {
+      textLength: text.length,
+      voice: openaiVoice,
+      speed: speed,
+      model: 'tts-1',
+    });
     
+    // OpenAI TTS only supports mp3 format
+    const response = await fetch(
+      'https://api.openai.com/v1/audio/speech',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: text,
+          voice: openaiVoice,
+          speed: speed,
+          response_format: 'mp3'
+        })
+      }
+    );
+
+    if (!response.ok) {
+      let errorText = '';
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = `Failed to read error response: ${e}`;
+      }
+      
+      console.error('[TTSService] OpenAI TTS API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        textLength: text.length,
+        textPreview: text.substring(0, 100),
+      });
+      
+      throw new VoiceServiceError(
+        `OpenAI TTS API error (${response.status}): ${errorText}`,
+        'OPENAI_TTS_API_ERROR',
+        response.status
+      );
+    }
+
+    const audioArrayBuffer = await response.arrayBuffer();
     const duration = (Date.now() - startTime) / 1000;
 
     return {
-      audio: audioBuffer,
+      audio: audioArrayBuffer,
       duration,
-      format,
-      provider: 'native',
-      sampleRate: 22050
+      format: 'mp3',
+      provider: 'openai',
+      sampleRate: 24000
     };
   }
 

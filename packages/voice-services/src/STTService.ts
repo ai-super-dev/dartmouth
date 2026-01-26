@@ -121,9 +121,11 @@ export class STTService {
     const startTime = Date.now();
 
     // Convert ArrayBuffer to Blob for FormData
-    const audioBlob = new Blob([audio], { type: 'audio/wav' });
+    // Whisper API supports: mp3, mp4, mpeg, mpga, m4a, wav, webm
+    // expo-av records in m4a format, so use that
+    const audioBlob = new Blob([audio], { type: 'audio/m4a' });
     const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.wav');
+    formData.append('file', audioBlob, 'audio.m4a');
     formData.append('model', 'whisper-1');
     formData.append('language', language.split('-')[0]); // 'en-AU' -> 'en'
     formData.append('response_format', 'verbose_json');

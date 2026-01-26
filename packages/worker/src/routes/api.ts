@@ -39,6 +39,7 @@ import * as paAiChatController from '../controllers/pa-ai-chat';
 import { createVoiceRouter } from './voice';
 import { createMultimodalRouter } from './multimodal';
 import { createOrchestrationRouter } from './orchestration';
+import { createPAV2Router } from './pa-v2';
 
 /**
  * Create API router
@@ -376,6 +377,10 @@ export function createAPIRouter() {
   // Orchestration Services (Phase 2)
   const orchestrationRouter = createOrchestrationRouter();
   app.route('/', orchestrationRouter);
+
+  // PA Agent V2 (Phase 3)
+  const paV2Router = createPAV2Router();
+  app.route('/', paV2Router);
 
   // Calendar Services (Week 4)
   // const calendarRouter = createCalendarRouter();
