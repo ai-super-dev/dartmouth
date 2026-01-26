@@ -65,6 +65,11 @@ export interface Env {
   SHOPIFY_DOMAIN?: string;
   SHOPIFY_ACCESS_TOKEN?: string;
   
+  // Google OAuth (for Calendar integration)
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REDIRECT_URI?: string;
+  
   // PERP Integration
   PERP_DB_HOST?: string;
   PERP_DB_PORT?: string;

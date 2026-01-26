@@ -64,9 +64,9 @@ export interface CalendarServiceConfig {
   clientId: string;
   /** Google OAuth Client Secret */
   clientSecret: string;
-  /** OAuth Redirect URI */
-  redirectUri: string;
-  /** Refresh token */
+  /** OAuth Redirect URI (optional) */
+  redirectUri?: string;
+  /** Refresh token - required for API calls, can be set after construction */
   refreshToken: string;
 }
 

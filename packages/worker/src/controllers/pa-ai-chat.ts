@@ -156,9 +156,43 @@ export async function chat(c: Context<{ Bindings: Env }>) {
  */
 export async function getChatHistory(c: Context<{ Bindings: Env }>) {
   try {
-    const user = c.get('user') as { id: string; email: string; role: string };
+    const user = c.get('user') as { id: string; email: string; role: string } | undefined;
+    
+    // Validate user exists
+    if (!user) {
+      console.error('[PA_AI Chat History] User not found in context');
+      return c.json({ 
+        success: true,
+        history: [],
+        pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+        message: 'User not authenticated'
+      });
+    }
+    
+    // Look up the actual database user_id by email
+    let userId = user.id || 'anonymous';
+    
+    if (user.email) {
+      try {
+        const dbUser = await c.env.DB.prepare(`
+          SELECT user_id FROM pa_ai_users WHERE email = ?
+        `).bind(user.email).first();
+        
+        if (dbUser?.user_id) {
+          userId = dbUser.user_id as string;
+          console.log('[PA_AI Chat History] Found database user_id:', userId, 'for email:', user.email);
+        }
+      } catch (lookupError) {
+        console.error('[PA_AI Chat History] Error looking up user:', lookupError);
+      }
+    }
+    
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
+    
+    // Ensure limit and offset are valid numbers
+    const safeLimit = isNaN(limit) ? 50 : Math.min(Math.max(limit, 1), 100);
+    const safeOffset = isNaN(offset) ? 0 : Math.max(offset, 0);
 
     // Get chat history from database
     try {
@@ -168,13 +202,13 @@ export async function getChatHistory(c: Context<{ Bindings: Env }>) {
         WHERE user_id = ?
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
-      `).bind(user.id, limit, offset).all();
+      `).bind(userId, safeLimit, safeOffset).all();
 
       const totalResult = await c.env.DB.prepare(`
         SELECT COUNT(*) as total
         FROM pa_ai_chat_history
         WHERE user_id = ?
-      `).bind(user.id).first();
+      `).bind(userId).first();
 
       const total = (totalResult?.total as number) || 0;
 
@@ -199,9 +233,9 @@ export async function getChatHistory(c: Context<{ Bindings: Env }>) {
         history,
         pagination: {
           total,
-          limit,
-          offset,
-          hasMore: offset + limit < total,
+          limit: safeLimit,
+          offset: safeOffset,
+          hasMore: safeOffset + safeLimit < total,
         },
       });
     } catch (dbError) {
@@ -231,7 +265,29 @@ export async function getChatHistory(c: Context<{ Bindings: Env }>) {
  */
 export async function saveChatHistory(c: Context<{ Bindings: Env }>) {
   try {
-    const user = c.get('user') as { id: string; email: string; role: string };
+    const user = c.get('user') as { id: string; email: string; role: string } | undefined;
+    
+    // Look up the actual database user_id
+    // Firebase UID doesn't match database user_id, so we need to look up by email
+    let userId = user?.id || 'anonymous';
+    
+    if (user?.email) {
+      try {
+        const dbUser = await c.env.DB.prepare(`
+          SELECT user_id FROM pa_ai_users WHERE email = ?
+        `).bind(user.email).first();
+        
+        if (dbUser?.user_id) {
+          userId = dbUser.user_id as string;
+          console.log('[PA_AI Chat History] Found database user_id:', userId, 'for email:', user.email);
+        } else {
+          console.log('[PA_AI Chat History] No database user found for email:', user.email);
+        }
+      } catch (lookupError) {
+        console.error('[PA_AI Chat History] Error looking up user:', lookupError);
+      }
+    }
+    
     const body = await c.req.json();
     const { question, answer, sessionId, metadata } = body;
 
@@ -244,8 +300,12 @@ export async function saveChatHistory(c: Context<{ Bindings: Env }>) {
     }
 
     // Generate unique ID for this chat history entry
-    const id = `chat-${user.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
+    
+    // Ensure all values are not undefined (D1 doesn't support undefined)
+    const safeSessionId = sessionId !== undefined && sessionId !== null ? String(sessionId) : null;
+    const safeMetadata = metadata !== undefined && metadata !== null ? JSON.stringify(metadata) : null;
 
     // Save to database
     try {
@@ -255,19 +315,19 @@ export async function saveChatHistory(c: Context<{ Bindings: Env }>) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id,
-        user.id,
-        sessionId || null,
+        userId, // Use the safe userId we defined above
+        safeSessionId,
         question.trim(),
         answer.trim(),
         now,
         now,
-        metadata ? JSON.stringify(metadata) : null
+        safeMetadata
       ).run();
 
       console.log('[PA_AI Chat History] Saved chat history:', {
         id,
-        userId: user.id,
-        sessionId,
+        userId: userId,
+        sessionId: safeSessionId,
         questionLength: question.length,
         answerLength: answer.length,
       });

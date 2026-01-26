@@ -36,6 +36,7 @@ import * as tagsController from '../controllers/tags';
 import * as signaturesController from '../controllers/signatures';
 import * as paAiAuthController from '../controllers/pa-ai-auth';
 import * as paAiChatController from '../controllers/pa-ai-chat';
+import * as googleOAuthController from '../controllers/google-oauth';
 import { createVoiceRouter } from './voice';
 import { createMultimodalRouter } from './multimodal';
 import { createOrchestrationRouter } from './orchestration';
@@ -87,6 +88,25 @@ export function createAPIRouter() {
   app.post('/api/pa-ai/chat/voice', authenticate, paAiChatController.voiceChat);
   app.get('/api/pa-ai/chat/history', authenticate, paAiChatController.getChatHistory);
   app.post('/api/pa-ai/chat/history', authenticate, paAiChatController.saveChatHistory);
+
+  // ========================================================================
+  // GOOGLE OAUTH ROUTES (Calendar Integration)
+  // ========================================================================
+
+  // Google Sign-In login (from mobile app - creates/updates user with Google tokens)
+  app.post('/api/google/auth/login', googleOAuthController.googleLogin);
+  
+  // Get OAuth URL to redirect user for authorization (legacy web flow)
+  app.get('/api/google/auth/url', authenticate, googleOAuthController.getAuthUrl);
+  
+  // OAuth callback - handles code exchange (no auth - user redirected from Google)
+  app.get('/api/google/auth/callback', googleOAuthController.handleCallback);
+  
+  // Check if user has connected Google Calendar
+  app.get('/api/google/auth/status', authenticate, googleOAuthController.getAuthStatus);
+  
+  // Disconnect Google Calendar
+  app.delete('/api/google/auth/disconnect', authenticate, googleOAuthController.disconnect);
 
   // ========================================================================
   // TICKETS ROUTES
