@@ -213,21 +213,31 @@ export async function chat(c: Context<{ Bindings: Env }>) {
 
     // Check if message is about calendar
     const messageLower = message.toLowerCase();
-    const isCalendarQuery = messageLower.includes('calendar') || 
+    
+    // Check if this is a document upload context - don't trigger email/calendar queries for documents
+    const isDocumentUpload = messageLower.includes('the user uploaded a document') ||
+                             messageLower.includes('document content:') ||
+                             messageLower.includes('the user took a photo') ||
+                             messageLower.includes('image analysis:');
+    
+    // Only check for calendar/email queries if NOT a document upload
+    const isCalendarQuery = !isDocumentUpload && (
+                           messageLower.includes('calendar') || 
                            messageLower.includes('schedule') || 
                            messageLower.includes('appointment') || 
                            messageLower.includes('event') ||
                            messageLower.includes('meeting') ||
                            messageLower.includes("what's on") ||
-                           messageLower.includes('what is on');
+                           messageLower.includes('what is on'));
 
-    // Check if message is about reading emails
-    const isEmailQuery = messageLower.includes('email') || 
+    // Check if message is about reading emails - skip if document upload
+    const isEmailQuery = !isDocumentUpload && (
+                        messageLower.includes('email') || 
                         messageLower.includes('emails') ||
                         messageLower.includes('inbox') ||
                         messageLower.includes('mail') ||
                         (messageLower.includes('message') && !messageLower.includes('calendar')) ||
-                        (messageLower.includes('messages') && !messageLower.includes('calendar'));
+                        (messageLower.includes('messages') && !messageLower.includes('calendar')));
 
     // Check if it's a send email request
     const isSendEmailRequest = (messageLower.includes('send') && (messageLower.includes('email') || messageLower.includes('mail'))) ||

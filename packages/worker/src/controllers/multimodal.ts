@@ -71,6 +71,15 @@ export async function parseDocument(c: Context<{ Bindings: Env }>) {
     const body = await c.req.json();
     const { documentUrl, documentBase64, documentType, extractImages, ocrEnabled } = body;
 
+    console.log('[Multimodal Controller] Document parse request:', {
+      hasUrl: !!documentUrl,
+      hasBase64: !!documentBase64,
+      base64Length: documentBase64?.length || 0,
+      documentType,
+      extractImages,
+      ocrEnabled,
+    });
+
     // Validate input
     if (!documentUrl && !documentBase64) {
       return c.json({ 
@@ -86,6 +95,13 @@ export async function parseDocument(c: Context<{ Bindings: Env }>) {
       documentType,
       extractImages,
       ocrEnabled,
+    });
+
+    console.log('[Multimodal Controller] Document parse result:', {
+      success: result.success,
+      hasText: !!result.text,
+      textLength: result.text?.length || 0,
+      error: result.error,
     });
 
     return c.json(result, result.success ? 200 : 500);

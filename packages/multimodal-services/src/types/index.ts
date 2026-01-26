@@ -27,7 +27,11 @@ export interface VisionAnalysisResult {
 export interface DocumentParseRequest {
   documentUrl?: string;
   documentBase64?: string;
-  documentType?: 'pdf' | 'docx' | 'txt' | 'image';
+  /** 
+   * Document type - can be either a simplified type ('pdf', 'docx', 'txt', 'image')
+   * or a MIME type ('application/pdf', 'text/plain', etc.)
+   */
+  documentType?: string;
   extractImages?: boolean;
   ocrEnabled?: boolean;
 }
@@ -42,6 +46,7 @@ export interface DocumentParseResult {
     author?: string;
     title?: string;
     createdAt?: string;
+    extractionMethod?: 'native' | 'ocr';
   };
   error?: string;
 }
