@@ -104,11 +104,11 @@ export function createAPIRouter() {
   // OAuth callback - handles code exchange (no auth - user redirected from Google)
   app.get('/api/google/auth/callback', googleOAuthController.handleCallback);
   
-  // Check if user has connected Google Calendar
-  app.get('/api/google/auth/status', authenticate, googleOAuthController.getAuthStatus);
+  // Check if user has connected Google Calendar (supports Firebase auth for Google Sign-In users)
+  app.get('/api/google/auth/status', authenticateV2, googleOAuthController.getAuthStatus);
   
-  // Disconnect Google Calendar
-  app.delete('/api/google/auth/disconnect', authenticate, googleOAuthController.disconnect);
+  // Disconnect Google Calendar (supports Firebase auth for Google Sign-In users)
+  app.delete('/api/google/auth/disconnect', authenticateV2, googleOAuthController.disconnect);
 
   // ========================================================================
   // TICKETS ROUTES
