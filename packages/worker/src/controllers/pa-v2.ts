@@ -239,13 +239,16 @@ export async function chat(c: Context<{ Bindings: Env }>) {
                         (messageLower.includes('message') && !messageLower.includes('calendar')) ||
                         (messageLower.includes('messages') && !messageLower.includes('calendar')));
 
-    // Check if it's a send email request
-    const isSendEmailRequest = (messageLower.includes('send') && (messageLower.includes('email') || messageLower.includes('mail'))) ||
+    // Check if it's a send email request - skip if document upload
+    const isSendEmailRequest = !isDocumentUpload && (
+                               (messageLower.includes('send') && (messageLower.includes('email') || messageLower.includes('mail'))) ||
                                (messageLower.includes('email') && messageLower.includes('to ')) ||
-                               (messageLower.includes('compose') && messageLower.includes('email'));
+                               (messageLower.includes('compose') && messageLower.includes('email')));
 
-    // Check if it's a scheduling/creation request
-    const schedulingRequest = parseSchedulingRequest(message);
+    // Check if it's a scheduling/creation request - skip if document upload
+    const schedulingRequest = isDocumentUpload 
+      ? { isScheduling: false } 
+      : parseSchedulingRequest(message);
     
     // Fetch calendar events if it's a calendar query
     let calendarEvents: any[] = [];
