@@ -249,12 +249,24 @@ export async function chat(c: Context<{ Bindings: Env }>) {
     const schedulingRequest = isDocumentUpload 
       ? { isScheduling: false } 
       : parseSchedulingRequest(message);
+
+    // Check if message is about agents/delegation - skip if document upload
+    const isAgentQuery = !isDocumentUpload && (
+                        messageLower.includes('agent') ||
+                        messageLower.includes('agents') ||
+                        messageLower.includes('delegate') ||
+                        messageLower.includes('delegation') ||
+                        messageLower.includes('specialist') ||
+                        messageLower.includes('specialists') ||
+                        messageLower.includes('who can help') ||
+                        messageLower.includes('available help'));
     
     // Fetch calendar events if it's a calendar query
     let calendarEvents: any[] = [];
     let calendarContext = '';
     let schedulingResult = '';
     let emailContext = '';
+    let agentContext = '';
     
     // Get calendar credentials
     const clientId = c.env.GOOGLE_CLIENT_ID as string | undefined;
@@ -663,6 +675,64 @@ export async function chat(c: Context<{ Bindings: Env }>) {
       }
     }
 
+    // Handle agent query (list available agents and their capabilities)
+    if (isAgentQuery) {
+      console.log('[PA V2 Chat] Agent query detected');
+      
+      try {
+        // Get list of available agents from the database
+        const agentRows = await c.env.DB.prepare(`
+          SELECT id, name, type, description, capabilities, status, health_status
+          FROM agent_registry 
+          WHERE status = 'active'
+          ORDER BY name
+        `).all();
+
+        const agents = agentRows?.results || [];
+        
+        if (agents.length > 0) {
+          agentContext = `\n\nHere are the available AI agents in the system:\n`;
+          agents.forEach((agent: any, index: number) => {
+            const capabilities = agent.capabilities ? JSON.parse(agent.capabilities) : [];
+            const capabilityList = Array.isArray(capabilities) 
+              ? capabilities.map((c: any) => c.name || c).join(', ')
+              : '';
+            
+            agentContext += `${index + 1}. **${agent.name}** (${agent.type})\n`;
+            agentContext += `   Status: ${agent.health_status || agent.status}\n`;
+            if (agent.description) {
+              agentContext += `   Description: ${agent.description}\n`;
+            }
+            if (capabilityList) {
+              agentContext += `   Capabilities: ${capabilityList}\n`;
+            }
+            agentContext += '\n';
+          });
+          agentContext += `\nYou can ask me to delegate tasks to any of these agents based on their capabilities.`;
+        } else {
+          // Provide information about built-in agents even if not in database
+          agentContext = `\n\nHere are the AI agents available in this system:\n\n` +
+            `1. **FAM (Foundational Agent McCarthy)** - Core conversational AI\n` +
+            `   Capabilities: Natural conversation, memory, sentiment analysis, intent detection\n\n` +
+            `2. **McCarthy Artwork Analyzer** - Artwork and image analysis specialist\n` +
+            `   Capabilities: DPI calculations, print size analysis, artwork quality assessment\n\n` +
+            `3. **McCarthy Task Manager AI** - Task and workflow coordinator\n` +
+            `   Capabilities: Task creation, workload analysis, team coordination\n\n` +
+            `You are currently talking to FAM. If you need specialized help with artwork analysis or task management, I can assist with that.`;
+        }
+        
+        console.log('[PA V2 Chat] Agent context added:', { agentCount: agents.length || 3 });
+      } catch (agentError: any) {
+        console.error('[PA V2 Chat] Agent registry error:', agentError);
+        // Provide fallback agent information
+        agentContext = `\n\nThe following AI agents are available:\n\n` +
+          `1. **FAM (Foundational Agent McCarthy)** - Your primary conversational assistant\n` +
+          `2. **McCarthy Artwork Analyzer** - For artwork and image analysis\n` +
+          `3. **McCarthy Task Manager AI** - For task and project management\n\n` +
+          `You are currently talking to FAM. Let me know how I can help!`;
+      }
+    }
+
     // Build context
     const chatContext = {
       userId: user.id,
@@ -684,6 +754,9 @@ export async function chat(c: Context<{ Bindings: Env }>) {
     }
     if (isEmailQuery && emailContext) {
       enhancedMessage = `${message}${emailContext}`;
+    }
+    if (isAgentQuery && agentContext) {
+      enhancedMessage = `${message}${agentContext}`;
     }
 
     // Create request for chat handler
