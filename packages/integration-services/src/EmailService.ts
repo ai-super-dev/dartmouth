@@ -258,17 +258,20 @@ export class EmailService {
     const cc = message.cc?.join(', ') || '';
     const bcc = message.bcc?.join(', ') || '';
 
-    const email = [
+    // Build headers array, filtering out empty optional headers
+    const headers = [
       `To: ${to}`,
-      cc ? `Cc: ${cc}` : '',
-      bcc ? `Bcc: ${bcc}` : '',
+      cc ? `Cc: ${cc}` : null,
+      bcc ? `Bcc: ${bcc}` : null,
       `Subject: ${message.subject}`,
-      message.replyTo ? `Reply-To: ${message.replyTo}` : '',
-      message.from ? `From: ${message.from}` : '',
+      message.replyTo ? `Reply-To: ${message.replyTo}` : null,
+      message.from ? `From: ${message.from}` : null,
       `Content-Type: ${message.bodyType === 'html' ? 'text/html' : 'text/plain'}; charset=utf-8`,
-      '',
-      message.body
-    ].filter(Boolean).join('\r\n');
+      'MIME-Version: 1.0',
+    ].filter((h): h is string => h !== null).join('\r\n');
+
+    // MIME format requires blank line between headers and body
+    const email = `${headers}\r\n\r\n${message.body || ''}`;
 
     // Convert to base64url encoding (RFC 4648 §5)
     // In Cloudflare Workers, we use TextEncoder/TextDecoder instead of Buffer

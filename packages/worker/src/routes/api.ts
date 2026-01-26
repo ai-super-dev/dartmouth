@@ -9,6 +9,7 @@ import type { Env } from '../types/shared';
 
 // Middleware
 import { authenticate, requireAdmin, requireManagerOrAdmin } from '../middleware/auth';
+import { authenticateV2 } from '../middleware/auth-v2';
 
 // Controllers
 import * as authController from '../controllers/auth';
@@ -83,11 +84,12 @@ export function createAPIRouter() {
   app.get('/api/pa-ai/profile', authenticate, paAiAuthController.getProfile);
   app.put('/api/pa-ai/profile', authenticate, paAiAuthController.updateProfile);
 
-  // Chat (text and voice)
+  // Chat (text and voice) - Support both legacy JWT and Firebase tokens
   app.post('/api/pa-ai/chat', authenticate, paAiChatController.chat);
   app.post('/api/pa-ai/chat/voice', authenticate, paAiChatController.voiceChat);
-  app.get('/api/pa-ai/chat/history', authenticate, paAiChatController.getChatHistory);
-  app.post('/api/pa-ai/chat/history', authenticate, paAiChatController.saveChatHistory);
+  // Chat history supports Firebase auth (for Google Sign-In users)
+  app.get('/api/pa-ai/chat/history', authenticateV2, paAiChatController.getChatHistory);
+  app.post('/api/pa-ai/chat/history', authenticateV2, paAiChatController.saveChatHistory);
 
   // ========================================================================
   // GOOGLE OAUTH ROUTES (Calendar Integration)

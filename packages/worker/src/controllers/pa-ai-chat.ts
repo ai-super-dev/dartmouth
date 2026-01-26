@@ -13,7 +13,7 @@ import { handleChat } from '../routes/chat';
  */
 export async function chat(c: Context<{ Bindings: Env }>) {
   try {
-    const user = c.get('user') as { id: string; email: string; role: string };
+    const user = c.get('user') as { id: string; email: string; role: string } | undefined;
     const body = await c.req.json();
     const { message, sessionId, history, context, systemPrompt } = body;
     
@@ -22,22 +22,49 @@ export async function chat(c: Context<{ Bindings: Env }>) {
       hasSystemPrompt: !!systemPrompt,
       systemPromptLength: systemPrompt?.length,
       systemPromptPreview: systemPrompt?.substring(0, 150),
+      userId: user?.id,
+      userEmail: user?.email,
     });
 
     if (!message || typeof message !== 'string') {
       return c.json({ error: 'Message is required' }, 400);
     }
 
-    // Get user profile for context
-    const userProfile = await c.env.DB.prepare(`
-      SELECT timezone, home_address, currency, locale, voice_settings
-      FROM pa_ai_users
-      WHERE user_id = ?
-    `).bind(user.id).first();
+    // Look up the actual database user_id by email (Firebase UID may differ from database user_id)
+    let userId = user?.id || 'anonymous';
+    
+    if (user?.email) {
+      try {
+        const dbUser = await c.env.DB.prepare(`
+          SELECT user_id FROM pa_ai_users WHERE email = ?
+        `).bind(user.email).first();
+        
+        if (dbUser?.user_id) {
+          userId = dbUser.user_id as string;
+          console.log('[PA_AI Chat] Found database user_id:', userId, 'for email:', user.email);
+        }
+      } catch (lookupError) {
+        console.error('[PA_AI Chat] Error looking up user:', lookupError);
+      }
+    }
+
+    // Get user profile for context - use safe userId
+    let userProfile: any = null;
+    if (userId && userId !== 'anonymous') {
+      try {
+        userProfile = await c.env.DB.prepare(`
+          SELECT timezone, home_address, currency, locale, voice_settings
+          FROM pa_ai_users
+          WHERE user_id = ?
+        `).bind(userId).first();
+      } catch (profileError) {
+        console.error('[PA_AI Chat] Error fetching user profile:', profileError);
+      }
+    }
 
     // Build context
     const chatContext = {
-      userId: user.id,
+      userId: userId,
       timezone: userProfile?.timezone || 'Australia/Sydney',
       location: userProfile?.home_address || 'Unknown',
       currency: userProfile?.currency || 'AUD',
@@ -52,8 +79,8 @@ export async function chat(c: Context<{ Bindings: Env }>) {
       headers: c.req.header(),
       body: JSON.stringify({
         message,
-        sessionId: sessionId || `pa-ai-${user.id}-${Date.now()}`,
-        userId: user.id,
+        sessionId: sessionId || `pa-ai-${userId}-${Date.now()}`,
+        userId: userId,
         systemPrompt: systemPrompt, // Pass systemPrompt from client to chat handler
         metadata: {
           ...chatContext,

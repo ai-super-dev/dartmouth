@@ -10,6 +10,90 @@ import { handleChat } from '../routes/chat';
 import { getUserRefreshToken } from './google-oauth';
 
 /**
+ * Parse send email request from natural language
+ */
+function parseSendEmailRequest(message: string): { isSending: boolean; to?: string; subject?: string; body?: string } {
+  const messageLower = message.toLowerCase();
+  
+  // Check if it's a send email request
+  const isSending = (messageLower.includes('send') && (messageLower.includes('email') || messageLower.includes('mail'))) ||
+                    (messageLower.includes('email') && messageLower.includes('to ')) ||
+                    (messageLower.includes('compose') && messageLower.includes('email'));
+  
+  if (!isSending) {
+    return { isSending: false };
+  }
+
+  // Normalize message for parsing - handle common voice recognition issues
+  let normalizedMessage = message
+    // Fix "at gmail.com" → "@gmail.com" (voice often transcribes @ as "at")
+    .replace(/\s+at\s+(gmail|yahoo|hotmail|outlook|icloud|proton|aol)\.com/gi, '@$1.com')
+    .replace(/\s+at\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi, '@$1')
+    // Fix common voice transcription errors
+    .replace(/\bbuddy\b/gi, 'body')
+    .replace(/\bsubject\s+is\b/gi, 'subject')
+    .replace(/\bbody\s+is\b/gi, 'body');
+
+  // Extract email address - look for email patterns
+  const emailMatch = normalizedMessage.match(/(?:to\s+)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+  const to = emailMatch ? emailMatch[1] : undefined;
+
+  // Extract subject - look for "subject 'X'" or "with subject 'X'"
+  let subject = '';
+  // Try with quotes first
+  const subjectQuotedMatch = normalizedMessage.match(/subject\s+["']([^"']+)["']/i);
+  if (subjectQuotedMatch) {
+    subject = subjectQuotedMatch[1].trim();
+  } else {
+    // Try without quotes - capture until "and", "with", "body", or end
+    const subjectMatch = normalizedMessage.match(/subject\s+([^"']+?)(?:\s+(?:and|with|body|saying)|,|$)/i);
+    if (subjectMatch) {
+      subject = subjectMatch[1].trim();
+    }
+  }
+
+  // Extract body - look for "body 'X'", "saying 'X'", etc.
+  let body = '';
+  // Try with quotes first - most reliable
+  const bodyQuotedMatch = normalizedMessage.match(/(?:body|saying|content)\s+["']([^"']+)["']/i);
+  if (bodyQuotedMatch) {
+    body = bodyQuotedMatch[1].trim();
+  } else {
+    // Try "and body 'X'" or "with body 'X'"
+    const altBodyMatch = normalizedMessage.match(/(?:and|with)\s+body\s+["']([^"']+)["']/i);
+    if (altBodyMatch) {
+      body = altBodyMatch[1].trim();
+    } else {
+      // Try without quotes - capture everything after "body" or after comma
+      const bodyUnquotedMatch = normalizedMessage.match(/(?:body|saying|content)[,:]?\s+(.+)$/i);
+      if (bodyUnquotedMatch) {
+        body = bodyUnquotedMatch[1].trim().replace(/^["']|["']$/g, ''); // Remove surrounding quotes if any
+      } else {
+        // Try capturing after comma (e.g., "subject test, this is the body")
+        const afterCommaMatch = normalizedMessage.match(/subject\s+[^,]+,\s*(.+)$/i);
+        if (afterCommaMatch) {
+          body = afterCommaMatch[1].trim();
+        }
+      }
+    }
+  }
+
+  console.log('[PA V2 Chat] Parsed send email request:', {
+    to,
+    subject,
+    body,
+    originalMessage: message,
+  });
+
+  return {
+    isSending: true,
+    to,
+    subject: subject || 'Message from McCarthy',
+    body: body || 'Sent via McCarthy PA',
+  };
+}
+
+/**
  * Parse scheduling request from natural language
  */
 function parseSchedulingRequest(message: string): { isScheduling: boolean; title?: string; date?: Date; duration?: number } {
@@ -137,6 +221,19 @@ export async function chat(c: Context<{ Bindings: Env }>) {
                            messageLower.includes("what's on") ||
                            messageLower.includes('what is on');
 
+    // Check if message is about reading emails
+    const isEmailQuery = messageLower.includes('email') || 
+                        messageLower.includes('emails') ||
+                        messageLower.includes('inbox') ||
+                        messageLower.includes('mail') ||
+                        (messageLower.includes('message') && !messageLower.includes('calendar')) ||
+                        (messageLower.includes('messages') && !messageLower.includes('calendar'));
+
+    // Check if it's a send email request
+    const isSendEmailRequest = (messageLower.includes('send') && (messageLower.includes('email') || messageLower.includes('mail'))) ||
+                               (messageLower.includes('email') && messageLower.includes('to ')) ||
+                               (messageLower.includes('compose') && messageLower.includes('email'));
+
     // Check if it's a scheduling/creation request
     const schedulingRequest = parseSchedulingRequest(message);
     
@@ -144,6 +241,7 @@ export async function chat(c: Context<{ Bindings: Env }>) {
     let calendarEvents: any[] = [];
     let calendarContext = '';
     let schedulingResult = '';
+    let emailContext = '';
     
     // Get calendar credentials
     const clientId = c.env.GOOGLE_CLIENT_ID as string | undefined;
@@ -409,6 +507,149 @@ export async function chat(c: Context<{ Bindings: Env }>) {
       }
     }
 
+    // Handle send email request first
+    if (isSendEmailRequest && clientId && clientSecret && refreshToken) {
+      const sendEmailRequest = parseSendEmailRequest(message);
+      
+      if (sendEmailRequest.isSending && sendEmailRequest.to) {
+        try {
+          // @ts-ignore - Package may not be built during development
+          const { EmailService } = await import('@agent-army/integration-services');
+          const emailService = new EmailService({
+            provider: 'gmail',
+            clientId,
+            clientSecret,
+            refreshToken
+          });
+
+          console.log('[PA V2 Chat] Sending email...', {
+            to: sendEmailRequest.to,
+            subject: sendEmailRequest.subject,
+            bodyLength: sendEmailRequest.body?.length || 0,
+          });
+
+          const result = await emailService.send({
+            to: sendEmailRequest.to,
+            subject: sendEmailRequest.subject || 'Message from McCarthy',
+            body: sendEmailRequest.body || 'Sent via McCarthy PA',
+          });
+
+          console.log('[PA V2 Chat] Email sent:', {
+            messageId: result.messageId,
+            status: result.status,
+          });
+
+          // Return success directly for send email requests
+          return c.json({
+            success: true,
+            response: `✅ Done! I've sent an email to **${sendEmailRequest.to}** with subject "**${sendEmailRequest.subject}**".`,
+            sessionId: sessionId || `pa-ai-${user.id}-${Date.now()}`,
+            messageId: `email-${Date.now()}`,
+            metadata: {
+              emailSent: true,
+              to: sendEmailRequest.to,
+              subject: sendEmailRequest.subject,
+              messageId: result.messageId,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (sendError: any) {
+          console.error('[PA V2 Chat] Email send error:', {
+            error: sendError?.message || sendError,
+            stack: sendError?.stack,
+          });
+          emailContext = `\n\nI tried to send the email but encountered an error: ${sendError?.message || 'Unknown error'}. Please try again.`;
+        }
+      } else if (sendEmailRequest.isSending && !sendEmailRequest.to) {
+        emailContext = '\n\nI need an email address to send the email. Please specify who you want to send it to.';
+      }
+    } else if (isSendEmailRequest && (!clientId || !clientSecret)) {
+      emailContext = '\n\nEMAIL: Email integration is not configured on the server. Please contact support.';
+    } else if (isSendEmailRequest && !refreshToken) {
+      emailContext = '\n\nEMAIL: You have not connected your Google account yet. Please go to Settings and sign in with Google to enable email sending.';
+    }
+
+    // Handle email query (reading emails)
+    if (isEmailQuery && !isSendEmailRequest) {
+      console.log('[PA V2 Chat] Email query detected');
+      
+      if (clientId && clientSecret && refreshToken) {
+        try {
+          // @ts-ignore - Package may not be built during development
+          const { EmailService } = await import('@agent-army/integration-services');
+          const emailService = new EmailService({
+            provider: 'gmail',
+            clientId,
+            clientSecret,
+            refreshToken
+          });
+
+          // Determine email folder based on query
+          let folder: 'inbox' | 'sent' | 'drafts' = 'inbox';
+          let maxResults = 10;
+          let unreadOnly = false;
+          
+          if (messageLower.includes('sent')) {
+            folder = 'sent';
+          } else if (messageLower.includes('draft')) {
+            folder = 'drafts';
+          }
+          if (messageLower.includes('unread')) {
+            unreadOnly = true;
+          }
+
+          console.log('[PA V2 Chat] Fetching emails...', { folder, maxResults, unreadOnly });
+
+          const emails = await emailService.listMessages({
+            folder,
+            maxResults,
+            unreadOnly,
+          });
+
+          console.log('[PA V2 Chat] Emails fetched:', {
+            count: emails?.length || 0,
+            folder,
+          });
+
+          // Format emails for response
+          if (emails && emails.length > 0) {
+            emailContext = `\n\nHere are your recent ${unreadOnly ? 'unread ' : ''}emails from ${folder}:\n`;
+            emails.forEach((email: any, index: number) => {
+              const from = email.from || 'Unknown sender';
+              const subject = email.subject || '(No subject)';
+              const date = email.date ? new Date(email.date).toLocaleDateString('en-AU', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : '';
+              const snippet = email.snippet ? email.snippet.substring(0, 100) + (email.snippet.length > 100 ? '...' : '') : '';
+              
+              emailContext += `${index + 1}. **${subject}**\n`;
+              emailContext += `   From: ${from}\n`;
+              if (date) emailContext += `   Date: ${date}\n`;
+              if (snippet) emailContext += `   Preview: ${snippet}\n`;
+              emailContext += '\n';
+            });
+            emailContext += `\nPlease provide a clear summary of these emails to the user.`;
+          } else {
+            emailContext = `\n\nYou have no ${unreadOnly ? 'unread ' : ''}emails in your ${folder}.`;
+          }
+        } catch (emailError: any) {
+          console.error('[PA V2 Chat] Email fetch error:', {
+            error: emailError?.message || emailError,
+            stack: emailError?.stack,
+          });
+          emailContext = `\n\nEMAIL: Unable to fetch emails. Error: ${emailError?.message || 'Unknown error'}`;
+        }
+      } else if (!clientId || !clientSecret) {
+        emailContext = '\n\nEMAIL: Email integration is not configured on the server. Please contact support.';
+      } else if (!refreshToken) {
+        emailContext = '\n\nEMAIL: You have not connected your Google account yet. Please go to Settings and sign in with Google to enable email access.';
+      }
+    }
+
     // Build context
     const chatContext = {
       userId: user.id,
@@ -420,13 +661,16 @@ export async function chat(c: Context<{ Bindings: Env }>) {
       ...context,
     };
 
-    // Enhance message with calendar context if it's a calendar query
+    // Enhance message with calendar/email context
     let enhancedMessage = message;
     if (isCalendarQuery && calendarContext) {
       enhancedMessage = `${message}${calendarContext}`;
     }
     if (schedulingResult) {
       enhancedMessage = `${message}${schedulingResult}`;
+    }
+    if (isEmailQuery && emailContext) {
+      enhancedMessage = `${message}${emailContext}`;
     }
 
     // Create request for chat handler
