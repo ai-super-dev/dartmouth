@@ -105,16 +105,22 @@ export class VisionService {
   private parseAnalysis(text: string, features: string[]): Partial<VisionAnalysisResult> {
     const result: Partial<VisionAnalysisResult> = {};
 
+    // Clean up markdown code blocks from the response
+    let cleanedText = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
     // If only description is requested, return the full text
     if (features.length === 1 && features[0] === 'description') {
-      result.description = text;
+      result.description = cleanedText;
       return result;
     }
 
     // Try to parse JSON arrays for structured data
     try {
       // Look for JSON arrays in the response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      const jsonMatch = cleanedText.match(/\[[\s\S]*?\]/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (Array.isArray(parsed)) {
@@ -131,32 +137,37 @@ export class VisionService {
       // Extract text content (for OCR)
       if (features.includes('text')) {
         // Remove JSON arrays and extract plain text
-        const textOnly = text.replace(/\[[\s\S]*\]/g, '').trim();
-        if (textOnly) {
+        const textOnly = cleanedText.replace(/\[[\s\S]*?\]/g, '').trim();
+        if (textOnly && textOnly.length > 0) {
           result.text = textOnly;
         }
       }
 
       // Extract description if present
       if (features.includes('description')) {
-        const descMatch = text.match(/description[:\s]+([^\[]+)/i);
+        // Try to find explicit description section
+        const descMatch = cleanedText.match(/(?:description|image shows?|this (?:image|photo|picture) (?:shows?|contains?|depicts?))[:\s]+([^\[{]+)/i);
         if (descMatch) {
           result.description = descMatch[1].trim();
         } else {
-          // Fallback: use first part before any JSON
-          const descText = text.split('[')[0].trim();
-          if (descText) {
+          // Fallback: use first meaningful part before any JSON
+          const parts = cleanedText.split(/\[|\{/);
+          const descText = parts[0].trim();
+          if (descText && descText.length > 10) {
             result.description = descText;
+          } else {
+            // Last fallback: use the entire cleaned text
+            result.description = cleanedText.substring(0, 500);
           }
         }
       }
     } catch (parseError) {
-      // If JSON parsing fails, return raw text as description
+      // If JSON parsing fails, return cleaned text as description
       if (features.includes('description')) {
-        result.description = text;
+        result.description = cleanedText;
       }
       if (features.includes('text')) {
-        result.text = text;
+        result.text = cleanedText;
       }
     }
 
