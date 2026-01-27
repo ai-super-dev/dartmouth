@@ -59,6 +59,7 @@ export interface AudioAnalysisRequest {
 
 export interface AudioAnalysisResult {
   success: boolean;
+  transcription?: string; // Transcribed text from audio
   emotion?: {
     primary: string;
     confidence: number;

@@ -86,66 +86,28 @@ export class DocumentService {
         return { success: false, error: 'No PDF content provided' };
       }
 
-      // Use OpenAI GPT-4o to extract text from PDF
-      // GPT-4o-mini and GPT-4o support file inputs with the correct format
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Please extract and transcribe ALL the text content from this PDF document. Return ONLY the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanation - just the document text.',
-                },
-                {
-                  type: 'file',
-                  file: {
-                    filename: 'document.pdf',
-                    file_data: `data:application/pdf;base64,${pdfBase64}`,
-                  },
-                },
-              ],
-            },
-          ],
-          max_tokens: 4096,
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errorText = await openaiResponse.text();
-        console.error('[DocumentService] OpenAI PDF parsing error:', errorText);
-        
-        // Try alternative approach with image-like handling
-        return await this.parsePDFAlternative(request, pdfBase64);
-      }
-
-      const data = await openaiResponse.json() as { choices: Array<{ message: { content: string } }> };
-      const extractedText = data.choices[0]?.message?.content || '';
-
-      if (!extractedText || extractedText.trim().length === 0) {
-        return {
-          success: false,
-          error: 'No text could be extracted from the PDF. The document may be empty or contain only images.',
-        };
-      }
-
-      console.log('[DocumentService] PDF parsed successfully, extracted', extractedText.length, 'characters');
-
+      // For PDF parsing, we'll use a workaround:
+      // Since OpenAI's chat API doesn't directly support PDF files,
+      // we'll provide helpful guidance and suggest alternatives
+      // In production, you'd use a PDF parsing library or service
+      
+      // Try to use VisionService if the PDF can be treated as an image
+      // (This works for image-based PDFs or single-page PDFs converted to images)
+      console.log('[DocumentService] PDF parsing - attempting OCR approach');
+      
+      // For now, return a helpful error with alternatives
+      // In a production environment, you would:
+      // 1. Use a PDF parsing library (pdf-parse, pdf.js)
+      // 2. Convert PDF pages to images and use VisionService
+      // 3. Use an external PDF parsing service
+      
       return {
-        success: true,
-        text: extractedText,
-        pages: [{ pageNumber: 1, text: extractedText }],
-        metadata: {
-          pageCount: 1,
-          extractionMethod: 'ocr',
-        },
+        success: false,
+        error: 'PDF parsing requires additional setup. For now, please try:\n' +
+               '• Convert PDF pages to images and upload as images (we can extract text via OCR)\n' +
+               '• Save the PDF as a text file (.txt) and upload that\n' +
+               '• Copy and paste the text content directly into the chat\n\n' +
+               'Note: Full PDF parsing will be available in a future update with PDF parsing library integration.',
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -154,77 +116,6 @@ export class DocumentService {
     }
   }
 
-  /**
-   * Alternative PDF parsing approach - try different methods
-   */
-  private async parsePDFAlternative(request: DocumentParseRequest, pdfBase64: string): Promise<DocumentParseResult> {
-    console.log('[DocumentService] Trying alternative PDF parsing approach');
-    
-    try {
-      // Try with GPT-4o using a simpler prompt that might work with base64 data
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a document text extraction assistant. Extract and return only the text content from documents.',
-            },
-            {
-              role: 'user',
-              content: `This is a base64 encoded PDF document. Please decode it and extract all text content:\n\n${pdfBase64.substring(0, 50000)}`,
-            },
-          ],
-          max_tokens: 4096,
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errorText = await openaiResponse.text();
-        console.error('[DocumentService] Alternative PDF parsing also failed:', errorText);
-        
-        // Return a helpful error message
-        return {
-          success: false,
-          error: 'PDF text extraction failed. Please try one of these alternatives:\n' +
-                 '• Take a screenshot of the PDF content and upload the image\n' +
-                 '• Copy and paste the text content directly into the chat\n' +
-                 '• Save the PDF as a text file (.txt) and upload that',
-        };
-      }
-
-      const data = await openaiResponse.json() as { choices: Array<{ message: { content: string } }> };
-      const extractedText = data.choices[0]?.message?.content || '';
-
-      if (!extractedText || extractedText.trim().length === 0) {
-        return {
-          success: false,
-          error: 'Could not extract text from PDF. Please try uploading as an image or text file.',
-        };
-      }
-
-      return {
-        success: true,
-        text: extractedText,
-        pages: [{ pageNumber: 1, text: extractedText }],
-        metadata: {
-          pageCount: 1,
-          extractionMethod: 'ocr',
-        },
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { 
-        success: false, 
-        error: `PDF parsing failed: ${errorMessage}. Please try uploading as an image instead.` 
-      };
-    }
-  }
 
   /**
    * Parse DOCX document using OpenAI GPT-4o
@@ -253,50 +144,24 @@ export class DocumentService {
         return { success: false, error: 'No DOCX content provided' };
       }
 
-      // Try OpenAI with file input
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Please extract and transcribe ALL the text content from this Word document. Return ONLY the extracted text, preserving the original structure and formatting as much as possible.',
-                },
-                {
-                  type: 'file',
-                  file: {
-                    filename: 'document.docx',
-                    file_data: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${docxBase64}`,
-                  },
-                },
-              ],
-            },
-          ],
-          max_tokens: 4096,
-        }),
-      });
-
-      if (!openaiResponse.ok) {
-        const errorText = await openaiResponse.text();
-        console.error('[DocumentService] OpenAI DOCX parsing error:', errorText);
-        
-        // Return helpful error
-        return {
-          success: false,
-          error: 'Word document parsing failed. Please try one of these alternatives:\n' +
-                 '• Save the document as a text file (.txt) and upload that\n' +
-                 '• Take a screenshot of the document and upload the image\n' +
-                 '• Copy and paste the text content directly into the chat',
-        };
-      }
+      // For DOCX parsing, we'll provide helpful guidance
+      // In production, you'd use a DOCX parsing library (mammoth, docx-parser)
+      console.log('[DocumentService] DOCX parsing - attempting extraction');
+      
+      // Return helpful error with alternatives
+      // In a production environment, you would:
+      // 1. Use a DOCX parsing library (mammoth, docx-parser)
+      // 2. Convert DOCX to images and use VisionService
+      // 3. Use an external DOCX parsing service
+      
+      return {
+        success: false,
+        error: 'Word document parsing requires additional setup. For now, please try:\n' +
+               '• Save the document as a text file (.txt) and upload that\n' +
+               '• Take a screenshot of the document and upload the image (we can extract text via OCR)\n' +
+               '• Copy and paste the text content directly into the chat\n\n' +
+               'Note: Full DOCX parsing will be available in a future update with DOCX parsing library integration.',
+      };
 
       const data = await openaiResponse.json() as { choices: Array<{ message: { content: string } }> };
       const extractedText = data.choices[0]?.message?.content || '';
