@@ -111,8 +111,40 @@ export class WorkflowEngine {
             console.log(`[WorkflowEngine] Continuing despite error in step ${i + 1}`);
             continue;
           } else if (step.onError === 'retry') {
-            // TODO: Implement retry logic
-            throw error;
+            // Implement retry logic with exponential backoff
+            const maxRetries = step.retryCount || 3; // Default to 3 retries
+            let retryAttempt = 0;
+
+            while (retryAttempt < maxRetries) {
+              retryAttempt++;
+              const delay = Math.pow(2, retryAttempt - 1) * 1000; // Exponential backoff: 1s, 2s, 4s
+              
+              console.log(`[WorkflowEngine] Retrying step ${i + 1}, attempt ${retryAttempt}/${maxRetries} after ${delay}ms delay...`);
+              
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, delay));
+
+              try {
+                // Retry the step execution
+                const stepOutput = await this.executeStep(workflow.id, step, stepInput);
+                previousOutput = { ...previousOutput, [`step${i + 1}`]: stepOutput };
+
+                // Update current step
+                workflow.currentStep = i + 1;
+                await this.updateWorkflowStep(workflowId, i + 1);
+
+                console.log(`[WorkflowEngine] Step ${i + 1} succeeded on retry attempt ${retryAttempt}`);
+                break; // Success, exit retry loop
+              } catch (retryError: any) {
+                console.error(`[WorkflowEngine] Step ${i + 1} retry attempt ${retryAttempt} failed:`, retryError);
+                
+                // If this was the last retry, throw the error
+                if (retryAttempt >= maxRetries) {
+                  console.error(`[WorkflowEngine] Step ${i + 1} failed after ${maxRetries} retry attempts`);
+                  throw new Error(`Step ${i + 1} (${step.name}) failed after ${maxRetries} retry attempts: ${retryError.message}`);
+                }
+              }
+            }
           }
         }
       }

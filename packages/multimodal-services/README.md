@@ -63,10 +63,11 @@ console.log(result.metadata?.pageCount); // Number of pages
 ### AudioAnalysisService
 
 Analyzes audio for:
-- Emotion detection (TODO: requires ML model or API)
-- Sentiment analysis (TODO: requires transcription + analysis)
-- Quality metrics (TODO: requires audio processing)
-- Language detection (TODO: requires transcription)
+- ✅ Emotion detection (GPT-4o-mini analysis from transcription)
+- ✅ Sentiment analysis (GPT-4o-mini analysis from transcription)
+- ✅ Quality metrics (Basic quality analysis)
+- ✅ Language detection (Whisper's built-in detection)
+- ✅ Real transcription (OpenAI Whisper API)
 
 **Example:**
 ```typescript
