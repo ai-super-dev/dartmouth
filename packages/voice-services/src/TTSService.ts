@@ -119,7 +119,9 @@ export class TTSService {
   }
 
   /**
-   * OpenAI TTS implementation (tts-1 model)
+   * OpenAI TTS implementation
+   * Uses tts-1-hd for higher quality (better for production)
+   * Falls back to tts-1 for faster response if needed
    */
   private async synthesizeOpenAI(
     text: string,
@@ -147,67 +149,134 @@ export class TTSService {
     const startTime = Date.now();
 
     // Map voice to OpenAI voice names
-    const openaiVoice = voice.includes('female') ? 'nova' : voice.includes('male') ? 'onyx' : 'alloy';
+    // OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
+    // - nova: female, warm and friendly (best for assistant)
+    // - onyx: male, deep and authoritative
+    // - alloy: neutral, balanced
+    // - echo: male, clear and professional
+    // - fable: male, expressive
+    // - shimmer: female, soft and gentle
+    let openaiVoice = 'nova'; // Default to nova (best for assistant)
+    if (voice.includes('female') || voice.includes('nova') || voice.includes('shimmer')) {
+      openaiVoice = 'nova'; // Best female voice for assistant
+    } else if (voice.includes('male') || voice.includes('onyx') || voice.includes('echo')) {
+      openaiVoice = 'onyx'; // Best male voice
+    } else if (voice.includes('alloy')) {
+      openaiVoice = 'alloy';
+    } else if (voice.includes('echo')) {
+      openaiVoice = 'echo';
+    } else if (voice.includes('fable')) {
+      openaiVoice = 'fable';
+    } else if (voice.includes('shimmer')) {
+      openaiVoice = 'shimmer';
+    }
+    
+    // Clamp speed to valid range (0.25 to 4.0)
+    const clampedSpeed = Math.max(0.25, Math.min(4.0, speed || 1.0));
+    
+    // Use tts-1-hd for better quality (higher quality, slightly slower)
+    // For faster response, can use 'tts-1' instead
+    const model = 'tts-1-hd'; // Higher quality model
     
     console.log('[TTSService] Calling OpenAI TTS:', {
       textLength: text.length,
       voice: openaiVoice,
-      speed: speed,
-      model: 'tts-1',
+      speed: clampedSpeed,
+      model: model,
     });
     
-    // OpenAI TTS only supports mp3 format
-    const response = await fetch(
-      'https://api.openai.com/v1/audio/speech',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          input: text,
-          voice: openaiVoice,
-          speed: speed,
-          response_format: 'mp3'
-        })
-      }
-    );
-
-    if (!response.ok) {
-      let errorText = '';
+    // Retry logic for transient errors
+    let lastError: Error | null = null;
+    const maxRetries = 2;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        errorText = await response.text();
-      } catch (e) {
-        errorText = `Failed to read error response: ${e}`;
+        // OpenAI TTS only supports mp3 format
+        const response = await fetch(
+          'https://api.openai.com/v1/audio/speech',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: model,
+              input: text,
+              voice: openaiVoice,
+              speed: clampedSpeed,
+              response_format: 'mp3'
+            })
+          }
+        );
+
+        if (!response.ok) {
+          let errorText = '';
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            errorText = `Failed to read error response: ${e}`;
+          }
+          
+          // Retry on rate limit or server errors (5xx)
+          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+            const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
+            console.warn(`[TTSService] OpenAI TTS API error (attempt ${attempt}/${maxRetries}), retrying in ${waitTime}ms:`, errorText);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            lastError = new VoiceServiceError(
+              `OpenAI TTS API error (${response.status}): ${errorText}`,
+              'OPENAI_TTS_API_ERROR',
+              response.status
+            );
+            continue;
+          }
+          
+          console.error('[TTSService] OpenAI TTS API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+            textLength: text.length,
+            textPreview: text.substring(0, 100),
+          });
+          
+          throw new VoiceServiceError(
+            `OpenAI TTS API error (${response.status}): ${errorText}`,
+            'OPENAI_TTS_API_ERROR',
+            response.status
+          );
+        }
+
+        const audioArrayBuffer = await response.arrayBuffer();
+        const duration = (Date.now() - startTime) / 1000;
+
+        return {
+          audio: audioArrayBuffer,
+          duration,
+          format: 'mp3',
+          provider: 'openai',
+          sampleRate: 24000 // tts-1-hd uses 24kHz sample rate
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Don't retry on client errors (4xx except 429)
+        if (error instanceof VoiceServiceError && error.statusCode && error.statusCode < 500 && error.statusCode !== 429) {
+          throw error;
+        }
+        
+        // Last attempt, throw error
+        if (attempt === maxRetries) {
+          throw lastError;
+        }
+        
+        // Wait before retry
+        const waitTime = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
-      
-      console.error('[TTSService] OpenAI TTS API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText,
-        textLength: text.length,
-        textPreview: text.substring(0, 100),
-      });
-      
-      throw new VoiceServiceError(
-        `OpenAI TTS API error (${response.status}): ${errorText}`,
-        'OPENAI_TTS_API_ERROR',
-        response.status
-      );
     }
-
-    const audioArrayBuffer = await response.arrayBuffer();
-    const duration = (Date.now() - startTime) / 1000;
-
-    return {
-      audio: audioArrayBuffer,
-      duration,
-      format: 'mp3',
-      provider: 'openai',
-      sampleRate: 24000
-    };
+    
+    // Should never reach here, but TypeScript needs it
+    throw lastError || new VoiceServiceError('Failed to synthesize speech', 'TTS_FAILED', 500);
   }
 
   /**

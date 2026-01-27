@@ -104,6 +104,7 @@ export class STTService {
 
   /**
    * OpenAI Whisper implementation
+   * Optimized for better accuracy with wake word detection
    */
   private async transcribeWhisper(
     audio: ArrayBuffer,
@@ -131,45 +132,97 @@ export class STTService {
     formData.append('language', language.split('-')[0]); // 'en-AU' -> 'en'
     formData.append('response_format', 'verbose_json');
     
+    // Temperature: 0.0 for more deterministic, better for wake words and commands
+    // Lower temperature = more consistent, higher = more creative (not needed for STT)
+    formData.append('temperature', '0.0');
+    
     // Add prompt if provided - helps with wake word and expected phrases
     // Whisper uses the prompt to guide transcription (e.g., "Hey McCarthy" wake word)
+    // The prompt should contain the expected text to improve accuracy
     if (options.prompt) {
-      formData.append('prompt', options.prompt);
+      // Limit prompt to 244 tokens (Whisper's limit is ~244 tokens)
+      // Truncate if too long to avoid API errors
+      const maxPromptLength = 1000; // ~244 tokens, conservative limit
+      const prompt = options.prompt.length > maxPromptLength 
+        ? options.prompt.substring(0, maxPromptLength) 
+        : options.prompt;
+      formData.append('prompt', prompt);
     }
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: formData
-    });
+    // Retry logic for transient errors
+    let lastError: Error | null = null;
+    const maxRetries = 2;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: formData
+        });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new VoiceServiceError(
-        `Whisper API error: ${error}`,
-        'WHISPER_API_ERROR',
-        response.status
-      );
+        if (!response.ok) {
+          const errorText = await response.text();
+          
+          // Retry on rate limit or server errors (5xx)
+          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+            const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
+            console.warn(`[STTService] Whisper API error (attempt ${attempt}/${maxRetries}), retrying in ${waitTime}ms:`, errorText);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            lastError = new VoiceServiceError(
+              `Whisper API error: ${errorText}`,
+              'WHISPER_API_ERROR',
+              response.status
+            );
+            continue;
+          }
+          
+          throw new VoiceServiceError(
+            `Whisper API error: ${errorText}`,
+            'WHISPER_API_ERROR',
+            response.status
+          );
+        }
+
+        const result = await response.json();
+        const duration = (Date.now() - startTime) / 1000;
+
+        return {
+          transcript: result.text || '',
+          confidence: 0.95, // Whisper doesn't return confidence, but accuracy is high
+          duration,
+          language,
+          provider: 'whisper',
+          words: result.words?.map((w: { word: string; start: number; end: number }) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+            confidence: 1.0
+          }))
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Don't retry on client errors (4xx except 429)
+        if (error instanceof VoiceServiceError && error.statusCode && error.statusCode < 500 && error.statusCode !== 429) {
+          throw error;
+        }
+        
+        // Last attempt, throw error
+        if (attempt === maxRetries) {
+          throw lastError;
+        }
+        
+        // Wait before retry
+        const waitTime = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
-
-    const result = await response.json();
-    const duration = (Date.now() - startTime) / 1000;
-
-    return {
-      transcript: result.text || '',
-      confidence: 0.95, // Whisper doesn't return confidence
-      duration,
-      language,
-      provider: 'whisper',
-      words: result.words?.map((w: { word: string; start: number; end: number }) => ({
-        word: w.word,
-        start: w.start,
-        end: w.end,
-        confidence: 1.0
-      }))
-    };
+    
+    // Should never reach here, but TypeScript needs it
+    throw lastError || new VoiceServiceError('Failed to transcribe audio', 'TRANSCRIPTION_FAILED', 500);
   }
 
   /**
