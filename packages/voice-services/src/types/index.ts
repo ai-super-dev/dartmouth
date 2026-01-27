@@ -24,6 +24,8 @@ export interface STTOptions {
   enableWordTimestamps?: boolean;
   /** Enable punctuation */
   enablePunctuation?: boolean;
+  /** Prompt to guide transcription (helps with expected phrases like wake words) */
+  prompt?: string;
 }
 
 export interface STTWord {

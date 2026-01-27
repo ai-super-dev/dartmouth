@@ -132,18 +132,29 @@ function parseSchedulingRequest(message: string): { isScheduling: boolean; title
     }
   }
   
-  // Extract time
-  const timeMatch = message.match(/(?:at|@)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  // Extract time - support multiple formats:
+  // - "at 2pm", "at 2 pm", "at 2:30pm"
+  // - "2pm", "2 pm", "2 p.m.", "2:30 p.m."
+  // - "@ 2pm"
+  const timeMatch = message.match(/(?:at|@)?\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i);
   let hours = 0;
   let minutes = 0;
   if (timeMatch) {
     hours = parseInt(timeMatch[1]);
     minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-    const period = timeMatch[3]?.toLowerCase();
+    // Normalize period: "p.m." -> "pm", "a.m." -> "am"
+    const period = timeMatch[3]?.toLowerCase().replace(/\./g, '');
     if (period === 'pm' && hours !== 12) hours += 12;
     if (period === 'am' && hours === 12) hours = 0;
-    // If no am/pm specified and hour is between 1-7, assume PM for business hours
-    if (!period && hours >= 1 && hours <= 7) hours += 12;
+  } else {
+    // Try matching time without am/pm (e.g., "at 2", "at 14:00")
+    const timeWithoutPeriodMatch = message.match(/(?:at|@)\s*(\d{1,2})(?::(\d{2}))?(?!\s*(?:a\.?m\.?|p\.?m\.?))/i);
+    if (timeWithoutPeriodMatch) {
+      hours = parseInt(timeWithoutPeriodMatch[1]);
+      minutes = timeWithoutPeriodMatch[2] ? parseInt(timeWithoutPeriodMatch[2]) : 0;
+      // If no am/pm specified and hour is between 1-7, assume PM for business hours
+      if (hours >= 1 && hours <= 7) hours += 12;
+    }
   }
   
   // Extract date

@@ -49,7 +49,7 @@ function getVoiceServiceEnv(env: Env): Record<string, string> {
 export async function speechToText(c: Context<{ Bindings: Env }>) {
   try {
     const body = await c.req.json();
-    const { audio, language, provider, sampleRate, encoding } = body;
+    const { audio, language, provider, sampleRate, encoding, prompt } = body;
 
     // Validate input
     if (!audio) {
@@ -87,7 +87,8 @@ export async function speechToText(c: Context<{ Bindings: Env }>) {
       language: language || 'en-AU',
       provider: sttProvider,
       sampleRate,
-      encoding
+      encoding,
+      prompt // Pass prompt to help with wake word detection
     });
     
     console.log('[Voice Controller] STT result:', {

@@ -55,7 +55,7 @@ export class STTService {
         case 'native':
           return await this.transcribeNative(audio, language);
         case 'whisper':
-          return await this.transcribeWhisper(audio, language);
+          return await this.transcribeWhisper(audio, language, options);
         case 'deepgram':
           return await this.transcribeDeepgram(audio, language);
         default:
@@ -107,7 +107,8 @@ export class STTService {
    */
   private async transcribeWhisper(
     audio: ArrayBuffer,
-    language: string
+    language: string,
+    options: STTOptions = {}
   ): Promise<STTResult> {
     const apiKey = this.env?.OPENAI_API_KEY;
     if (!apiKey) {
@@ -129,6 +130,12 @@ export class STTService {
     formData.append('model', 'whisper-1');
     formData.append('language', language.split('-')[0]); // 'en-AU' -> 'en'
     formData.append('response_format', 'verbose_json');
+    
+    // Add prompt if provided - helps with wake word and expected phrases
+    // Whisper uses the prompt to guide transcription (e.g., "Hey McCarthy" wake word)
+    if (options.prompt) {
+      formData.append('prompt', options.prompt);
+    }
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
